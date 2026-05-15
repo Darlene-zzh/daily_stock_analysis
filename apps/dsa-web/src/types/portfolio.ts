@@ -293,6 +293,34 @@ export interface PortfolioImportBrokerListResponse {
   brokers: PortfolioImportBrokerItem[];
 }
 
+export interface PortfolioRealtimePriceLookupItem {
+  symbol: string;
+  currency?: string | null;
+}
+
+export interface PortfolioRealtimePriceLookupRequest {
+  positions: PortfolioRealtimePriceLookupItem[];
+}
+
+export interface PortfolioRealtimePriceItem {
+  symbol: string;
+  currencyHint?: string | null;
+  lastPrice: number;
+  priceProvider?: string | null;
+  priceSource: string;
+  priceDate?: string | null;
+  priceStale: boolean;
+  priceAvailable: boolean;
+  fetchedAt?: string | null;
+}
+
+export interface PortfolioRealtimePricesResponse {
+  asOf: string;
+  cacheHits: number;
+  cacheMisses: number;
+  items: PortfolioRealtimePriceItem[];
+}
+
 export interface PortfolioFxRefreshResponse {
   asOf: string;
   accountCount: number;
