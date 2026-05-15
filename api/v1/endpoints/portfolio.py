@@ -23,6 +23,7 @@ from api.v1.schemas.portfolio import (
     PortfolioEventCreatedResponse,
     PortfolioFxRefreshResponse,
     PortfolioImportBrokerListResponse,
+    PortfolioImportCashEventItem,
     PortfolioImportCommitResponse,
     PortfolioImportParseResponse,
     PortfolioImportTradeItem,
@@ -78,6 +79,16 @@ def _serialize_import_record(item: dict) -> PortfolioImportTradeItem:
     else:
         payload["trade_date"] = str(trade_date)
     return PortfolioImportTradeItem(**payload)
+
+
+def _serialize_import_cash_event(item: dict) -> PortfolioImportCashEventItem:
+    payload = dict(item)
+    event_date = payload.get("event_date")
+    if isinstance(event_date, date):
+        payload["event_date"] = event_date.isoformat()
+    else:
+        payload["event_date"] = str(event_date)
+    return PortfolioImportCashEventItem(**payload)
 
 
 @router.post(
@@ -478,6 +489,7 @@ def parse_csv_import(
             skipped_count=parsed["skipped_count"],
             error_count=parsed["error_count"],
             records=[_serialize_import_record(item) for item in parsed.get("records", [])],
+            cash_events=[_serialize_import_cash_event(item) for item in parsed.get("cash_events", [])],
             errors=list(parsed.get("errors", [])),
         )
     except ValueError as exc:
@@ -520,6 +532,7 @@ def commit_csv_import(
             account_id=account_id,
             broker=parsed["broker"],
             records=list(parsed.get("records", [])),
+            cash_events=list(parsed.get("cash_events", [])),
             dry_run=dry_run,
         )
         return PortfolioImportCommitResponse(**result)

@@ -31,6 +31,7 @@ const FALLBACK_BROKERS: PortfolioImportBrokerItem[] = [
   { broker: 'huatai', aliases: [], displayName: '华泰' },
   { broker: 'citic', aliases: ['zhongxin'], displayName: '中信' },
   { broker: 'cmb', aliases: ['cmbchina', 'zhaoshang'], displayName: '招商' },
+  { broker: 'trading212', aliases: ['t212', 'trading_212'], displayName: 'Trading 212' },
 ];
 
 type AccountOption = 'all' | number;
@@ -196,7 +197,19 @@ function getCsvParseVariant(result: PortfolioImportParseResponse): PortfolioAler
 
 function getCsvCommitVariant(result: PortfolioImportCommitResponse, isDryRun: boolean): PortfolioAlertVariant {
   if (isDryRun) return 'info';
-  return result.failedCount > 0 || result.duplicateCount > 0 ? 'warning' : 'success';
+  if (result.failedCount > 0 || result.failedCashCount > 0) return 'warning';
+  if (result.duplicateCount > 0 || result.duplicateCashCount > 0) return 'warning';
+  return 'success';
+}
+
+function buildCsvCommitMessage(result: PortfolioImportCommitResponse, isDryRun: boolean): string {
+  const prefix = isDryRun ? '预演检查' : '实际写入';
+  const tradeLine = `交易：写入 ${result.insertedCount} 条，重复 ${result.duplicateCount} 条，失败 ${result.failedCount} 条`;
+  if (!result.cashEventCount) {
+    return `${prefix} — ${tradeLine}。`;
+  }
+  const cashLine = `现金事件：写入 ${result.insertedCashCount} 条，重复 ${result.duplicateCashCount} 条，失败 ${result.failedCashCount} 条`;
+  return `${prefix} — ${tradeLine}；${cashLine}。`;
 }
 
 const PortfolioPage: React.FC = () => {
@@ -1354,7 +1367,7 @@ const PortfolioPage: React.FC = () => {
               <InlineAlert
                 variant={getCsvCommitVariant(csvCommitResult, csvDryRun)}
                 title={csvDryRun ? 'CSV 预演结果' : 'CSV 提交结果'}
-                message={`${csvDryRun ? '预演检查' : '实际写入'}：写入 ${csvCommitResult.insertedCount} 条，重复 ${csvCommitResult.duplicateCount} 条，失败 ${csvCommitResult.failedCount} 条。`}
+                message={buildCsvCommitMessage(csvCommitResult, csvDryRun)}
                 className="rounded-lg px-3 py-2 text-xs shadow-none"
               />
             ) : null}

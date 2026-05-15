@@ -222,12 +222,24 @@ class PortfolioImportTradeItem(BaseModel):
     currency: Optional[str] = None
 
 
+class PortfolioImportCashEventItem(BaseModel):
+    event_date: str
+    direction: Literal["in", "out"]
+    kind: str
+    amount: float
+    currency: Optional[str] = None
+    symbol: Optional[str] = None
+    cash_uid: Optional[str] = None
+    note: str
+
+
 class PortfolioImportParseResponse(BaseModel):
     broker: str
     record_count: int
     skipped_count: int
     error_count: int
     records: List[PortfolioImportTradeItem] = Field(default_factory=list)
+    cash_events: List[PortfolioImportCashEventItem] = Field(default_factory=list)
     errors: List[str] = Field(default_factory=list)
 
 
@@ -237,6 +249,10 @@ class PortfolioImportCommitResponse(BaseModel):
     inserted_count: int
     duplicate_count: int
     failed_count: int
+    cash_event_count: int = 0
+    inserted_cash_count: int = 0
+    duplicate_cash_count: int = 0
+    failed_cash_count: int = 0
     dry_run: bool
     errors: List[str] = Field(default_factory=list)
 

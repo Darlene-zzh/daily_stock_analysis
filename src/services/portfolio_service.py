@@ -1074,7 +1074,11 @@ class PortfolioService:
                     }
                 )
 
-            price_info = self._resolve_position_price(symbol=symbol, as_of_date=as_of_date)
+            price_info = self._resolve_position_price(
+                symbol=symbol,
+                as_of_date=as_of_date,
+                currency_hint=currency,
+            )
             last_price = price_info.price
 
             if price_info.is_available:
@@ -1128,7 +1132,13 @@ class PortfolioService:
 
         return position_rows, lot_rows, market_value_base, total_cost_base, fx_stale
 
-    def _resolve_position_price(self, *, symbol: str, as_of_date: date) -> _ResolvedPositionPrice:
+    def _resolve_position_price(
+        self,
+        *,
+        symbol: str,
+        as_of_date: date,
+        currency_hint: Optional[str] = None,
+    ) -> _ResolvedPositionPrice:
         today = date.today()
 
         close = self.repo.get_latest_close_with_date(symbol=symbol, as_of=as_of_date)
@@ -1144,7 +1154,9 @@ class PortfolioService:
                 )
 
         if as_of_date == today:
-            realtime_price, provider = self._fetch_realtime_position_price(symbol)
+            realtime_price, provider = self._fetch_realtime_position_price(
+                symbol, currency_hint=currency_hint
+            )
             if realtime_price is not None and realtime_price > 0:
                 return _ResolvedPositionPrice(
                     price=float(realtime_price),
@@ -1164,30 +1176,66 @@ class PortfolioService:
         )
 
     @staticmethod
-    def _fetch_realtime_position_price(symbol: str) -> Tuple[Optional[float], Optional[str]]:
-        try:
-            from data_provider.base import DataFetcherManager
+    def _fetch_realtime_position_price(
+        symbol: str,
+        *,
+        currency_hint: Optional[str] = None,
+    ) -> Tuple[Optional[float], Optional[str]]:
+        """Realtime quote with an LSE (.L) fallback for GBP/GBX positions.
 
-            quote = DataFetcherManager().get_realtime_quote(symbol, log_final_failure=False)
-        except Exception as exc:
-            logger.warning("Failed to fetch realtime portfolio price for %s: %s", symbol, exc)
-            return None, None
+        UK-listed UCITS ETFs (e.g. EQGB, VUAG) do not appear on US data sources
+        under their bare ticker. When the primary lookup yields nothing and the
+        position is GBP/GBX denominated, retry with a `.L` suffix. Yahoo
+        Finance reports many LSE shares in pence; values that come back larger
+        than 1000 GBP/share are implausibly high for ETFs and are normalized
+        with a /100 conversion (heuristic, matches our GBX→GBP import path).
+        """
+        def _lookup(candidate: str) -> Tuple[Optional[float], Optional[str]]:
+            try:
+                from data_provider.base import DataFetcherManager
 
-        if quote is None:
-            return None, None
+                quote = DataFetcherManager().get_realtime_quote(candidate, log_final_failure=False)
+            except Exception as exc:
+                logger.warning(
+                    "Failed to fetch realtime portfolio price for %s: %s", candidate, exc
+                )
+                return None, None
 
-        price = getattr(quote, "price", None)
-        try:
-            numeric_price = float(price)
-        except (TypeError, ValueError):
-            return None, None
+            if quote is None:
+                return None, None
 
-        if numeric_price <= 0:
-            return None, None
+            price = getattr(quote, "price", None)
+            try:
+                numeric_price = float(price)
+            except (TypeError, ValueError):
+                return None, None
 
-        source = getattr(quote, "source", None)
-        provider = getattr(source, "value", None) or (str(source) if source is not None else None)
-        return numeric_price, provider
+            if numeric_price <= 0:
+                return None, None
+
+            source = getattr(quote, "source", None)
+            provider = getattr(source, "value", None) or (str(source) if source is not None else None)
+            return numeric_price, provider
+
+        primary_price, primary_provider = _lookup(symbol)
+        if primary_price is not None:
+            return primary_price, primary_provider
+
+        cur = (currency_hint or "").strip().upper()
+        is_uk_alpha_symbol = (
+            bool(symbol)
+            and "." not in symbol
+            and symbol.isalpha()
+            and 1 < len(symbol) <= 5
+        )
+        if cur in {"GBP", "GBX"} and is_uk_alpha_symbol:
+            lse_price, lse_provider = _lookup(f"{symbol}.L")
+            if lse_price is not None:
+                if lse_price > 1000:
+                    lse_price = lse_price / 100.0
+                return lse_price, lse_provider
+
+        return None, None
 
     @staticmethod
     def _normalize_symbol_for_storage(symbol: str) -> str:
