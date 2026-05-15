@@ -87,6 +87,22 @@ function formatSignedPct(value: number | undefined | null): string {
   return `${sign}${value.toFixed(2)}%`;
 }
 
+function formatSignedMoney(value: number | undefined | null, currency = 'CNY'): string {
+  if (value == null || Number.isNaN(value)) return '--';
+  const absStr = `${currency} ${Math.abs(Number(value)).toLocaleString('zh-CN', {
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2,
+  })}`;
+  if (value > 0) return `+${absStr}`;
+  if (value < 0) return `-${absStr}`;
+  return absStr;
+}
+
+function getPnlSignClass(value: number | undefined | null): string {
+  if (value == null || Number.isNaN(value) || Math.abs(value) < 0.005) return 'text-foreground';
+  return value > 0 ? 'text-success' : 'text-danger';
+}
+
 function hasPositionPrice(row: PortfolioPositionItem): boolean {
   return row.priceAvailable !== false && row.priceSource !== 'missing';
 }
@@ -980,7 +996,7 @@ const PortfolioPage: React.FC = () => {
         </Card>
       ) : null}
 
-      <section className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-3">
+      <section className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6 gap-3">
         <Card variant="gradient" padding="md">
           <p className="text-xs text-secondary">总权益</p>
           <p className="mt-1 text-xl font-semibold text-foreground">{formatMoney(snapshot?.totalEquity, snapshot?.currency || 'CNY')}</p>
@@ -992,6 +1008,22 @@ const PortfolioPage: React.FC = () => {
         <Card variant="gradient" padding="md">
           <p className="text-xs text-secondary">总现金</p>
           <p className="mt-1 text-xl font-semibold text-foreground">{formatMoney(snapshot?.totalCash, snapshot?.currency || 'CNY')}</p>
+        </Card>
+        <Card variant="gradient" padding="md">
+          <p className="text-xs text-secondary">累计入金</p>
+          <p className="mt-1 text-xl font-semibold text-foreground">{formatMoney(snapshot?.netContributed, snapshot?.currency || 'CNY')}</p>
+          <p className="mt-1 text-[11px] text-muted-text">累计存入扣除提现 / 卡消费，不含利息分红</p>
+        </Card>
+        <Card variant="gradient" padding="md">
+          <p className="text-xs text-secondary">总盈亏</p>
+          <p className={`mt-1 text-xl font-semibold ${getPnlSignClass(snapshot?.totalPnl)}`}>
+            {formatSignedMoney(snapshot?.totalPnl, snapshot?.currency || 'CNY')}
+          </p>
+          <p className={`mt-1 text-[11px] ${getPnlSignClass(snapshot?.totalPnl)}`}>
+            {snapshot && snapshot.netContributed && Math.abs(snapshot.netContributed) > 0.005
+              ? formatSignedPct((snapshot.totalPnl / snapshot.netContributed) * 100)
+              : '--'}
+          </p>
         </Card>
         <Card variant="gradient" padding="md">
           <div className="flex items-start justify-between gap-3">
