@@ -1439,7 +1439,8 @@ class GeminiAnalyzer:
             "risk_alerts": ["风险点1：具体描述", "风险点2：具体描述"],
             "positive_catalysts": ["利好1：具体描述", "利好2：具体描述"],
             "earnings_outlook": "业绩预期分析（基于年报预告、业绩快报等）",
-            "sentiment_summary": "舆情情绪一句话总结"
+            "sentiment_summary": "舆情情绪一句话总结",
+            "_comment_zh_fields": "以下 *_zh 字段仅在美股 + 中文报告时输出；其他场景省略"
         },
 
         "battle_plan": {
@@ -1597,7 +1598,8 @@ class GeminiAnalyzer:
             "risk_alerts": ["风险点1：具体描述", "风险点2：具体描述"],
             "positive_catalysts": ["利好1：具体描述", "利好2：具体描述"],
             "earnings_outlook": "业绩预期分析（基于年报预告、业绩快报等）",
-            "sentiment_summary": "舆情情绪一句话总结"
+            "sentiment_summary": "舆情情绪一句话总结",
+            "_comment_zh_fields": "以下 *_zh 字段仅在美股 + 中文报告时输出；其他场景省略"
         },
 
         "battle_plan": {
@@ -1798,7 +1800,7 @@ class GeminiAnalyzer:
 - Use the common English company name when you are confident; otherwise keep the original listed company name instead of inventing one.
 - This includes `stock_name`, `trend_prediction`, `operation_advice`, `confidence_level`, nested dashboard text, checklist items, and all narrative summaries.
 """
-        return base_prompt + """
+        zh_suffix = """
 
 ## 输出语言（最高优先级）
 
@@ -1806,6 +1808,35 @@ class GeminiAnalyzer:
 - `decision_type` 必须保持为 `buy|hold|sell`。
 - 所有面向用户的人类可读文本值必须使用中文。
 """
+        # 美股 + 中文报告：要求在 intelligence 区块同时输出英文原文与逐条中文翻译
+        from src.market_context import detect_market
+        if detect_market(stock_code) == "us":
+            zh_suffix += """
+## 双语速览要求
+
+当前为美股报告且报告语言为中文。除现有 intelligence 字段外，请同时输出：
+
+- `risk_alerts_zh`: 与 `risk_alerts` 同长度的中文翻译列表，逐条对齐
+- `positive_catalysts_zh`: 与 `positive_catalysts` 同长度的中文翻译列表，逐条对齐
+- `latest_news_zh`: `latest_news` 的简体中文翻译
+- `sentiment_summary_zh`: `sentiment_summary` 的简体中文翻译
+- `earnings_outlook_zh`: `earnings_outlook` 的简体中文翻译
+
+要求：
+- 翻译要忠实于英文原意，不要做二次分析或扩写
+- 保留 `risk_alerts` / `positive_catalysts` / `latest_news` / `sentiment_summary` / `earnings_outlook` 原字段为英文（避免双语字段污染原字段）
+
+intelligence 区块新增字段示例（仅供格式参考，实际内容由你产生；以下字段置于 `intelligence` 对象内，与现有 `risk_alerts` 等并列）：
+
+```json
+"risk_alerts_zh": ["风险点1中文翻译", "风险点2中文翻译"],
+"positive_catalysts_zh": ["利好1中文翻译", "利好2中文翻译"],
+"latest_news_zh": "最新消息的中文翻译",
+"sentiment_summary_zh": "舆情情绪总结的中文翻译",
+"earnings_outlook_zh": "业绩预期的中文翻译"
+```
+"""
+        return base_prompt + zh_suffix
 
     def _has_channel_config(self, config: Config) -> bool:
         """Check if multi-channel config (channels / YAML / legacy model_list) is active."""
