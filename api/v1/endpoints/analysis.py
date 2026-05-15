@@ -51,7 +51,7 @@ from api.v1.schemas.history import (
     ReportDetails,
 )
 from data_provider.base import canonical_stock_code, normalize_stock_code
-from src.config import Config
+from src.config import Config, get_config
 from src.core.market_review_lock import (
     MarketReviewExecutionLock as _MarketReviewExecutionLock,
     market_review_lock_path,
@@ -85,6 +85,47 @@ _SUPPORTED_FREE_TEXT_RE = re.compile(r"^[A-Za-z0-9.*\-+\u3400-\u9fff\s]+$")
 
 def _market_review_lock_path(config: Config) -> Path:
     return market_review_lock_path(config)
+
+
+def _build_portfolio_context_block(
+    *, stock_code: str, account_id: Optional[int]
+) -> Optional[str]:
+    """Translate ``portfolio_account_id`` from the request into a prompt block.
+
+    Returns ``None`` when no account is requested or the requested account / symbol
+    combination yields no context (unknown account, never-traded symbol). Errors
+    while building the block are swallowed with a warning — the analysis must
+    still succeed even if portfolio enrichment fails.
+    """
+    if account_id is None:
+        return None
+    try:
+        from src.report_language import normalize_report_language
+        from src.services.portfolio_context_service import (
+            PortfolioContextService,
+            render_portfolio_context_block,
+        )
+    except Exception as exc:  # pragma: no cover - defensive import path
+        logger.warning("Failed to load portfolio context service: %s", exc)
+        return None
+    try:
+        result = PortfolioContextService().get_context(
+            account_id=int(account_id), symbol=stock_code
+        )
+    except Exception as exc:
+        logger.warning(
+            "Portfolio context lookup failed for account=%s symbol=%s: %s",
+            account_id, stock_code, exc,
+        )
+        return None
+    if result is None:
+        return None
+    try:
+        runtime_config = get_config()
+    except Exception:  # pragma: no cover - defensive
+        runtime_config = None
+    language = normalize_report_language(getattr(runtime_config, "report_language", "zh"))
+    return render_portfolio_context_block(result, language=language)
 
 
 def _compute_market_review_override_region(config: Config) -> Optional[str]:
@@ -404,12 +445,17 @@ def _handle_sync_analysis(
     
     try:
         service = AnalysisService()
+        portfolio_context_block = _build_portfolio_context_block(
+            stock_code=stock_code,
+            account_id=getattr(request, "portfolio_account_id", None),
+        )
         result = service.analyze_stock(
             stock_code=stock_code,
             report_type=request.report_type,
             force_refresh=request.force_refresh,
             query_id=query_id,
             send_notification=getattr(request, "notify", True),
+            portfolio_context_block=portfolio_context_block,
         )
 
         if result is None:
