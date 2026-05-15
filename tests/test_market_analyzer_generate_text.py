@@ -606,6 +606,7 @@ class TestMarketAnalyzerBypassFix:
             ma.profile = CN_PROFILE
             ma.strategy = get_market_strategy_blueprint("cn")
             ma.region = "cn"
+            ma._review_language_override = None
             return ma
 
     def test_no_access_to_private_model_attribute(self):
@@ -846,6 +847,7 @@ Sector text.
         ma = MarketAnalyzer.__new__(MarketAnalyzer)
         ma.config = SimpleNamespace(report_language="zh")
         ma.region = "cn"
+        ma._review_language_override = None
         long_snippet = (
             "复盘必读 2026-05-06 复盘的意义在于更清晰地把握市场脉搏，"
             "综合描述 A 股三大指数今日集体反弹，成交额放大，科技成长方向领涨。"
@@ -872,6 +874,7 @@ Sector text.
         ma = MarketAnalyzer.__new__(MarketAnalyzer)
         ma.config = SimpleNamespace(report_language="zh")
         ma.region = "cn"
+        ma._review_language_override = None
 
         result = ma._build_news_block([
             {

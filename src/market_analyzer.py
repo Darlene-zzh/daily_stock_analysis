@@ -110,6 +110,7 @@ class MarketAnalyzer:
         search_service: Optional[SearchService] = None,
         analyzer=None,
         region: str = "cn",
+        review_language_override: Optional[str] = None,
     ):
         """
         初始化大盘分析器
@@ -118,6 +119,9 @@ class MarketAnalyzer:
             search_service: 搜索服务实例
             analyzer: AI分析器实例（用于调用LLM）
             region: 市场区域 cn=A股 us=美股
+            review_language_override: 强制使用某语言生成报告，覆盖 region/config 推断。
+                合法取值：``"zh"`` / ``"en"`` / ``"bi"``（"bi" 表示英文报告 +
+                每段中文翻译，由 LLM 单次调用产出）。``None`` 表示走原有规则。
         """
         self.config = get_config()
         self.search_service = search_service
@@ -126,8 +130,23 @@ class MarketAnalyzer:
         self.region = region if region in ("cn", "us", "hk") else "cn"
         self.profile: MarketProfile = get_profile(self.region)
         self.strategy = get_market_strategy_blueprint(self.region)
+        override = (review_language_override or "").strip().lower() or None
+        if override is not None and override not in {"zh", "en", "bi"}:
+            logger.warning(
+                "review_language_override=%r 非法，回退为按 region/config 推断", override,
+            )
+            override = None
+        self._review_language_override = override
+
+    def _is_bilingual_output(self) -> bool:
+        """True when this run should emit the EN report with paragraph-level CN translation."""
+        return self._review_language_override == "bi"
 
     def _get_review_language(self) -> str:
+        if self._review_language_override is not None:
+            # For "bi" we drive the entire prompt scaffolding with English labels;
+            # the bilingual postfix added below is what asks for the Chinese mirror.
+            return "en" if self._review_language_override == "bi" else self._review_language_override
         configured = normalize_report_language(
             getattr(getattr(self, "config", None), "report_language", "zh")
         )
@@ -937,6 +956,17 @@ Lagging: {bottom_sectors_text if bottom_sectors_text else "N/A"}"""
 
         if review_language == "en":
             report_title = self._get_review_title(overview.date).removeprefix("## ").strip()
+            bilingual_requirement = (
+                "\n- BILINGUAL OUTPUT MODE: after every English heading line, on the next"
+                " line emit `**中文：**` followed by the same heading translated into"
+                " Simplified Chinese; after every English paragraph, on a new line emit"
+                " `中：` followed by a Chinese translation of the paragraph (faithful, not"
+                " a new analysis). Bullet lists translate item-by-item with the `中：`"
+                " prefix. Tables stay in English. Keep the alternation throughout the"
+                " entire report including the strategy/risk sections."
+                if self._is_bilingual_output()
+                else ""
+            )
             return f"""You are a professional US/A/H market analyst. Please produce a concise market recap report based on the data below.
 
 [Requirements]
@@ -944,7 +974,7 @@ Lagging: {bottom_sectors_text if bottom_sectors_text else "N/A"}"""
 - No JSON
 - No code blocks
 - Use emoji sparingly in headings (at most one per heading)
-- The entire fixed shell, headings, guidance, and conclusion must be in English
+- The entire fixed shell, headings, guidance, and conclusion must be in English{bilingual_requirement}
 
 ---
 

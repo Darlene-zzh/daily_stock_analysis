@@ -40,6 +40,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 - [修复] 修正分析报告 API 构建策略点位时数值字段未归一为字符串的问题，避免策略价格触发响应 DTO 类型校验失败。
 - [修复] Docker 启动入口自动修复 `data` / `logs` / `reports` 挂载目录权限并降权运行，文档化的 Compose `exec` 手动命令显式使用 `dsa` 用户，避免普通部署需要手动 `chown` / `chmod`。
 - [修复] Web 首页大盘复盘结果改由主内容滚动区承载，避免 loading 切换到长结果后下方报告区域被截断或无法继续滚动。
+- [新功能] 大盘复盘支持多时段调度：通过 `MARKET_REVIEW_SLOTS` 配置多个 `<market>:<session>:<language>` slot，按各市场本地时区（自动 DST 适配）在开/收盘各发一次。新语言 `bi` 让美股报告单次 LLM 调用产出英文 + 段落级中文翻译；默认 slot = `cn:open:zh,cn:close:zh,us:open:bi,us:close:bi`（A 股中文、美股中英对照、跳过港股）。
 - [新功能] 首页个股分析支持选择"结合持仓"账户：`POST /api/v1/analysis/analyze` 新增 `portfolio_account_id` 字段，后端注入 `[持仓上下文]`（账户名 / 持股数 / 平均成本 / 浮动盈亏 / 首次买入日 / 持有天数 / 近期交易）给 LLM，让模型基于当前仓位给出个性化建议；未持有标的时改为引导给出建仓价位与无效条件。首页输入栏增加"结合持仓"账户下拉。
 - [新功能] 持仓导入新增 Trading 212 CSV 解析器（别名 `t212` / `trading_212`），支持 Market/Limit buy/sell 方向识别、GBX→GBP 自动换算与 `Currency conversion fee` 入账。
 - [新功能] Trading 212 CSV 导入同步把 Deposit / Interest on cash / Dividend / Spending cashback 写入持仓现金账本（方向 in），通过 `csv_import:trading212:{kind}:[symbol]:{uid}` 形式的 note 标记做软去重，避免重复导入产生重复条目；Card debit 等消费类记录仍按原样跳过。前端提交结果展示交易与现金事件两组计数。

@@ -936,6 +936,58 @@ def main() -> int:
                 run_full_analysis(runtime_config, args, scheduled_stock_codes)
 
             background_tasks = []
+
+            # Multi-slot market review dispatcher (cn:open:zh, us:close:bi, ...).
+            # We attach it as a background task so the scheduler's main loop
+            # polls it every 30s without needing core scheduler changes.
+            if getattr(config, 'market_review_enabled', True):
+                from datetime import datetime as _dt, timezone as _tz
+                from src.services.market_review_scheduling import (
+                    MarketReviewSlotTracker,
+                    parse_slots,
+                )
+                from src.core.market_review import run_market_review
+                from src.core.market_review_runtime import build_market_review_runtime
+
+                _slot_tracker = MarketReviewSlotTracker(parse_slots(getattr(config, 'market_review_slots', '')))
+                logger.info(
+                    "市场复盘 slot 调度已启用：%s",
+                    [s.key for s in _slot_tracker.slots],
+                )
+
+                def _dispatch_due_market_review_slots():
+                    due = _slot_tracker.due_slots(_dt.now(tz=_tz.utc))
+                    if not due:
+                        return
+                    runtime_config = _reload_runtime_config()
+                    notifier, mkt_analyzer, mkt_search = build_market_review_runtime(runtime_config)
+                    for slot in due:
+                        logger.info(
+                            "[MarketReviewSlot] firing %s (market=%s, session=%s, lang=%s)",
+                            slot.key, slot.market, slot.session, slot.language,
+                        )
+                        try:
+                            _run_market_review_with_shared_lock(
+                                runtime_config,
+                                run_market_review,
+                                notifier=notifier,
+                                analyzer=mkt_analyzer,
+                                search_service=mkt_search,
+                                send_notification=True,
+                                merge_notification=False,
+                                override_region=slot.market,
+                                override_language=slot.language,
+                            )
+                        except Exception:  # pragma: no cover - defensive
+                            logger.exception("MarketReviewSlot %s failed", slot.key)
+
+                background_tasks.append({
+                    "task": _dispatch_due_market_review_slots,
+                    "interval_seconds": 30,
+                    "run_immediately": False,
+                    "name": "market_review_slot_dispatcher",
+                })
+
             if getattr(config, 'agent_event_monitor_enabled', False):
                 from src.agent.events import build_event_monitor_from_config, run_event_monitor_once
 

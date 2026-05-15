@@ -89,6 +89,7 @@ class MainScheduleModeTestCase(unittest.TestCase):
             "schedule_time": "18:00",
             "schedule_run_immediately": True,
             "run_immediately": True,
+            "market_review_enabled": False,
         }
         defaults.update(overrides)
         return _DummyConfig(**defaults)
