@@ -73,6 +73,19 @@ DEFAULT_PARSER_SPECS: Tuple[CsvParserSpec, ...] = (
             "trade_uid": ("流水号", "成交编号", "成交序号"),
         },
     ),
+    CsvParserSpec(
+        broker="trading212",
+        aliases=("t212", "trading_212"),
+        display_name="Trading 212",
+        column_hints={
+            "trade_date": ("Time",),
+            "symbol": ("Ticker",),
+            "side": ("Action",),
+            "quantity": ("No. of shares",),
+            "price": ("Price / share",),
+            "trade_uid": ("ID",),
+        },
+    ),
 )
 
 
@@ -345,7 +358,7 @@ class PortfolioImportService:
             return None
 
         fee = 0.0
-        for col in ("手续费", "佣金", "交易费", "规费", "过户费"):
+        for col in ("手续费", "佣金", "交易费", "规费", "过户费", "Currency conversion fee"):
             value = self._parse_float(self._pick(row, col))
             if value is not None:
                 fee += value
@@ -365,18 +378,24 @@ class PortfolioImportService:
             "委托编号",
             "流水号",
         )
-        currency = self._pick(row, "币种", "货币")
+        currency_raw = self._pick(row, "币种", "货币", "Currency (Price / share)")
+        currency = (str(currency_raw).strip().upper() if currency_raw is not None else None) or None
+
+        price_value = float(price)
+        if currency == "GBX":
+            price_value = price_value / 100.0
+            currency = "GBP"
 
         return {
             "trade_date": trade_date_obj,
             "symbol": symbol,
             "side": side,
             "quantity": float(quantity),
-            "price": float(price),
+            "price": price_value,
             "fee": float(fee),
             "tax": float(tax),
             "trade_uid": (str(trade_uid).strip() if trade_uid is not None else None) or None,
-            "currency": (str(currency).strip().upper() if currency is not None else None) or None,
+            "currency": currency,
         }
 
     @staticmethod
@@ -427,6 +446,10 @@ class PortfolioImportService:
         if "买入" in compact or compact.startswith("买"):
             return "buy"
         if "卖出" in compact or compact.startswith("卖"):
+            return "sell"
+        if compact.endswith("buy"):
+            return "buy"
+        if compact.endswith("sell"):
             return "sell"
         return None
 

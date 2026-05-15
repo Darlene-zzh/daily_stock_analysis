@@ -30,6 +30,7 @@ const FALLBACK_BROKERS: PortfolioImportBrokerItem[] = [
   { broker: 'huatai', aliases: [], displayName: '华泰' },
   { broker: 'citic', aliases: ['zhongxin'], displayName: '中信' },
   { broker: 'cmb', aliases: ['cmbchina', 'zhaoshang'], displayName: '招商' },
+  { broker: 'trading212', aliases: ['t212', 'trading_212'], displayName: 'Trading 212' },
 ];
 
 type AccountOption = 'all' | number;
