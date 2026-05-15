@@ -1142,6 +1142,27 @@ FastAPI 提供 RESTful API 服务，支持配置管理和触发分析。
 |------|------|
 | `python main.py --serve` | 启动 API 服务 + 执行一次完整分析 |
 | `python main.py --serve-only` | 仅启动 API 服务，手动触发分析 |
+| `python main.py --webui-only` | 仅启动 Web UI / API 服务，不跑分析任务 |
+| `./scripts/launchd/install-webui.sh` | （macOS）把 `--webui-only` 注册为 LaunchAgent，登录自动起，崩溃自动重启 |
+
+### macOS 后台常驻（LaunchAgent）
+
+希望关掉终端后 Web 还继续在后台跑（开机/登录自动启动、崩了自动重启），可以用仓库自带的 LaunchAgent 安装脚本：
+
+```bash
+./scripts/launchd/install-webui.sh           # 写入 ~/Library/LaunchAgents/com.dsa.webui.plist 并 bootstrap
+./scripts/launchd/uninstall-webui.sh         # 停止并删除 plist
+```
+
+脚本会自动探测 `python3.11 / python3 / python` 中第一个可用的解释器并校验 `fastapi/uvicorn/pandas` 依赖；想强制指定环境可 `PYTHON_BIN=/path/to/python ./scripts/launchd/install-webui.sh`。日志写到 `~/Library/Logs/dsa-webui.log` 与 `~/Library/Logs/dsa-webui.err.log`，可用 `tail -f` 跟踪。卸载后端口 8000 会被释放，可用 `lsof -nP -iTCP:8000 -sTCP:LISTEN` 复核。
+
+只想临时启停可直接：
+
+```bash
+launchctl bootout gui/$(id -u) ~/Library/LaunchAgents/com.dsa.webui.plist     # 停
+launchctl bootstrap gui/$(id -u) ~/Library/LaunchAgents/com.dsa.webui.plist   # 起
+launchctl kickstart -k gui/$(id -u)/com.dsa.webui                              # 重启
+```
 
 ### 功能特性
 

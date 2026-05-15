@@ -1,0 +1,55 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<!--
+  macOS LaunchAgent template for DSA Web UI.
+
+  Placeholders (filled by scripts/launchd/install-webui.sh):
+    {{PYTHON_BIN}}     absolute path to the Python interpreter
+    {{REPO_ROOT}}      absolute path to the daily_stock_analysis checkout
+    {{LOG_DIR}}        directory for stdout/stderr logs (default: ~/Library/Logs)
+
+  Default behaviour: starts at login, keeps the process alive if it crashes,
+  and writes logs that won't be tracked by git.
+-->
+<plist version="1.0">
+  <dict>
+    <key>Label</key>
+    <string>com.dsa.webui</string>
+
+    <key>ProgramArguments</key>
+    <array>
+      <string>{{PYTHON_BIN}}</string>
+      <string>{{REPO_ROOT}}/main.py</string>
+      <string>--webui-only</string>
+    </array>
+
+    <key>WorkingDirectory</key>
+    <string>{{REPO_ROOT}}</string>
+
+    <key>RunAtLoad</key>
+    <true/>
+
+    <key>KeepAlive</key>
+    <dict>
+      <key>SuccessfulExit</key>
+      <false/>
+      <key>Crashed</key>
+      <true/>
+    </dict>
+
+    <key>ThrottleInterval</key>
+    <integer>10</integer>
+
+    <key>StandardOutPath</key>
+    <string>{{LOG_DIR}}/dsa-webui.log</string>
+
+    <key>StandardErrorPath</key>
+    <string>{{LOG_DIR}}/dsa-webui.err.log</string>
+
+    <key>EnvironmentVariables</key>
+    <dict>
+      <key>PATH</key>
+      <string>/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin</string>
+    </dict>
+  </dict>
+</plist>
