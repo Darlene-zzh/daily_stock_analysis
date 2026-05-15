@@ -42,6 +42,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 - [修复] Web 首页大盘复盘结果改由主内容滚动区承载，避免 loading 切换到长结果后下方报告区域被截断或无法继续滚动。
 - [新功能] 持仓导入新增 Trading 212 CSV 解析器（别名 `t212` / `trading_212`），支持 Market/Limit buy/sell 方向识别、GBX→GBP 自动换算与 `Currency conversion fee` 入账。
 - [新功能] Trading 212 CSV 导入同步把 Deposit / Interest on cash / Dividend / Spending cashback 写入持仓现金账本（方向 in），通过 `csv_import:trading212:{kind}:[symbol]:{uid}` 形式的 note 标记做软去重，避免重复导入产生重复条目；Card debit 等消费类记录仍按原样跳过。前端提交结果展示交易与现金事件两组计数。
+- [修复] 持仓 snapshot 顶层 currency 不再硬编码 CNY：单账户时自动取该账户 base_currency；多账户时可通过 `PORTFOLIO_REPORT_CURRENCY` 覆盖（默认仍为 CNY）。响应新增 `fx_fallback_used` 标记，前端在 stale 且发生 1:1 fallback 时显示明确提示，避免 GBP/USD 金额被误标为 CNY。
 - [新功能] 新增 macOS LaunchAgent 自动后台运行脚本（`scripts/launchd/install-webui.sh` / `uninstall-webui.sh` + `com.dsa.webui.plist.template`），把 `python main.py --webui-only` 注册为登录自启动、崩溃自动重启的常驻服务，日志写入 `~/Library/Logs/dsa-webui.{log,err.log}`；`docs/full-guide.md` 同步补 macOS 后台常驻使用说明。
 - [改进] Trading 212 `Card debit` 行改为现金账本流出事件（direction=out，取 `abs(Total)`），让账本与 Trading 212 自身现金口径一致；同时为 LSE 上市 UCITS ETF（如 EQGB / VUAG）补 `.L` 后缀的实时行情回退路径，遇到 pence 报价（>1000 GBP/股）自动按 ÷100 归一为 GBP。
 - [chore] 把 `webui.log` 加进 `.gitignore`，避免 `python main.py --webui-only` 的运行时日志被 git status 跟踪。
