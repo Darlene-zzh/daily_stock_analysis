@@ -464,6 +464,8 @@ class PortfolioService:
             "total_cash": 0.0,
             "total_market_value": 0.0,
             "total_equity": 0.0,
+            "net_contributed": 0.0,
+            "total_pnl": 0.0,
             "realized_pnl": 0.0,
             "unrealized_pnl": 0.0,
             "fee_total": 0.0,
@@ -537,10 +539,24 @@ class PortfolioService:
                 to_currency=aggregate_currency,
                 as_of_date=as_of_date,
             )
+            net_contrib_cny, stale_contrib, _ = self._convert_amount(
+                amount=account_snapshot["net_contributed"],
+                from_currency=account.base_currency,
+                to_currency=aggregate_currency,
+                as_of_date=as_of_date,
+            )
+            pnl_cny, stale_pnl, _ = self._convert_amount(
+                amount=account_snapshot["total_pnl"],
+                from_currency=account.base_currency,
+                to_currency=aggregate_currency,
+                as_of_date=as_of_date,
+            )
 
             aggregate["total_cash"] += cash_cny
             aggregate["total_market_value"] += mv_cny
             aggregate["total_equity"] += eq_cny
+            aggregate["net_contributed"] += net_contrib_cny
+            aggregate["total_pnl"] += pnl_cny
             aggregate["realized_pnl"] += realized_cny
             aggregate["unrealized_pnl"] += unrealized_cny
             aggregate["fee_total"] += fee_cny
@@ -554,6 +570,8 @@ class PortfolioService:
                     stale_unrealized,
                     stale_fee,
                     stale_tax,
+                    stale_contrib,
+                    stale_pnl,
                 ]
             )
 
@@ -565,6 +583,8 @@ class PortfolioService:
             "total_cash": round(aggregate["total_cash"], 6),
             "total_market_value": round(aggregate["total_market_value"], 6),
             "total_equity": round(aggregate["total_equity"], 6),
+            "net_contributed": round(aggregate["net_contributed"], 6),
+            "total_pnl": round(aggregate["total_pnl"], 6),
             "realized_pnl": round(aggregate["realized_pnl"], 6),
             "unrealized_pnl": round(aggregate["unrealized_pnl"], 6),
             "fee_total": round(aggregate["fee_total"], 6),
@@ -753,6 +773,11 @@ class PortfolioService:
         events.sort(key=lambda item: (item[1], event_priority[item[0]], item[2]))
 
         cash_balances: Dict[str, float] = defaultdict(float)
+        # Tracks external contributions per currency (deposits minus withdrawals
+        # and card debits). Excludes interest / dividend / cashback because those
+        # are gains earned on the principal, not new money put in. Aligns with
+        # Trading 212's "net deposits" widget.
+        net_contributions: Dict[str, float] = defaultdict(float)
         fees_total_base = 0.0
         taxes_total_base = 0.0
         realized_pnl_base = 0.0
@@ -771,6 +796,12 @@ class PortfolioService:
                     cash_balances[currency] -= amount
                 else:
                     raise ValueError(f"Unsupported cash direction: {event.direction}")
+
+                if not self._cash_event_is_gain(event):
+                    if event.direction == "in":
+                        net_contributions[currency] += amount
+                    else:
+                        net_contributions[currency] -= amount
                 continue
 
             if event_type == "trade":
@@ -908,8 +939,20 @@ class PortfolioService:
             total_cash_base += converted
             fx_stale = fx_stale or stale
 
+        net_contributed_base = 0.0
+        for currency, amount in net_contributions.items():
+            converted, stale, _ = self._convert_amount(
+                amount=amount,
+                from_currency=currency,
+                to_currency=account.base_currency,
+                as_of_date=as_of_date,
+            )
+            net_contributed_base += converted
+            fx_stale = fx_stale or stale
+
         unrealized_pnl_base = market_value_base - total_cost_base
         total_equity_base = total_cash_base + market_value_base
+        total_pnl_base = total_equity_base - net_contributed_base
 
         account_payload = {
             "account_id": account.id,
@@ -923,6 +966,8 @@ class PortfolioService:
             "total_cash": round(total_cash_base, 6),
             "total_market_value": round(market_value_base, 6),
             "total_equity": round(total_equity_base, 6),
+            "net_contributed": round(net_contributed_base, 6),
+            "total_pnl": round(total_pnl_base, 6),
             "realized_pnl": round(realized_pnl_base, 6),
             "unrealized_pnl": round(unrealized_pnl_base, 6),
             "fee_total": round(fees_total_base, 6),
@@ -939,12 +984,30 @@ class PortfolioService:
             "total_cash": float(total_cash_base),
             "total_market_value": float(market_value_base),
             "total_equity": float(total_equity_base),
+            "net_contributed": float(net_contributed_base),
+            "total_pnl": float(total_pnl_base),
             "realized_pnl": float(realized_pnl_base),
             "unrealized_pnl": float(unrealized_pnl_base),
             "fee_total": float(fees_total_base),
             "tax_total": float(taxes_total_base),
             "fx_stale": fx_stale,
         }
+
+    @staticmethod
+    def _cash_event_is_gain(event: Any) -> bool:
+        """Return True when a cash ledger entry represents portfolio gains
+        (interest / dividend / cashback) rather than external contributions.
+
+        Identification relies on the dedup note marker written by the CSV
+        importer (`csv_import:<broker>:<kind>:...`). Manually recorded entries
+        without that marker are treated as contributions by default, matching
+        the most likely user intent (people record deposits / withdrawals
+        manually, not interest payouts).
+        """
+        note = (getattr(event, "note", "") or "")
+        if not note:
+            return False
+        return any(f":{kind}:" in note for kind in ("interest", "dividend", "cashback"))
 
     def _build_positions(
         self,

@@ -40,6 +40,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 - [修复] 修正分析报告 API 构建策略点位时数值字段未归一为字符串的问题，避免策略价格触发响应 DTO 类型校验失败。
 - [修复] Docker 启动入口自动修复 `data` / `logs` / `reports` 挂载目录权限并降权运行，文档化的 Compose `exec` 手动命令显式使用 `dsa` 用户，避免普通部署需要手动 `chown` / `chmod`。
 - [修复] Web 首页大盘复盘结果改由主内容滚动区承载，避免 loading 切换到长结果后下方报告区域被截断或无法继续滚动。
+- [新功能] 持仓 snapshot 新增 `net_contributed` 与 `total_pnl` 字段（per-account 与跨账户聚合各一份），按 cash_ledger note 标记把 `interest / dividend / cashback` 排除在外部入金统计之外，与 Trading 212 dashboard 的"净入金"口径一致。持仓页顶部加 `累计入金` + `总盈亏`（含百分比、按正负染色）两张卡片，xl 断点扩到 6 列网格。
 
 ## [3.16.0] - 2026-05-10
 
