@@ -58,6 +58,8 @@ export interface PortfolioAccountSnapshot {
   totalCash: number;
   totalMarketValue: number;
   totalEquity: number;
+  netContributed: number;
+  totalPnl: number;
   realizedPnl: number;
   unrealizedPnl: number;
   feeTotal: number;
@@ -74,6 +76,8 @@ export interface PortfolioSnapshotResponse {
   totalCash: number;
   totalMarketValue: number;
   totalEquity: number;
+  netContributed: number;
+  totalPnl: number;
   realizedPnl: number;
   unrealizedPnl: number;
   feeTotal: number;
