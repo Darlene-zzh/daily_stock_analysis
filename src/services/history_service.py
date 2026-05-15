@@ -552,6 +552,7 @@ class HistoryService:
                 current_price=raw_result.get("current_price"),
                 change_pct=raw_result.get("change_pct"),
                 model_used=raw_result.get("model_used"),
+                portfolio_match=raw_result.get("portfolio_match"),
             )
         except Exception as e:
             logger.error(f"Failed to rebuild AnalysisResult: {e}", exc_info=True)
@@ -655,15 +656,35 @@ class HistoryService:
             f"⏰ **{labels['time_sensitivity_label']}**: {time_sense}",
             "",
         ])
-        # 持仓分类建议
+        # 持仓分类建议（按 portfolio_match 过滤；None=两行兼容老行为）
         if pos_advice:
-            report_lines.extend([
+            match = getattr(result, "portfolio_match", None)
+            no_pos_text = pos_advice.get(
+                "no_position",
+                localize_operation_advice(result.operation_advice, report_language),
+            )
+            has_pos_text = pos_advice.get(
+                "has_position",
+                labels["continue_holding"],
+            )
+            header = [
                 f"| {labels['position_status_label']} | {labels['action_advice_label']} |",
                 "|---------|---------|",
-                f"| 🆕 **{labels['no_position_label']}** | {pos_advice.get('no_position', localize_operation_advice(result.operation_advice, report_language))} |",
-                f"| 💼 **{labels['has_position_label']}** | {pos_advice.get('has_position', labels['continue_holding'])} |",
-                "",
-            ])
+            ]
+            if match == "held":
+                body = [
+                    f"| 💼 **{labels['has_position_label']}** | {has_pos_text} |",
+                ]
+            elif match == "not_held":
+                body = [
+                    f"| 🆕 **{labels['no_position_label']}** | {no_pos_text} |",
+                ]
+            else:
+                body = [
+                    f"| 🆕 **{labels['no_position_label']}** | {no_pos_text} |",
+                    f"| 💼 **{labels['has_position_label']}** | {has_pos_text} |",
+                ]
+            report_lines.extend(header + body + [""])
 
         # ========== 行情快照 ==========
         self._append_market_snapshot_to_report(report_lines, result, labels)

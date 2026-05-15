@@ -85,10 +85,11 @@ class StockAnalysisPipeline:
         save_context_snapshot: Optional[bool] = None,
         progress_callback: Optional[Callable[[int, str], None]] = None,
         portfolio_context_block: Optional[str] = None,
+        portfolio_match: Optional[str] = None,
     ):
         """
         初始化调度器
-        
+
         Args:
             config: 配置对象（可选，默认使用全局配置）
             max_workers: 最大并发线程数（可选，默认从配置读取）
@@ -103,6 +104,7 @@ class StockAnalysisPipeline:
         )
         self.progress_callback = progress_callback
         self.portfolio_context_block = portfolio_context_block
+        self.portfolio_match = portfolio_match
 
         # 初始化各模块
         self.db = get_db()
@@ -496,6 +498,8 @@ class StockAnalysisPipeline:
                 realtime_data = enhanced_context.get('realtime', {})
                 result.current_price = realtime_data.get('price')
                 result.change_pct = realtime_data.get('change_pct')
+                # 持仓感知字段（PR portfolio-filter）：用于 renderer 过滤 position_advice 表格
+                _apply_portfolio_match(result, self)
 
             # Step 7.6: chip_structure fallback (Issue #589)
             if result and chip_data:
@@ -2235,3 +2239,14 @@ class StockAnalysisPipeline:
         if report_type == ReportType.BRIEF and hasattr(self.notifier, "generate_brief_report"):
             return self.notifier.generate_brief_report(results)
         return self.notifier.generate_dashboard_report(results)
+
+
+def _apply_portfolio_match(result: "AnalysisResult", pipeline: "StockAnalysisPipeline") -> None:
+    """Copy ``pipeline.portfolio_match`` onto the result, only if set.
+
+    Kept module-level (rather than as a private method) so unit tests can
+    drive it without faking the full pipeline lifecycle.
+    """
+    match = getattr(pipeline, "portfolio_match", None)
+    if match is not None:
+        result.portfolio_match = match

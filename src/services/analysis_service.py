@@ -47,6 +47,7 @@ class AnalysisService:
         send_notification: bool = True,
         progress_callback: Optional[Callable[[int, str], None]] = None,
         portfolio_context_block: Optional[str] = None,
+        portfolio_match: Optional[str] = None,
     ) -> Optional[Dict[str, Any]]:
         """
         执行股票分析
@@ -85,6 +86,7 @@ class AnalysisService:
                 query_source="api",
                 progress_callback=progress_callback,
                 portfolio_context_block=portfolio_context_block,
+                portfolio_match=portfolio_match,
             )
             
             # 确定报告类型 (API: simple/detailed/full/brief -> ReportType)

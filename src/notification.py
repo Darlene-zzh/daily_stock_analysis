@@ -1031,15 +1031,35 @@ class NotificationService(
                     f"⏰ **{labels['time_sensitivity_label']}**: {time_sense}",
                     "",
                 ])
-                # 持仓分类建议
+                # 持仓分类建议（按 portfolio_match 过滤；None=两行兼容老行为）
                 if pos_advice:
-                    report_lines.extend([
+                    match = getattr(result, "portfolio_match", None)
+                    no_pos_text = pos_advice.get(
+                        "no_position",
+                        localize_operation_advice(result.operation_advice, report_language),
+                    )
+                    has_pos_text = pos_advice.get(
+                        "has_position",
+                        labels["continue_holding"],
+                    )
+                    header = [
                         f"| {labels['position_status_label']} | {labels['action_advice_label']} |",
                         "|---------|---------|",
-                        f"| 🆕 **{labels['no_position_label']}** | {pos_advice.get('no_position', localize_operation_advice(result.operation_advice, report_language))} |",
-                        f"| 💼 **{labels['has_position_label']}** | {pos_advice.get('has_position', labels['continue_holding'])} |",
-                        "",
-                    ])
+                    ]
+                    if match == "held":
+                        body = [
+                            f"| 💼 **{labels['has_position_label']}** | {has_pos_text} |",
+                        ]
+                    elif match == "not_held":
+                        body = [
+                            f"| 🆕 **{labels['no_position_label']}** | {no_pos_text} |",
+                        ]
+                    else:
+                        body = [
+                            f"| 🆕 **{labels['no_position_label']}** | {no_pos_text} |",
+                            f"| 💼 **{labels['has_position_label']}** | {has_pos_text} |",
+                        ]
+                    report_lines.extend(header + body + [""])
 
                 self._append_market_snapshot(report_lines, result)
                 

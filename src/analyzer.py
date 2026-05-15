@@ -1256,6 +1256,9 @@ class AnalysisResult:
     # ========== 历史对比（Report Engine P0）==========
     query_id: Optional[str] = None  # 本次分析 query_id，用于历史对比时排除本次记录
 
+    # ========== 持仓感知 (PR portfolio-filter) ==========
+    portfolio_match: Optional[str] = None  # "held" / "not_held" / None；None = 未传 account_id 或服务失败
+
     def to_dict(self) -> Dict[str, Any]:
         """转换为字典"""
         return {
@@ -1292,6 +1295,7 @@ class AnalysisResult:
             'current_price': self.current_price,
             'change_pct': self.change_pct,
             'model_used': self.model_used,
+            'portfolio_match': self.portfolio_match,
         }
 
     def get_core_conclusion(self) -> str:

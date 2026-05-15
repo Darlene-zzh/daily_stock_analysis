@@ -22,7 +22,7 @@ import logging
 import re
 from datetime import datetime
 from pathlib import Path
-from typing import Optional, Union, Dict, Any
+from typing import Optional, Tuple, Union, Dict, Any
 
 from fastapi import APIRouter, HTTPException, Depends, Query, Body
 from fastapi.responses import JSONResponse, StreamingResponse
@@ -89,16 +89,19 @@ def _market_review_lock_path(config: Config) -> Path:
 
 def _build_portfolio_context_block(
     *, stock_code: str, account_id: Optional[int]
-) -> Optional[str]:
-    """Translate ``portfolio_account_id`` from the request into a prompt block.
+) -> Tuple[Optional[str], Optional[str]]:
+    """Translate ``portfolio_account_id`` from the request into a prompt block + match state.
 
-    Returns ``None`` when no account is requested or the requested account / symbol
+    Returns ``(None, None)`` when no account is requested or the requested account / symbol
     combination yields no context (unknown account, never-traded symbol). Errors
     while building the block are swallowed with a warning — the analysis must
     still succeed even if portfolio enrichment fails.
+
+    When successful, the second tuple element is "held" or "not_held" so the
+    renderer can filter the position-advice table to the relevant row.
     """
     if account_id is None:
-        return None
+        return None, None
     try:
         from src.report_language import normalize_report_language
         from src.services.portfolio_context_service import (
@@ -107,7 +110,7 @@ def _build_portfolio_context_block(
         )
     except Exception as exc:  # pragma: no cover - defensive import path
         logger.warning("Failed to load portfolio context service: %s", exc)
-        return None
+        return None, None
     try:
         result = PortfolioContextService().get_context(
             account_id=int(account_id), symbol=stock_code
@@ -117,15 +120,17 @@ def _build_portfolio_context_block(
             "Portfolio context lookup failed for account=%s symbol=%s: %s",
             account_id, stock_code, exc,
         )
-        return None
+        return None, None
     if result is None:
-        return None
+        return None, None
     try:
         runtime_config = get_config()
     except Exception:  # pragma: no cover - defensive
         runtime_config = None
     language = normalize_report_language(getattr(runtime_config, "report_language", "zh"))
-    return render_portfolio_context_block(result, language=language)
+    block = render_portfolio_context_block(result, language=language)
+    match = "held" if result.is_held else "not_held"
+    return block, match
 
 
 def _compute_market_review_override_region(config: Config) -> Optional[str]:
@@ -445,7 +450,7 @@ def _handle_sync_analysis(
     
     try:
         service = AnalysisService()
-        portfolio_context_block = _build_portfolio_context_block(
+        portfolio_context_block, portfolio_match = _build_portfolio_context_block(
             stock_code=stock_code,
             account_id=getattr(request, "portfolio_account_id", None),
         )
@@ -456,6 +461,7 @@ def _handle_sync_analysis(
             query_id=query_id,
             send_notification=getattr(request, "notify", True),
             portfolio_context_block=portfolio_context_block,
+            portfolio_match=portfolio_match,
         )
 
         if result is None:
