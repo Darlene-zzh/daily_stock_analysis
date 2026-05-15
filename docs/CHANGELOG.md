@@ -40,6 +40,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 - [修复] 修正分析报告 API 构建策略点位时数值字段未归一为字符串的问题，避免策略价格触发响应 DTO 类型校验失败。
 - [修复] Docker 启动入口自动修复 `data` / `logs` / `reports` 挂载目录权限并降权运行，文档化的 Compose `exec` 手动命令显式使用 `dsa` 用户，避免普通部署需要手动 `chown` / `chmod`。
 - [修复] Web 首页大盘复盘结果改由主内容滚动区承载，避免 loading 切换到长结果后下方报告区域被截断或无法继续滚动。
+- [新功能] 新增 macOS LaunchAgent 自动后台运行脚本（`scripts/launchd/install-webui.sh` / `uninstall-webui.sh` + `com.dsa.webui.plist.template`），把 `python main.py --webui-only` 注册为登录自启动、崩溃自动重启的常驻服务，日志写入 `~/Library/Logs/dsa-webui.{log,err.log}`；`docs/full-guide.md` 同步补 macOS 后台常驻使用说明。
 
 ## [3.16.0] - 2026-05-10
 
