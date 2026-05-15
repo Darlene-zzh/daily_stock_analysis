@@ -41,6 +41,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 - [修复] Docker 启动入口自动修复 `data` / `logs` / `reports` 挂载目录权限并降权运行，文档化的 Compose `exec` 手动命令显式使用 `dsa` 用户，避免普通部署需要手动 `chown` / `chmod`。
 - [修复] Web 首页大盘复盘结果改由主内容滚动区承载，避免 loading 切换到长结果后下方报告区域被截断或无法继续滚动。
 - [新功能] 持仓导入新增 Trading 212 CSV 解析器（别名 `t212` / `trading_212`），支持 Market/Limit buy/sell 方向识别、GBX→GBP 自动换算与 `Currency conversion fee` 入账。
+- [新功能] Trading 212 CSV 导入同步把 Deposit / Interest on cash / Dividend / Spending cashback 写入持仓现金账本（方向 in），通过 `csv_import:trading212:{kind}:[symbol]:{uid}` 形式的 note 标记做软去重，避免重复导入产生重复条目；Card debit 等消费类记录仍按原样跳过。前端提交结果展示交易与现金事件两组计数。
 
 ## [3.16.0] - 2026-05-10
 

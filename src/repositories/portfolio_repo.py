@@ -301,6 +301,22 @@ class PortfolioRepository:
         ).scalar_one_or_none()
         return row is not None
 
+    def has_cash_ledger_note(self, *, account_id: int, note: Optional[str]) -> bool:
+        """Return True when a cash ledger entry with the exact note already exists."""
+        marker = (note or "").strip()
+        if not marker:
+            return False
+        with self.db.get_session() as session:
+            row = session.execute(
+                select(PortfolioCashLedger.id).where(
+                    and_(
+                        PortfolioCashLedger.account_id == account_id,
+                        PortfolioCashLedger.note == marker,
+                    )
+                ).limit(1)
+            ).scalar_one_or_none()
+            return row is not None
+
     def add_trade_in_session(
         self,
         *,

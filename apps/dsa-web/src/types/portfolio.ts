@@ -264,12 +264,24 @@ export interface PortfolioImportTradeItem {
   currency?: string | null;
 }
 
+export interface PortfolioImportCashEventItem {
+  eventDate: string;
+  direction: PortfolioCashDirection;
+  kind: string;
+  amount: number;
+  currency?: string | null;
+  symbol?: string | null;
+  cashUid?: string | null;
+  note: string;
+}
+
 export interface PortfolioImportParseResponse {
   broker: string;
   recordCount: number;
   skippedCount: number;
   errorCount: number;
   records: PortfolioImportTradeItem[];
+  cashEvents: PortfolioImportCashEventItem[];
   errors: string[];
 }
 
@@ -279,6 +291,10 @@ export interface PortfolioImportCommitResponse {
   insertedCount: number;
   duplicateCount: number;
   failedCount: number;
+  cashEventCount: number;
+  insertedCashCount: number;
+  duplicateCashCount: number;
+  failedCashCount: number;
   dryRun: boolean;
   errors: string[];
 }

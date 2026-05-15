@@ -6,7 +6,7 @@ from __future__ import annotations
 import hashlib
 import io
 import logging
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from datetime import date
 from typing import Any, Dict, List, Optional, Tuple
 
@@ -31,6 +31,7 @@ class CsvParserSpec:
     aliases: Tuple[str, ...]
     display_name: str
     column_hints: Dict[str, Tuple[str, ...]]
+    cash_event_action_map: Dict[str, str] = field(default_factory=dict)
 
 
 DEFAULT_PARSER_SPECS: Tuple[CsvParserSpec, ...] = (
@@ -85,6 +86,12 @@ DEFAULT_PARSER_SPECS: Tuple[CsvParserSpec, ...] = (
             "price": ("Price / share",),
             "trade_uid": ("ID",),
         },
+        cash_event_action_map={
+            "deposit": "deposit",
+            "interest on cash": "interest",
+            "dividend (dividend)": "dividend",
+            "spending cashback": "cashback",
+        },
     ),
 )
 
@@ -135,6 +142,11 @@ class PortfolioImportService:
             aliases=new_aliases,
             display_name=spec.display_name or broker,
             column_hints=dict(spec.column_hints or {}),
+            cash_event_action_map={
+                str(action_text).strip().lower(): str(kind).strip().lower()
+                for action_text, kind in (spec.cash_event_action_map or {}).items()
+                if str(kind).strip()
+            },
         )
         for alias in self._parser_registry[broker].aliases:
             self._broker_alias_map[alias] = broker
@@ -164,24 +176,32 @@ class PortfolioImportService:
         df = self._read_csv(content)
 
         records: List[Dict[str, Any]] = []
+        cash_events: List[Dict[str, Any]] = []
         skipped = 0
         errors: List[str] = []
 
         for idx, row in df.iterrows():
             normalized = self._normalize_trade_row(row=row, parser_spec=parser_spec)
-            if normalized is None:
-                skipped += 1
+            if normalized is not None:
+                try:
+                    # Keep a stable line-level marker so repeated imports of the same
+                    # file remain idempotent, while identical split fills on separate
+                    # CSV lines do not collapse into one dedup key.
+                    normalized["_source_line_number"] = int(idx) + 2
+                    normalized["dedup_hash"] = self._build_dedup_hash(normalized)
+                    records.append(normalized)
+                except Exception as exc:  # pragma: no cover - defensive path
+                    skipped += 1
+                    errors.append(f"row={idx + 1}: {exc}")
                 continue
-            try:
-                # Keep a stable line-level marker so repeated imports of the same
-                # file remain idempotent, while identical split fills on separate
-                # CSV lines do not collapse into one dedup key.
-                normalized["_source_line_number"] = int(idx) + 2
-                normalized["dedup_hash"] = self._build_dedup_hash(normalized)
-                records.append(normalized)
-            except Exception as exc:  # pragma: no cover - defensive path
-                skipped += 1
-                errors.append(f"row={idx + 1}: {exc}")
+
+            cash_event = self._normalize_cash_row(row=row, parser_spec=parser_spec)
+            if cash_event is not None:
+                cash_event["_source_line_number"] = int(idx) + 2
+                cash_events.append(cash_event)
+                continue
+
+            skipped += 1
 
         return {
             "broker": broker_norm,
@@ -189,6 +209,7 @@ class PortfolioImportService:
             "skipped_count": skipped,
             "error_count": len(errors),
             "records": records,
+            "cash_events": cash_events,
             "errors": errors[:20],
         }
 
@@ -198,6 +219,7 @@ class PortfolioImportService:
         account_id: int,
         broker: str,
         records: List[Dict[str, Any]],
+        cash_events: Optional[List[Dict[str, Any]]] = None,
         dry_run: bool = False,
     ) -> Dict[str, Any]:
         broker_norm = self._normalize_broker(broker)
@@ -208,6 +230,11 @@ class PortfolioImportService:
         errors: List[str] = []
         seen_trade_uids: set[str] = set()
         seen_dedup_hashes: set[str] = set()
+
+        inserted_cash_count = 0
+        duplicate_cash_count = 0
+        failed_cash_count = 0
+        seen_cash_notes: set[str] = set()
 
         for i, record in enumerate(records):
             try:
@@ -272,12 +299,61 @@ class PortfolioImportService:
                 failed_count += 1
                 errors.append(f"idx={i}: {exc}")
 
+        cash_events_list = list(cash_events or [])
+        for idx, event in enumerate(cash_events_list):
+            try:
+                note = str(event.get("note") or "").strip()
+                if not note:
+                    failed_cash_count += 1
+                    errors.append(f"cash idx={idx}: missing dedup note")
+                    continue
+
+                if note in seen_cash_notes:
+                    duplicate_cash_count += 1
+                    continue
+
+                if self.repo.has_cash_ledger_note(account_id=account_id, note=note):
+                    duplicate_cash_count += 1
+                    continue
+
+                if dry_run:
+                    seen_cash_notes.add(note)
+                    inserted_cash_count += 1
+                    continue
+
+                event_date_value = event.get("event_date")
+                if isinstance(event_date_value, date):
+                    event_date_obj = event_date_value
+                else:
+                    event_date_obj = date.fromisoformat(str(event_date_value))
+
+                self.portfolio_service.record_cash_ledger(
+                    account_id=account_id,
+                    event_date=event_date_obj,
+                    direction=str(event.get("direction") or "in"),
+                    amount=float(event["amount"]),
+                    currency=event.get("currency"),
+                    note=note,
+                )
+                seen_cash_notes.add(note)
+                inserted_cash_count += 1
+            except PortfolioBusyError as exc:
+                failed_cash_count += 1
+                errors.append(f"cash idx={idx}: portfolio_busy: {exc}")
+            except Exception as exc:
+                failed_cash_count += 1
+                errors.append(f"cash idx={idx}: {exc}")
+
         return {
             "account_id": account_id,
             "record_count": len(records),
             "inserted_count": inserted_count,
             "duplicate_count": duplicate_count,
             "failed_count": failed_count,
+            "cash_event_count": len(cash_events_list),
+            "inserted_cash_count": inserted_cash_count,
+            "duplicate_cash_count": duplicate_cash_count,
+            "failed_cash_count": failed_cash_count,
             "dry_run": bool(dry_run),
             "errors": errors[:20],
         }
@@ -396,6 +472,62 @@ class PortfolioImportService:
             "tax": float(tax),
             "trade_uid": (str(trade_uid).strip() if trade_uid is not None else None) or None,
             "currency": currency,
+        }
+
+    def _normalize_cash_row(
+        self,
+        *,
+        row: Any,
+        parser_spec: CsvParserSpec,
+    ) -> Optional[Dict[str, Any]]:
+        """Normalize a CSV row into a cash-ledger event for brokers that map cash actions."""
+        action_map = parser_spec.cash_event_action_map or {}
+        if not action_map:
+            return None
+
+        side_hints = parser_spec.column_hints.get("side") or ()
+        action_raw = self._pick(row, *side_hints, "Action")
+        action_key = str(action_raw or "").strip().lower()
+        kind = action_map.get(action_key)
+        if not kind:
+            return None
+
+        date_hints = parser_spec.column_hints.get("trade_date") or ()
+        event_date_obj = self._parse_date(self._pick(row, *date_hints, "Time"))
+        if event_date_obj is None:
+            return None
+
+        amount = self._parse_float(self._pick(row, "Total"))
+        if amount is None or amount <= 0:
+            return None
+
+        currency_raw = self._pick(row, "Currency (Total)", "币种", "货币")
+        currency = (str(currency_raw).strip().upper() if currency_raw is not None else None) or None
+
+        uid_hints = parser_spec.column_hints.get("trade_uid") or ()
+        cash_uid = self._pick(row, *uid_hints, "ID")
+        cash_uid_str = (str(cash_uid).strip() if cash_uid is not None else None) or None
+
+        symbol_hints = parser_spec.column_hints.get("symbol") or ()
+        symbol_raw = self._pick(row, *symbol_hints, "Ticker")
+        symbol = canonical_stock_code(str(symbol_raw or "").strip()) or None
+
+        note_parts: List[str] = [f"csv_import:{parser_spec.broker}", kind]
+        if symbol:
+            note_parts.append(symbol)
+        if cash_uid_str:
+            note_parts.append(cash_uid_str)
+        dedup_note = ":".join(note_parts)
+
+        return {
+            "event_date": event_date_obj,
+            "direction": "in",
+            "kind": kind,
+            "amount": float(amount),
+            "currency": currency,
+            "symbol": symbol,
+            "cash_uid": cash_uid_str,
+            "note": dedup_note,
         }
 
     @staticmethod
