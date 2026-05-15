@@ -4,7 +4,9 @@ import { BarChart3 } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { getParsedApiError, type ParsedApiError } from '../api/error';
 import { analysisApi } from '../api/analysis';
+import { portfolioApi } from '../api/portfolio';
 import { systemConfigApi } from '../api/systemConfig';
+import type { PortfolioAccountItem } from '../types/portfolio';
 import { ApiErrorAlert, ConfirmDialog, Button, EmptyState, InlineAlert } from '../components/common';
 import { DashboardStateBlock } from '../components/dashboard';
 import { StockAutocomplete } from '../components/StockAutocomplete';
@@ -56,6 +58,25 @@ const HomePage: React.FC = () => {
 
   useEffect(() => stopMarketReviewPolling, [stopMarketReviewPolling]);
   const [setupStatus, setSetupStatus] = useState<SetupStatusResponse | null>(null);
+  const [portfolioAccounts, setPortfolioAccounts] = useState<PortfolioAccountItem[]>([]);
+
+  useEffect(() => {
+    let cancelled = false;
+    void (async () => {
+      try {
+        const result = await portfolioApi.getAccounts();
+        if (!cancelled) {
+          setPortfolioAccounts(result.accounts.filter((a) => a.isActive));
+        }
+      } catch {
+        // Silently ignore — the dropdown just stays empty / hidden when the API
+        // isn't reachable so the homepage analysis flow still works.
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   const {
     query,
@@ -85,6 +106,8 @@ const HomePage: React.FC = () => {
     submitAnalysis,
     notify,
     setNotify,
+    portfolioAccountId,
+    setPortfolioAccountId,
     syncTaskCreated,
     syncTaskUpdated,
     syncTaskFailed,
@@ -413,6 +436,25 @@ const HomePage: React.FC = () => {
               </div>
             </div>
             <div className="flex min-w-0 flex-shrink-0 items-center gap-2.5">
+              {portfolioAccounts.length > 0 ? (
+                <select
+                  value={portfolioAccountId == null ? '' : String(portfolioAccountId)}
+                  onChange={(e) => {
+                    const raw = e.target.value;
+                    setPortfolioAccountId(raw === '' ? null : Number(raw));
+                  }}
+                  className="h-10 flex-shrink-0 cursor-pointer rounded-xl border border-subtle bg-surface/60 px-3 text-xs text-secondary-text transition-colors hover:border-subtle-hover hover:text-foreground"
+                  title="结合所选账户的持仓上下文进行个性化分析"
+                  disabled={isAnalyzing}
+                >
+                  <option value="">不结合持仓</option>
+                  {portfolioAccounts.map((acc) => (
+                    <option key={acc.id} value={acc.id}>
+                      结合持仓：{acc.name}
+                    </option>
+                  ))}
+                </select>
+              ) : null}
               <label className="flex h-10 flex-shrink-0 cursor-pointer items-center gap-1.5 rounded-xl border border-subtle bg-surface/60 px-3 text-xs text-secondary-text select-none transition-colors hover:border-subtle-hover hover:text-foreground">
                 <input
                   type="checkbox"

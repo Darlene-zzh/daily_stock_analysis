@@ -31,6 +31,7 @@ export const analysisApi = {
       original_query: data.originalQuery,
       selection_source: data.selectionSource,
       ...(data.notify !== undefined && { notify: data.notify }),
+      ...(data.portfolioAccountId != null && { portfolio_account_id: data.portfolioAccountId }),
     };
 
     const response = await apiClient.post<Record<string, unknown>>(
@@ -64,6 +65,7 @@ export const analysisApi = {
       original_query: data.originalQuery,
       selection_source: data.selectionSource,
       ...(data.notify !== undefined && { notify: data.notify }),
+      ...(data.portfolioAccountId != null && { portfolio_account_id: data.portfolioAccountId }),
     };
 
     const response = await apiClient.post<Record<string, unknown>>(
