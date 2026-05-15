@@ -53,6 +53,7 @@ def run_market_review(
     send_notification: bool = True,
     merge_notification: bool = False,
     override_region: Optional[str] = None,
+    override_language: Optional[str] = None,
 ) -> Optional[str]:
     """
     执行大盘复盘分析
@@ -99,7 +100,10 @@ def run_market_review(
                     continue
                 logger.info("生成 %s 大盘复盘报告...", label)
                 mkt_analyzer = MarketAnalyzer(
-                    search_service=search_service, analyzer=analyzer, region=mkt
+                    search_service=search_service,
+                    analyzer=analyzer,
+                    region=mkt,
+                    review_language_override=override_language,
                 )
                 mkt_report = mkt_analyzer.run_daily_review()
                 if mkt_report:
@@ -113,6 +117,7 @@ def run_market_review(
                 search_service=search_service,
                 analyzer=analyzer,
                 region=region,
+                review_language_override=override_language,
             )
             review_report = market_analyzer.run_daily_review()
         
