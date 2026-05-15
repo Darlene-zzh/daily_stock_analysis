@@ -180,6 +180,8 @@ class PortfolioAccountSnapshot(BaseModel):
     total_cash: float
     total_market_value: float
     total_equity: float
+    net_contributed: float = 0.0
+    total_pnl: float = 0.0
     realized_pnl: float
     unrealized_pnl: float
     fee_total: float
@@ -196,6 +198,8 @@ class PortfolioSnapshotResponse(BaseModel):
     total_cash: float
     total_market_value: float
     total_equity: float
+    net_contributed: float = 0.0
+    total_pnl: float = 0.0
     realized_pnl: float
     unrealized_pnl: float
     fee_total: float
