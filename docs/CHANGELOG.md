@@ -41,6 +41,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 - [修复] Docker 启动入口自动修复 `data` / `logs` / `reports` 挂载目录权限并降权运行，文档化的 Compose `exec` 手动命令显式使用 `dsa` 用户，避免普通部署需要手动 `chown` / `chmod`。
 - [修复] Web 首页大盘复盘结果改由主内容滚动区承载，避免 loading 切换到长结果后下方报告区域被截断或无法继续滚动。
 - [新功能] 持仓页新增实时价格刷新：后端 `POST /api/v1/portfolio/prices/lookup` 走 30s 内存 TTL 缓存批量取价；前端 `usePortfolioRealtimePrices` 每 60s 轮询，把最新现价覆盖到持仓表格，并按比例同步刷新市值与浮动盈亏；表头加 `暂停 / 开启 / 立即刷新` 三个按钮和"上次更新 hh:mm:ss"指示。
+- [新功能] 新增 macOS LaunchAgent 自动后台运行脚本（`scripts/launchd/install-webui.sh` / `uninstall-webui.sh` + `com.dsa.webui.plist.template`），把 `python main.py --webui-only` 注册为登录自启动、崩溃自动重启的常驻服务，日志写入 `~/Library/Logs/dsa-webui.{log,err.log}`；`docs/full-guide.md` 同步补 macOS 后台常驻使用说明。
 
 ## [3.16.0] - 2026-05-10
 
