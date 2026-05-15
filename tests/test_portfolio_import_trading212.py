@@ -282,7 +282,7 @@ class Trading212CashEventsTestCase(unittest.TestCase):
         self.assertEqual(dividend["symbol"], "META")
         self.assertIn("META", dividend["note"])
 
-    def test_card_debit_not_emitted(self) -> None:
+    def test_card_debit_emits_cash_outflow(self) -> None:
         row = (
             "Card debit,2026-04-23 12:01:45,,,,,019dbd80-d3a,"
             ",,,,,,-48.98,\"GBP\",,,,,\"TESCO STORES 6593\",\"RETAIL_STORES\"\n"
@@ -292,7 +292,13 @@ class Trading212CashEventsTestCase(unittest.TestCase):
             content=self._build_csv([row]),
         )
         self.assertEqual(parsed["record_count"], 0)
-        self.assertEqual(len(parsed["cash_events"]), 0)
+        self.assertEqual(len(parsed["cash_events"]), 1)
+        event = parsed["cash_events"][0]
+        self.assertEqual(event["direction"], "out")
+        self.assertEqual(event["kind"], "card_debit")
+        self.assertAlmostEqual(event["amount"], 48.98, places=4)
+        self.assertEqual(event["currency"], "GBP")
+        self.assertIn("019dbd80-d3a", event["note"])
 
     def test_huatai_emits_no_cash_events(self) -> None:
         csv_text = (

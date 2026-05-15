@@ -91,6 +91,7 @@ DEFAULT_PARSER_SPECS: Tuple[CsvParserSpec, ...] = (
             "interest on cash": "interest",
             "dividend (dividend)": "dividend",
             "spending cashback": "cashback",
+            "card debit": "card_debit",
         },
     ),
 )
@@ -497,8 +498,15 @@ class PortfolioImportService:
         if event_date_obj is None:
             return None
 
-        amount = self._parse_float(self._pick(row, "Total"))
-        if amount is None or amount <= 0:
+        # Outflow kinds reduce the cash pot (e.g. Trading 212 card debit charged
+        # to the same balance that funds trades). All other inflows stay positive.
+        direction = "out" if kind == "card_debit" else "in"
+
+        amount_raw = self._parse_float(self._pick(row, "Total"))
+        if amount_raw is None:
+            return None
+        amount = abs(amount_raw)
+        if amount <= 0:
             return None
 
         currency_raw = self._pick(row, "Currency (Total)", "币种", "货币")
@@ -521,9 +529,9 @@ class PortfolioImportService:
 
         return {
             "event_date": event_date_obj,
-            "direction": "in",
+            "direction": direction,
             "kind": kind,
-            "amount": float(amount),
+            "amount": amount,
             "currency": currency,
             "symbol": symbol,
             "cash_uid": cash_uid_str,

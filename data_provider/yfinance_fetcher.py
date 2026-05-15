@@ -125,6 +125,9 @@ class YfinanceFetcher(BaseFetcher):
         # 已经包含后缀的情况
         if '.SS' in code or '.SZ' in code or '.HK' in code or '.BJ' in code:
             return code
+        # 伦敦交易所（含 UCITS ETF 如 EQGB.L / VUAG.L）：原样透传给 yfinance
+        if code.endswith('.L'):
+            return code
 
         # 去除可能的 .SH 后缀
         code = code.replace('.SH', '')

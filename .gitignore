@@ -84,3 +84,6 @@ verify_*.py
 static/
 /apps/dsa-desktop/dist/
 /apps/dsa-desktop/node_modules/
+
+# server runtime log written by 'python main.py --webui-only'
+webui.log
