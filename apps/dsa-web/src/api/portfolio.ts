@@ -15,6 +15,8 @@ import type {
   PortfolioImportBrokerListResponse,
   PortfolioImportCommitResponse,
   PortfolioImportParseResponse,
+  PortfolioRealtimePriceLookupRequest,
+  PortfolioRealtimePricesResponse,
   PortfolioRiskResponse,
   PortfolioSnapshotResponse,
   PortfolioTradeCreateRequest,
@@ -137,6 +139,21 @@ export const portfolioApi = {
       params: buildFxRefreshParams(query),
     });
     return toCamelCase<PortfolioFxRefreshResponse>(response.data);
+  },
+
+  async lookupRealtimePrices(
+    payload: PortfolioRealtimePriceLookupRequest,
+  ): Promise<PortfolioRealtimePricesResponse> {
+    const response = await apiClient.post<Record<string, unknown>>(
+      '/api/v1/portfolio/prices/lookup',
+      {
+        positions: payload.positions.map((item) => ({
+          symbol: item.symbol,
+          currency: item.currency ?? undefined,
+        })),
+      },
+    );
+    return toCamelCase<PortfolioRealtimePricesResponse>(response.data);
   },
 
   async createTrade(payload: PortfolioTradeCreateRequest): Promise<PortfolioEventCreatedResponse> {
