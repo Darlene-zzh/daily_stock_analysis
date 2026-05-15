@@ -205,6 +205,7 @@ class PortfolioSnapshotResponse(BaseModel):
     fee_total: float
     tax_total: float
     fx_stale: bool
+    fx_fallback_used: bool = False
     accounts: List[PortfolioAccountSnapshot] = Field(default_factory=list)
 
 

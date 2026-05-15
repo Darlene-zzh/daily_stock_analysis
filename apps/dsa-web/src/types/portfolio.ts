@@ -83,6 +83,7 @@ export interface PortfolioSnapshotResponse {
   feeTotal: number;
   taxTotal: number;
   fxStale: boolean;
+  fxFallbackUsed: boolean;
   accounts: PortfolioAccountSnapshot[];
 }
 
