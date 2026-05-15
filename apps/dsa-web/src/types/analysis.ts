@@ -15,6 +15,7 @@ export interface AnalysisRequest {
   originalQuery?: string;
   selectionSource?: 'manual' | 'autocomplete' | 'import' | 'image';
   notify?: boolean;
+  portfolioAccountId?: number | null;
 }
 
 export interface MarketReviewRequest {

@@ -24,6 +24,7 @@ type SubmitAnalysisOptions = {
   selectionSource?: SelectionSource;
   notify?: boolean;
   forceRefresh?: boolean;
+  portfolioAccountId?: number | null;
 };
 
 let reportRequestSeq = 0;
@@ -35,6 +36,7 @@ export interface StockPoolState {
   query: string;
   selectionSource: SelectionSource;
   notify: boolean;
+  portfolioAccountId: number | null;
   inputError?: string;
   duplicateError: string | null;
   error: ParsedApiError | null;
@@ -64,6 +66,7 @@ export interface StockPoolState {
   deleteSelectedHistory: () => Promise<void>;
   submitAnalysis: (options?: SubmitAnalysisOptions) => Promise<void>;
   setNotify: (notify: boolean) => void;
+  setPortfolioAccountId: (accountId: number | null) => void;
   syncTaskCreated: (task: TaskInfo) => void;
   syncTaskUpdated: (task: TaskInfo) => void;
   syncTaskFailed: (task: TaskInfo) => void;
@@ -75,6 +78,7 @@ const initialState = {
   query: '',
   selectionSource: 'manual' as SelectionSource,
   notify: true,
+  portfolioAccountId: null,
   inputError: undefined,
   duplicateError: null,
   error: null,
@@ -191,6 +195,7 @@ export const useStockPoolStore = create<StockPoolState>((set, get) => ({
   clearInlineMessages: () => set({ inputError: undefined, duplicateError: null }),
 
   setNotify: (notify) => set({ notify }),
+  setPortfolioAccountId: (accountId) => set({ portfolioAccountId: accountId }),
 
   openMarkdownDrawer: () => set({ markdownDrawerOpen: true }),
 
@@ -309,6 +314,7 @@ export const useStockPoolStore = create<StockPoolState>((set, get) => ({
     const selectionSource = options?.selectionSource ?? state.selectionSource;
     const originalQuery = (options?.originalQuery ?? state.query).trim();
     const notify = options?.notify ?? state.notify;
+    const portfolioAccountId = options?.portfolioAccountId ?? state.portfolioAccountId;
     const forceRefresh = options?.forceRefresh ?? false;
 
     if (!stockCodeInput) {
@@ -348,6 +354,7 @@ export const useStockPoolStore = create<StockPoolState>((set, get) => ({
         selectionSource,
         notify,
         forceRefresh,
+        portfolioAccountId,
       });
 
       if (requestId !== analyzeRequestSeq) {

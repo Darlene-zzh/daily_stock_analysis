@@ -84,6 +84,7 @@ class StockAnalysisPipeline:
         query_source: Optional[str] = None,
         save_context_snapshot: Optional[bool] = None,
         progress_callback: Optional[Callable[[int, str], None]] = None,
+        portfolio_context_block: Optional[str] = None,
     ):
         """
         初始化调度器
@@ -101,7 +102,8 @@ class StockAnalysisPipeline:
             self.config.save_context_snapshot if save_context_snapshot is None else save_context_snapshot
         )
         self.progress_callback = progress_callback
-        
+        self.portfolio_context_block = portfolio_context_block
+
         # 初始化各模块
         self.db = get_db()
         self.fetcher_manager = DataFetcherManager()
@@ -484,6 +486,7 @@ class StockAnalysisPipeline:
                 news_context=news_context,
                 progress_callback=self._emit_progress,
                 stream_progress_callback=_on_llm_stream,
+                portfolio_context_block=self.portfolio_context_block,
             )
 
             # Step 7.5: 填充分析时的价格信息到 result

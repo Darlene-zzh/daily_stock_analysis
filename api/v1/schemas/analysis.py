@@ -71,6 +71,14 @@ class AnalyzeRequest(BaseModel):
         True,
         description="是否发送推送通知（Telegram/企业微信等）"
     )
+    portfolio_account_id: Optional[int] = Field(
+        None,
+        description=(
+            "可选：关联持仓账户 id，分析时会注入 [持仓上下文] 给 LLM，"
+            "使建议结合该账户的当前持仓与历史交易给出个性化回应。"
+        ),
+        example=1,
+    )
 
     class Config:
         json_schema_extra = {
