@@ -267,6 +267,34 @@ class PortfolioImportBrokerListResponse(BaseModel):
     brokers: List[PortfolioImportBrokerItem] = Field(default_factory=list)
 
 
+class PortfolioRealtimePriceLookupItem(BaseModel):
+    symbol: str = Field(..., min_length=1, max_length=32)
+    currency: Optional[str] = Field(None, min_length=1, max_length=8)
+
+
+class PortfolioRealtimePriceLookupRequest(BaseModel):
+    positions: List[PortfolioRealtimePriceLookupItem] = Field(default_factory=list)
+
+
+class PortfolioRealtimePriceItem(BaseModel):
+    symbol: str
+    currency_hint: Optional[str] = None
+    last_price: float
+    price_provider: Optional[str] = None
+    price_source: str
+    price_date: Optional[str] = None
+    price_stale: bool = False
+    price_available: bool = True
+    fetched_at: Optional[str] = None
+
+
+class PortfolioRealtimePricesResponse(BaseModel):
+    as_of: str
+    cache_hits: int = 0
+    cache_misses: int = 0
+    items: List[PortfolioRealtimePriceItem] = Field(default_factory=list)
+
+
 class PortfolioFxRefreshResponse(BaseModel):
     as_of: str
     account_count: int

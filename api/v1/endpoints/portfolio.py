@@ -27,12 +27,15 @@ from api.v1.schemas.portfolio import (
     PortfolioImportCommitResponse,
     PortfolioImportParseResponse,
     PortfolioImportTradeItem,
+    PortfolioRealtimePriceLookupRequest,
+    PortfolioRealtimePricesResponse,
     PortfolioRiskResponse,
     PortfolioSnapshotResponse,
     PortfolioTradeListResponse,
     PortfolioTradeCreateRequest,
 )
 from src.services.portfolio_import_service import PortfolioImportService
+from src.services.portfolio_realtime_service import PortfolioRealtimePriceService
 from src.services.portfolio_risk_service import PortfolioRiskService
 from src.services.portfolio_service import (
     PortfolioBusyError,
@@ -537,6 +540,25 @@ def commit_csv_import(
         raise _bad_request(exc)
     except Exception as exc:
         raise _internal_error("Commit CSV import failed", exc)
+
+
+@router.post(
+    "/prices/lookup",
+    response_model=PortfolioRealtimePricesResponse,
+    responses={400: {"model": ErrorResponse}, 500: {"model": ErrorResponse}},
+    summary="Realtime price lookup with per-symbol TTL cache",
+)
+def lookup_realtime_prices(request: PortfolioRealtimePriceLookupRequest) -> PortfolioRealtimePricesResponse:
+    service = PortfolioRealtimePriceService()
+    try:
+        result = service.lookup(
+            [{"symbol": item.symbol, "currency": item.currency} for item in request.positions],
+        )
+        return PortfolioRealtimePricesResponse(**result)
+    except ValueError as exc:
+        raise _bad_request(exc)
+    except Exception as exc:
+        raise _internal_error("Realtime price lookup failed", exc)
 
 
 @router.post(

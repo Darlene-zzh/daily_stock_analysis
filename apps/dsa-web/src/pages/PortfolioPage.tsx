@@ -5,6 +5,7 @@ import { portfolioApi } from '../api/portfolio';
 import type { ParsedApiError } from '../api/error';
 import { getParsedApiError } from '../api/error';
 import { ApiErrorAlert, Card, Badge, ConfirmDialog, EmptyState, InlineAlert } from '../components/common';
+import { usePortfolioRealtimePrices } from '../hooks/usePortfolioRealtimePrices';
 import { toDateInputValue } from '../utils/format';
 import type {
   PortfolioAccountItem,
@@ -481,7 +482,7 @@ const PortfolioPage: React.FC = () => {
     }
   }, [writeBlocked]);
 
-  const positionRows: FlatPosition[] = useMemo(() => {
+  const basePositionRows: FlatPosition[] = useMemo(() => {
     if (!snapshot) return [];
     const rows: FlatPosition[] = [];
     for (const account of snapshot.accounts || []) {
@@ -496,6 +497,45 @@ const PortfolioPage: React.FC = () => {
     rows.sort((a, b) => Number(b.marketValueBase || 0) - Number(a.marketValueBase || 0));
     return rows;
   }, [snapshot]);
+
+  const realtimePrices = usePortfolioRealtimePrices(basePositionRows);
+
+  const positionRows: FlatPosition[] = useMemo(() => {
+    const liveMap = realtimePrices.prices;
+    if (!Object.keys(liveMap).length) return basePositionRows;
+    return basePositionRows.map((row) => {
+      const live = liveMap[row.symbol];
+      if (!live || !live.priceAvailable || live.lastPrice <= 0) return row;
+      const oldPrice = row.lastPrice;
+      if (oldPrice <= 0 || row.priceSource === 'missing') {
+        // Snapshot lacks a base price; show the live one but skip market-value math.
+        return {
+          ...row,
+          lastPrice: live.lastPrice,
+          priceProvider: live.priceProvider ?? row.priceProvider ?? null,
+          priceSource: 'realtime_quote',
+          priceStale: false,
+          priceAvailable: true,
+        };
+      }
+      const factor = live.lastPrice / oldPrice;
+      const newMarketValueBase = row.marketValueBase * factor;
+      const costBase = row.marketValueBase - row.unrealizedPnlBase;
+      const newPnlBase = newMarketValueBase - costBase;
+      const newPnlPct = Math.abs(costBase) > 1e-8 ? (newPnlBase / costBase) * 100 : null;
+      return {
+        ...row,
+        lastPrice: live.lastPrice,
+        marketValueBase: newMarketValueBase,
+        unrealizedPnlBase: newPnlBase,
+        unrealizedPnlPct: newPnlPct,
+        priceProvider: live.priceProvider ?? row.priceProvider ?? null,
+        priceSource: 'realtime_quote',
+        priceStale: false,
+        priceAvailable: true,
+      };
+    });
+  }, [basePositionRows, realtimePrices.prices]);
 
   const sectorPieData = useMemo(() => {
     const sectors = risk?.sectorConcentration?.topSectors || [];
@@ -1033,9 +1073,38 @@ const PortfolioPage: React.FC = () => {
 
       <section className="grid grid-cols-1 xl:grid-cols-3 gap-3">
         <Card className="xl:col-span-2" padding="md">
-          <div className="flex items-center justify-between mb-3">
+          <div className="flex flex-wrap items-center justify-between gap-2 mb-3">
             <h2 className="text-sm font-semibold text-foreground">持仓明细</h2>
-            <span className="text-xs text-secondary">共 {positionRows.length} 项</span>
+            <div className="flex flex-wrap items-center gap-3 text-xs text-secondary">
+              <span>共 {positionRows.length} 项</span>
+              {basePositionRows.length > 0 ? (
+                <>
+                  <span className="text-muted-text">
+                    {realtimePrices.lastFetchedAt
+                      ? `上次更新 ${realtimePrices.lastFetchedAt.toLocaleTimeString()}`
+                      : realtimePrices.isEnabled
+                        ? '等待首次刷新...'
+                        : '实时刷新已暂停'}
+                    {realtimePrices.isFetching ? ' · 刷新中' : ''}
+                  </span>
+                  <button
+                    type="button"
+                    className="btn-secondary !px-3 !py-1 !text-xs shrink-0"
+                    onClick={() => realtimePrices.setEnabled(!realtimePrices.isEnabled)}
+                  >
+                    {realtimePrices.isEnabled ? '暂停实时价' : '开启实时价'}
+                  </button>
+                  <button
+                    type="button"
+                    className="btn-secondary !px-3 !py-1 !text-xs shrink-0"
+                    onClick={() => void realtimePrices.refresh()}
+                    disabled={realtimePrices.isFetching}
+                  >
+                    立即刷新
+                  </button>
+                </>
+              ) : null}
+            </div>
           </div>
           {positionRows.length === 0 ? (
             <EmptyState
