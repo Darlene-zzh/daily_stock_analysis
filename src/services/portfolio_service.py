@@ -5,6 +5,7 @@ from __future__ import annotations
 
 import json
 import logging
+import os
 from collections import defaultdict
 from dataclasses import dataclass
 from datetime import date, timedelta
@@ -459,7 +460,8 @@ class PortfolioService:
             account_rows = self.repo.list_accounts(include_inactive=False)
 
         accounts_payload: List[Dict[str, Any]] = []
-        aggregate_currency = "CNY"
+        aggregate_currency = self._resolve_aggregate_currency(account_rows)
+        fx_fallback_used = False
         aggregate = {
             "total_cash": 0.0,
             "total_market_value": 0.0,
@@ -495,48 +497,59 @@ class PortfolioService:
 
             accounts_payload.append(account_snapshot["public"])
 
-            cash_cny, stale_cash, _ = self._convert_amount(
+            cash_cny, stale_cash, reason_cash = self._convert_amount(
                 amount=account_snapshot["total_cash"],
                 from_currency=account.base_currency,
                 to_currency=aggregate_currency,
                 as_of_date=as_of_date,
             )
-            mv_cny, stale_mv, _ = self._convert_amount(
+            mv_cny, stale_mv, reason_mv = self._convert_amount(
                 amount=account_snapshot["total_market_value"],
                 from_currency=account.base_currency,
                 to_currency=aggregate_currency,
                 as_of_date=as_of_date,
             )
-            eq_cny, stale_eq, _ = self._convert_amount(
+            eq_cny, stale_eq, reason_eq = self._convert_amount(
                 amount=account_snapshot["total_equity"],
                 from_currency=account.base_currency,
                 to_currency=aggregate_currency,
                 as_of_date=as_of_date,
             )
-            realized_cny, stale_realized, _ = self._convert_amount(
+            realized_cny, stale_realized, reason_realized = self._convert_amount(
                 amount=account_snapshot["realized_pnl"],
                 from_currency=account.base_currency,
                 to_currency=aggregate_currency,
                 as_of_date=as_of_date,
             )
-            unrealized_cny, stale_unrealized, _ = self._convert_amount(
+            unrealized_cny, stale_unrealized, reason_unrealized = self._convert_amount(
                 amount=account_snapshot["unrealized_pnl"],
                 from_currency=account.base_currency,
                 to_currency=aggregate_currency,
                 as_of_date=as_of_date,
             )
-            fee_cny, stale_fee, _ = self._convert_amount(
+            fee_cny, stale_fee, reason_fee = self._convert_amount(
                 amount=account_snapshot["fee_total"],
                 from_currency=account.base_currency,
                 to_currency=aggregate_currency,
                 as_of_date=as_of_date,
             )
-            tax_cny, stale_tax, _ = self._convert_amount(
+            tax_cny, stale_tax, reason_tax = self._convert_amount(
                 amount=account_snapshot["tax_total"],
                 from_currency=account.base_currency,
                 to_currency=aggregate_currency,
                 as_of_date=as_of_date,
             )
+
+            if "fallback_1_to_1" in (
+                reason_cash,
+                reason_mv,
+                reason_eq,
+                reason_realized,
+                reason_unrealized,
+                reason_fee,
+                reason_tax,
+            ):
+                fx_fallback_used = True
 
             aggregate["total_cash"] += cash_cny
             aggregate["total_market_value"] += mv_cny
@@ -570,6 +583,7 @@ class PortfolioService:
             "fee_total": round(aggregate["fee_total"], 6),
             "tax_total": round(aggregate["tax_total"], 6),
             "fx_stale": aggregate["fx_stale"],
+            "fx_fallback_used": fx_fallback_used,
             "accounts": accounts_payload,
         }
 
@@ -1593,6 +1607,16 @@ class PortfolioService:
         if not currency:
             raise ValueError("currency is required")
         return currency
+
+    @classmethod
+    def _resolve_aggregate_currency(cls, account_rows: Iterable[Any]) -> str:
+        rows = list(account_rows)
+        if len(rows) == 1 and rows[0].base_currency:
+            return cls._normalize_currency(rows[0].base_currency)
+        env_value = (os.environ.get("PORTFOLIO_REPORT_CURRENCY") or "").strip()
+        if env_value:
+            return cls._normalize_currency(env_value)
+        return "CNY"
 
     @staticmethod
     def _normalize_cost_method(value: str) -> str:

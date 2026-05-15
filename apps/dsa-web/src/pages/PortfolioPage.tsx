@@ -1017,6 +1017,15 @@ const PortfolioPage: React.FC = () => {
         </Card>
       </section>
 
+      {snapshot?.fxStale && snapshot?.fxFallbackUsed ? (
+        <InlineAlert
+          variant="warning"
+          title="汇率未刷新，跨币种金额未折算"
+          message={`部分账户的 base_currency 与汇总货币（${snapshot.currency}）不一致，但当前没有可用汇率，相关金额按 1:1 直接相加。点击右上角 "刷新汇率" 获取最新汇率，或留意数值口径。`}
+          className="rounded-xl px-3 py-2 text-xs shadow-none"
+        />
+      ) : null}
+
       <section className="grid grid-cols-1 xl:grid-cols-3 gap-3">
         <Card className="xl:col-span-2" padding="md">
           <div className="flex flex-wrap items-center justify-between gap-2 mb-3">

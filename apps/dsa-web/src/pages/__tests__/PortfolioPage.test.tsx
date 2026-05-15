@@ -116,6 +116,7 @@ function makeSnapshot(options: {
     feeTotal: 0,
     taxTotal: 0,
     fxStale: options.fxStale ?? true,
+    fxFallbackUsed: false,
     accounts: [
       {
         accountId,
