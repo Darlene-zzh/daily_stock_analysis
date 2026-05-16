@@ -19,7 +19,8 @@ class GetSocialContextStructuredTestCase(unittest.TestCase):
             api_key="sk_test", api_url="https://api.adanos.org",
         )
 
-    def _patch_endpoints(self, reddit=None, x=None, poly=None, news=None):
+    def _patch_endpoints(self, reddit=None, x=None, poly=None, news=None, stocktwits=None):
+        from unittest.mock import MagicMock
         return [
             patch.object(self.svc, "fetch_reddit_report", return_value=reddit),
             patch.object(self.svc, "fetch_x_trending",
@@ -27,6 +28,8 @@ class GetSocialContextStructuredTestCase(unittest.TestCase):
             patch.object(self.svc, "fetch_polymarket_trending",
                          return_value=[{"ticker": "NVDA", **poly}] if poly else []),
             patch.object(self.svc, "fetch_news_report", return_value=news),
+            patch("src.services.stocktwits_service.StockTwitsService",
+                  return_value=MagicMock(fetch_sentiment=MagicMock(return_value=stocktwits))),
         ]
 
     def test_get_social_context_returns_tuple(self):

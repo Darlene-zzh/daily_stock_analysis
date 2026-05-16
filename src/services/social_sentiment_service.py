@@ -235,12 +235,22 @@ class SocialSentimentService:
         # 4. News report
         news_data = self.fetch_news_report(ticker_upper)
 
+        # 5. StockTwits: free public API, independent of Adanos
+        stocktwits_data = None
+        try:
+            from src.services.stocktwits_service import StockTwitsService
+            stocktwits_data = StockTwitsService().fetch_sentiment(ticker_upper)
+        except Exception as exc:
+            logger.warning("[social] StockTwits fetch failed for %s: %s", ticker_upper, exc)
+
         # If no data from any source, skip
-        if not (reddit_data or x_entry or poly_entry or news_data):
+        if not (reddit_data or x_entry or poly_entry or news_data or stocktwits_data):
             return None
 
         text = self._format_social_intel(ticker_upper, reddit_data, x_entry, poly_entry, news_data)
-        dims = self._build_sentiment_dimensions(reddit_data, x_entry, poly_entry, news_data)
+        dims = self._build_sentiment_dimensions(
+            reddit_data, x_entry, poly_entry, news_data, stocktwits_data,
+        )
         return text, dims
 
     @staticmethod
@@ -249,6 +259,7 @@ class SocialSentimentService:
         x_entry: Optional[Dict],
         poly_entry: Optional[Dict],
         news_data: Optional[Dict],
+        stocktwits_data: Optional[Dict] = None,
     ) -> Dict[str, Dict]:
         """Convert raw Adanos payloads into structured sentiment_dimensions dict."""
         out: Dict[str, Dict] = {}
@@ -287,6 +298,14 @@ class SocialSentimentService:
                 "bullish_pct": news_data.get("bullish_pct"),
                 "bearish_pct": news_data.get("bearish_pct"),
                 "source": "adanos",
+            }
+        if stocktwits_data:
+            out["stocktwits"] = {
+                "bullish_ratio": stocktwits_data.get("bullish_ratio"),
+                "bearish_ratio": stocktwits_data.get("bearish_ratio"),
+                "neutral_ratio": stocktwits_data.get("neutral_ratio"),
+                "messages_sampled": stocktwits_data.get("messages_sampled"),
+                "source": stocktwits_data.get("source", "stocktwits_public"),
             }
         return out
 
