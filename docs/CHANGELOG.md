@@ -60,6 +60,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 - [修复] action_plan_items 在 cost-basis 过滤后重新编号 `priority` 为连续 1..N，避免 UI 显示 `优先级 1 / 优先级 3` 中间出现跳号。
 - [修复] 异步任务轮询的 DB 兜底分支（服务重启后）和同步 analyze 响应均补传 `dashboard`，否则前端 `持仓操作计划` 区块在这两条路径下静默消失。
 - [改进] 前端 `ActionPlanTable` 增加 `triggerPrice` / `shares` 的 null-safety；`pctOfEquity` 渲染条件由 `?` 改为 `!= null` 以保留 0% 值；分数股自动按 4 位小数格式化。
+- [新功能] 每只股票分析新增「📌 策略选择」section：LLM 从 4 个固定策略（长线持有/短线波段/阶梯式止盈/暂不操作）中按当前持仓状态、技术结构、市场情绪选择推荐策略并写出 100-200 字论述，`action_plan_items` 严格遵循推荐策略的模板（如阶梯式止盈禁止 buy、长线持有强制含 cost × 0.9 真止损）。适用于所有股票（A/HK/US，带或不带持仓）。
+- [新功能] 报告底部新增「📊 仓位流水汇总」卡片：基于 action_plan_items 计算执行后剩余仓位、最差/最好情况金额、风险回报比 (R:R)。
+- [新功能] 市场情绪 5 源接入：修复 Adanos Reddit endpoint path bug (`/stock/{ticker}`，不再 404)；新增 Adanos `/news/stocks/v1/stock/{ticker}` 维度；新增 StockTwits 免费公开 API（无 key、5 分钟缓存）。dashboard 新增 `intelligence.sentiment_dimensions` 结构化字段 + 前端「📱 市场情绪」专用面板。
+- [改进] post-process 守门规则升级：strategy template 白/黑名单（stepped 禁 buy / wait_and_see ≤1 item）；long_term 缺真止损时自动追加 cost × 0.9；优先级 filter 后 1..N 连续编号。
+- [改进] `_try_inject_action_plan_items` 对所有股票分析触发（去掉 portfolio-context 门控），未持有场景下 cost-based 规则降级为现价相对规则。
+- [测试] 新增 6 个测试文件 / 30+ 用例覆盖 schema / prompt 构造 / strategy template 强制 / position outcome 计算 / sentiment 多源整合。
 
 ## [3.16.0] - 2026-05-10
 
