@@ -122,19 +122,83 @@ export interface ActionPlanItem {
   priority: number;
 }
 
+/** One candidate strategy in the strategy comparison table. */
+export interface StrategyChoice {
+  id: 'long_term_hold' | 'swing_trade' | 'stepped_profit_taking' | 'wait_and_see' | string;
+  labelZh?: string;
+  emoji?: string;
+  applicable?: boolean;
+  fitCondition?: string;
+  keyParams?: string;
+  timeHorizon?: string;
+  inapplicableReason?: string;
+}
+
+export interface PositionOutcomeSummary {
+  remainingSharesAfterAllTriggers?: number;
+  worstCaseLossPct?: number;
+  worstCaseLossAmount?: number;
+  worstCaseCurrency?: string;
+  bestCaseGainPct?: number;
+  bestCaseGainAmount?: number;
+  riskRewardRatio?: string;
+}
+
+export interface SentimentDimensions {
+  reddit?: {
+    buzzScore?: number;
+    buzzTrend?: string;
+    sentimentScore?: number;
+    mentions7d?: number;
+    bullishPct?: number;
+    bearishPct?: number;
+  };
+  xTwitter?: {
+    buzzScore?: number;
+    buzzTrend?: string;
+    sentimentScore?: number;
+    mentions7d?: number;
+  };
+  polymarket?: {
+    buzzScore?: number;
+    sentimentScore?: number;
+    tradeCount?: number;
+  };
+  news?: {
+    buzzScore?: number;
+    buzzTrend?: string;
+    sentimentScore?: number;
+    mentions7d?: number;
+    bullishPct?: number;
+    bearishPct?: number;
+  };
+  stocktwits?: {
+    bullishRatio?: number;
+    bearishRatio?: number;
+    neutralRatio?: number;
+    messagesSampled?: number;
+  };
+}
+
 export interface CoreConclusion {
   oneSentence?: string;
   signalType?: string;
   timeSensitivity?: string;
   positionAdvice?: { noPosition?: string; hasPosition?: string };
   actionPlanItems?: ActionPlanItem[];
+  strategyChoices?: StrategyChoice[];
+  recommendedStrategy?: string;
+  strategyThesis?: string;
+  positionOutcomeSummary?: PositionOutcomeSummary;
 }
 
 export interface DashboardSection {
   coreConclusion?: CoreConclusion;
   dataPerspective?: Record<string, unknown>;
   battlePlan?: Record<string, unknown>;
-  intelligence?: Record<string, unknown>;
+  intelligence?: Record<string, unknown> & {
+    sentimentDimensions?: SentimentDimensions;
+  };
 }
 
 /** Full analysis report */

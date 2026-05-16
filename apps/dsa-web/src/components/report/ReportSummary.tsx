@@ -2,6 +2,10 @@ import React from 'react';
 import type { AnalysisResult, AnalysisReport } from '../../types/analysis';
 import { ReportOverview } from './ReportOverview';
 import { ActionPlanTable } from './ActionPlanTable';
+import { StrategySelector } from './StrategySelector';
+import { StrategyThesis } from './StrategyThesis';
+import { SentimentPanel } from './SentimentPanel';
+import { PositionOutcomeSummary } from './PositionOutcomeSummary';
 import { ReportStrategy } from './ReportStrategy';
 import { ReportNews } from './ReportNews';
 import { ReportDetails } from './ReportDetails';
@@ -49,6 +53,41 @@ export const ReportSummary: React.FC<ReportSummaryProps> = ({
           <div className="rounded-xl border border-subtle bg-card p-4">
             <ActionPlanTable items={report.dashboard.coreConclusion.actionPlanItems} />
           </div>
+        )}
+
+      {/* 策略选择 — 4 个候选 + AI 推荐 + 论述 */}
+      {report.dashboard?.coreConclusion?.strategyChoices &&
+        report.dashboard.coreConclusion.strategyChoices.length > 0 && (
+          <div className="rounded-xl border border-subtle bg-card p-4 space-y-3">
+            <StrategySelector
+              choices={report.dashboard.coreConclusion.strategyChoices}
+              recommendedId={report.dashboard.coreConclusion.recommendedStrategy}
+            />
+            {report.dashboard.coreConclusion.strategyThesis && (
+              <StrategyThesis
+                thesis={report.dashboard.coreConclusion.strategyThesis}
+                recommendedLabel={undefined}
+              />
+            )}
+          </div>
+        )}
+
+      {/* 仓位流水汇总 */}
+      {report.dashboard?.coreConclusion?.positionOutcomeSummary && (
+        <PositionOutcomeSummary
+          summary={report.dashboard.coreConclusion.positionOutcomeSummary}
+        />
+      )}
+
+      {/* 市场情绪面板 */}
+      {report.dashboard?.intelligence &&
+        (report.dashboard.intelligence as { sentimentDimensions?: import('../../types/analysis').SentimentDimensions })
+          .sentimentDimensions && (
+          <SentimentPanel
+            dimensions={(report.dashboard.intelligence as {
+              sentimentDimensions: import('../../types/analysis').SentimentDimensions;
+            }).sentimentDimensions}
+          />
         )}
 
       {/* 策略点位区 */}

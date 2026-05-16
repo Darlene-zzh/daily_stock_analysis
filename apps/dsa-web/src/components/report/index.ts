@@ -5,3 +5,7 @@ export * from './ReportNews';
 export * from './ReportDetails';
 export * from './ReportMarkdown';
 export { ActionPlanTable } from './ActionPlanTable';
+export { StrategySelector } from './StrategySelector';
+export { StrategyThesis } from './StrategyThesis';
+export { SentimentPanel } from './SentimentPanel';
+export { PositionOutcomeSummary } from './PositionOutcomeSummary';
