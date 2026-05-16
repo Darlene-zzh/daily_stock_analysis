@@ -150,8 +150,13 @@ class SocialSentimentService:
                     inflight.set()
 
     def fetch_reddit_report(self, ticker: str) -> Optional[Dict]:
-        """Fetch detailed Reddit report for a single ticker."""
-        url = f"{self._api_url}/reddit/stocks/v1/report/{ticker.upper()}"
+        """Fetch detailed Reddit report for a single ticker.
+
+        Adanos v1.33 path is `/reddit/stocks/v1/stock/{ticker}`. We previously hit
+        `/report/{ticker}` which 404s on every call — the per-ticker endpoint family
+        is named `/stock/...` across all platforms (reddit/news/x/polymarket).
+        """
+        url = f"{self._api_url}/reddit/stocks/v1/stock/{ticker.upper()}"
         return self._fetch_json(url)
 
     def fetch_reddit_trending(self) -> Optional[List[Dict]]:

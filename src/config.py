@@ -74,6 +74,14 @@ _FIXED_TEMPERATURE_LITELLM_MODELS: Dict[str, Dict[str, float]] = {
         "thinking": 1.0,
         "non_thinking": 0.6,
     },
+    # gpt-5.5 is OpenAI's reasoning model — the API rejects any temperature except
+    # the default 1.0 ("Unsupported value: 'temperature' does not support 0.7 with
+    # this model"). Without this registration, every call from analyzer / agent /
+    # post-process passes 0.7 / 0.3 and silently falls back to gpt-5.4-mini.
+    "gpt-5.5": {
+        "thinking": 1.0,
+        "non_thinking": 1.0,
+    },
 }
 
 
