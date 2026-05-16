@@ -74,8 +74,9 @@ class StrategyClassifyPromptTestCase(unittest.TestCase):
             compact_dashboard={"key_levels": {"ideal_buy": 95}},
         )
         self.assertIn("未持有", text)
-        # No mention of cost-basis math when no portfolio
-        self.assertNotIn("avg_cost ×", text)
+        # Main block now references avg_cost × to show the held-vs-unheld split,
+        # but the held-only addendum section must NOT be injected.
+        self.assertNotIn("持仓成本规则补充", text)
 
     def test_prompt_embeds_sentiment_decision_rules(self) -> None:
         from src.services.portfolio_context_service import build_strategy_classify_prompt

@@ -25,6 +25,7 @@ Design notes
 
 from __future__ import annotations
 
+import json
 import logging
 from dataclasses import dataclass
 from datetime import date
@@ -424,11 +425,11 @@ recommended_strategy 字段填一个 id（long_term_hold / swing_trade / stepped
 
 严格遵循推荐策略的模板：
 
-- `long_term_hold` → 必含 1 条 stop_loss（持有时 ≤ current_price × 0.85；未持有时同）；
-  可选 1 条 buy on dip；禁止短线 trigger（距现价 < 5%）。共 2-3 条。
+- `long_term_hold` → 必含 1 条 stop_loss（持有时 ≤ avg_cost × 0.9；未持有时 ≤ current_price × 0.85）；
+  可选 1 条 buy on dip（持有时在 avg_cost × 0.85 附近）；禁止短线 trigger（距现价 < 5%）。共 2-3 条。
 - `swing_trade` → 必含 1 条 entry (buy/sell)、1 条 stop_loss（chart-based）、
   1 条 take_profit（chart-based）。共 3-4 条。
-- `stepped_profit_taking` → 必含 2-3 条 take_profit（阶梯价位）+ 1 条 cost-based stop_loss；
+- `stepped_profit_taking` → 必含 2-3 条 take_profit（阶梯价位）+ 1 条 cost-based stop_loss（持有时 ≤ avg_cost × 0.95；未持有时不适用此策略）；
   禁止 buy。共 3-4 条。
 - `wait_and_see` → 至多 1 条 item，须为事件类提醒（无价格 trigger）。共 0-1 条。
 
@@ -489,13 +490,11 @@ def build_strategy_classify_prompt(
         parts.append("\n## 持仓上下文\n用户未持有该股票，按建仓视角分析（cost-based 规则换为现价相对规则）。")
 
     if sentiment_dimensions:
-        import json as _json
-        parts.append("\n## 市场情绪\n" + _json.dumps(
+        parts.append("\n## 市场情绪\n" + json.dumps(
             sentiment_dimensions, ensure_ascii=False, indent=2,
         ))
 
-    import json as _json2
-    parts.append("\n## 分析摘要\n" + _json2.dumps(
+    parts.append("\n## 分析摘要\n" + json.dumps(
         compact_dashboard, ensure_ascii=False, indent=2, default=str,
     ))
 
