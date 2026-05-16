@@ -347,5 +347,75 @@ class StrategyClassificationInjectionTestCase(unittest.TestCase):
         self.assertEqual(core["position_outcome_summary"]["risk_reward_ratio"], "1:3")
 
 
+class StrategyChoicesSanitizationTestCase(unittest.TestCase):
+    def test_positional_id_recovery_when_all_ids_missing(self):
+        """LLM emits 4 entries with no id — we recover positionally."""
+        payload = json.dumps({
+            "recommended_strategy": "stepped_profit_taking",
+            "strategy_choices": [
+                {"applicable": True, "fit_condition": "x1"},
+                {"applicable": False, "inapplicable_reason": "x2"},
+                {"applicable": False, "inapplicable_reason": "x3"},
+                {"applicable": False, "inapplicable_reason": "x4"},
+            ],
+            "action_plan_items": [],
+        }, ensure_ascii=False)
+        a = _make_analyzer(payload)
+        result = _make_result()
+        a._try_inject_action_plan_items(result, "PLTR", _BLOCK_HELD)
+        choices = result.dashboard["core_conclusion"]["strategy_choices"]
+        ids = [c["id"] for c in choices]
+        self.assertEqual(ids, ["long_term_hold", "swing_trade",
+                                "stepped_profit_taking", "wait_and_see"])
+
+    def test_label_zh_backfilled_from_id(self):
+        payload = json.dumps({
+            "recommended_strategy": "swing_trade",
+            "strategy_choices": [
+                {"id": "swing_trade", "applicable": True, "fit_condition": "x"},
+            ],
+            "action_plan_items": [],
+        }, ensure_ascii=False)
+        a = _make_analyzer(payload)
+        result = _make_result()
+        a._try_inject_action_plan_items(result, "PLTR", _BLOCK_HELD)
+        choices = result.dashboard["core_conclusion"]["strategy_choices"]
+        self.assertEqual(choices[0]["label_zh"], "短线波段")
+        self.assertEqual(choices[0]["emoji"], "⚡")
+
+    def test_empty_entries_dropped(self):
+        payload = json.dumps({
+            "recommended_strategy": "swing_trade",
+            "strategy_choices": [
+                {"id": "swing_trade", "applicable": True, "fit_condition": "x"},
+                {},  # empty — drop
+                {"id": None, "label_zh": None, "applicable": False},  # all none — drop
+            ],
+            "action_plan_items": [],
+        }, ensure_ascii=False)
+        a = _make_analyzer(payload)
+        result = _make_result()
+        a._try_inject_action_plan_items(result, "PLTR", _BLOCK_HELD)
+        choices = result.dashboard["core_conclusion"]["strategy_choices"]
+        self.assertEqual(len(choices), 1)
+        self.assertEqual(choices[0]["id"], "swing_trade")
+
+    def test_dedup_by_id(self):
+        payload = json.dumps({
+            "recommended_strategy": "swing_trade",
+            "strategy_choices": [
+                {"id": "swing_trade", "applicable": True, "fit_condition": "first"},
+                {"id": "swing_trade", "applicable": True, "fit_condition": "duplicate"},
+            ],
+            "action_plan_items": [],
+        }, ensure_ascii=False)
+        a = _make_analyzer(payload)
+        result = _make_result()
+        a._try_inject_action_plan_items(result, "PLTR", _BLOCK_HELD)
+        choices = result.dashboard["core_conclusion"]["strategy_choices"]
+        self.assertEqual(len(choices), 1)
+        self.assertIn("first", choices[0]["fit_condition"])
+
+
 if __name__ == "__main__":
     unittest.main()
