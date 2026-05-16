@@ -384,6 +384,136 @@ def build_action_plan_instruction(portfolio_context_block: Optional[str]) -> str
     return ""
 
 
+STRATEGY_CLASSIFY_INSTRUCTION_ZH = """
+## [策略分类与操作计划指令]
+
+你必须按两步输出：先分类，后生成 items。
+
+### 第一步：策略分类
+
+阅读以下输入：
+- 用户持仓上下文（成本价、浮盈浮亏、持有天数）
+- 技术摘要（趋势、MA 排列、支撑/压力位）
+- 基本面与新闻摘要
+- 市场情绪 (Reddit / X / Polymarket / News)
+
+按以下规则在 4 个固定策略里挑选 applicable 状态，并输出 1-4 个 strategy_choices 条目：
+
+| 触发条件 | 推荐 / 适用 |
+|---|---|
+| 持仓盈利 > +5% + 技术结构未坏 + buzz falling 或 sentiment 降温 | 推荐 `stepped_profit_taking` |
+| 持仓盈利 > +5% + 技术结构强 + buzz rising + bullish sentiment | 推荐 `swing_trade` 或 `long_term_hold` |
+| 持仓亏损 -3% ~ -15% + 基本面叙事完好 | 推荐 `long_term_hold` 或 `wait_and_see` |
+| 持仓亏损 > -15% + 基本面恶化 / sentiment 转负 | 推荐 `wait_and_see` |
+| 未持有 + 趋势强 | 推荐 `swing_trade` |
+| 未持有 + 趋势弱 + 估值偏高 | 推荐 `wait_and_see` |
+| 财报 / 政策事件 < 14 天 + 持仓 | 推荐 `wait_and_see` |
+
+applicable=false 的策略也要列出并填 `inapplicable_reason`。
+recommended_strategy 字段填一个 id（long_term_hold / swing_trade / stepped_profit_taking / wait_and_see）。
+
+### 第二步：写 strategy_thesis (100-200 字)
+
+必须显式引用：
+- 用户持仓状态（成本、浮盈/亏、持有天数）—— 未持有时引用现价与权益规模
+- 至少 1 条技术依据（具体指标数值）
+- 至少 1 条情绪依据（buzz 数值或 trend）
+- 该策略的优势 + 劣势
+
+### 第三步：生成 action_plan_items
+
+严格遵循推荐策略的模板：
+
+- `long_term_hold` → 必含 1 条 stop_loss（持有时 ≤ current_price × 0.85；未持有时同）；
+  可选 1 条 buy on dip；禁止短线 trigger（距现价 < 5%）。共 2-3 条。
+- `swing_trade` → 必含 1 条 entry (buy/sell)、1 条 stop_loss（chart-based）、
+  1 条 take_profit（chart-based）。共 3-4 条。
+- `stepped_profit_taking` → 必含 2-3 条 take_profit（阶梯价位）+ 1 条 cost-based stop_loss；
+  禁止 buy。共 3-4 条。
+- `wait_and_see` → 至多 1 条 item，须为事件类提醒（无价格 trigger）。共 0-1 条。
+
+任何违反模板的 item 会在 post-process 阶段被丢弃。
+
+通用规则（贯穿四策略）：
+- take_profit 触发价必须高于买入成本（持仓时）
+- stop_loss 触发价应当不高于成本价的 102%（持仓时；介于成本上方的 chart support 用 sell 标）
+- trigger_price 距 current_price 应当 ≥ 2.5%
+- 所有 items 的 shares 总和 ≈ 持仓数（容差 ±5%）；未持有时按权益 5%-10% 折算建仓数
+
+### 第四步：填 position_outcome_summary（持仓时）
+
+```json
+"position_outcome_summary": {
+  "remaining_shares_after_all_triggers": 数值,
+  "worst_case_loss_pct": -10.0,
+  "worst_case_loss_amount": -12.0,
+  "worst_case_currency": "GBP",
+  "best_case_gain_pct": 30.0,
+  "best_case_gain_amount": 36.0,
+  "risk_reward_ratio": "1:3"
+}
+```
+
+未持有时该字段可省略或全部填 null。
+"""
+
+# Additional template rules that reference cost-basis math — only injected when the user
+# holds a position, so the no-portfolio path stays free of "avg_cost ×" wording.
+_STRATEGY_HELD_COST_BASIS_ADDENDUM = """
+### 持仓成本规则补充（有持仓时适用）
+
+- `long_term_hold` stop_loss: trigger_price ≤ avg_cost × 0.9
+- `stepped_profit_taking` stop_loss: trigger_price = avg_cost × 0.95
+- `swing_trade` stop_loss: chart-based，但不得高于 avg_cost × 1.02
+"""
+
+
+def build_strategy_classify_prompt(
+    portfolio_context_block: Optional[str],
+    sentiment_dimensions: Optional[Dict[str, Any]],
+    compact_dashboard: Dict[str, Any],
+) -> str:
+    """Compose the strategy-classification + action-plan-generation prompt.
+
+    Universal: runs for all stocks (with or without portfolio). When portfolio is
+    absent, cost-based rules switch to current-price relative rules. When sentiment
+    is absent (e.g. A/HK stocks), the sentiment section degrades to text-only signal.
+    """
+    has_portfolio = bool(portfolio_context_block and portfolio_context_block.strip())
+    parts = [STRATEGY_CLASSIFY_INSTRUCTION_ZH]
+
+    if has_portfolio:
+        parts.append(_STRATEGY_HELD_COST_BASIS_ADDENDUM)
+        parts.append("\n## 持仓上下文\n" + portfolio_context_block)
+    else:
+        parts.append("\n## 持仓上下文\n用户未持有该股票，按建仓视角分析（cost-based 规则换为现价相对规则）。")
+
+    if sentiment_dimensions:
+        import json as _json
+        parts.append("\n## 市场情绪\n" + _json.dumps(
+            sentiment_dimensions, ensure_ascii=False, indent=2,
+        ))
+
+    import json as _json2
+    parts.append("\n## 分析摘要\n" + _json2.dumps(
+        compact_dashboard, ensure_ascii=False, indent=2, default=str,
+    ))
+
+    parts.append(
+        "\n## 输出\n仅输出合法 JSON，顶层结构：\n"
+        "{\n"
+        '  "strategy_choices": [...],\n'
+        '  "recommended_strategy": "<id>",\n'
+        '  "strategy_thesis": "<100-200 字>",\n'
+        '  "action_plan_items": [...],\n'
+        '  "position_outcome_summary": {...}\n'
+        "}\n"
+        "不输出任何注释或代码块标记。"
+    )
+
+    return "\n".join(parts)
+
+
 import re as _re
 
 

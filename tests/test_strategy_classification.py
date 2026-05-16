@@ -54,5 +54,38 @@ class StrategySchemaTestCase(unittest.TestCase):
         self.assertEqual(s.risk_reward_ratio, "1:3")
 
 
+class StrategyClassifyPromptTestCase(unittest.TestCase):
+    def test_prompt_contains_all_four_strategy_ids(self) -> None:
+        from src.services.portfolio_context_service import build_strategy_classify_prompt
+        text = build_strategy_classify_prompt(
+            portfolio_context_block="## [持仓上下文]\n- 账户：T\n- 平均成本：100",
+            sentiment_dimensions={"reddit": {"buzz_score": 50}},
+            compact_dashboard={"key_levels": {"ideal_buy": 95}},
+        )
+        for sid in ("long_term_hold", "swing_trade", "stepped_profit_taking", "wait_and_see"):
+            self.assertIn(sid, text)
+
+    def test_prompt_handles_missing_portfolio(self) -> None:
+        """Without portfolio context the prompt downgrades cost-based wording."""
+        from src.services.portfolio_context_service import build_strategy_classify_prompt
+        text = build_strategy_classify_prompt(
+            portfolio_context_block=None,
+            sentiment_dimensions=None,
+            compact_dashboard={"key_levels": {"ideal_buy": 95}},
+        )
+        self.assertIn("未持有", text)
+        # No mention of cost-basis math when no portfolio
+        self.assertNotIn("avg_cost ×", text)
+
+    def test_prompt_embeds_sentiment_decision_rules(self) -> None:
+        from src.services.portfolio_context_service import build_strategy_classify_prompt
+        text = build_strategy_classify_prompt(
+            portfolio_context_block="## [持仓上下文]\n- 平均成本：100",
+            sentiment_dimensions={"x_twitter": {"buzz_trend": "falling"}},
+            compact_dashboard={},
+        )
+        self.assertIn("buzz falling", text)  # rule referenced in prompt
+
+
 if __name__ == "__main__":
     unittest.main()
