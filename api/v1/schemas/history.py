@@ -107,6 +107,40 @@ class NewsIntelResponse(BaseModel):
         }
 
 
+class ActionPlanItemSchema(BaseModel):
+    """One entry in a portfolio-aware structured action plan."""
+    trigger_price: Optional[float] = None
+    trigger_condition: Optional[str] = None
+    direction: Optional[str] = None  # buy | sell | stop_loss | take_profit
+    shares: Optional[int] = None
+    pct_of_position: Optional[float] = None  # null when not held
+    pct_of_equity: Optional[float] = None
+    technical_basis: Optional[str] = None
+    fundamental_basis: Optional[str] = None
+    quant_signal: Optional[str] = None
+    invalidation_rule: Optional[str] = None
+    priority: Optional[int] = None
+
+
+class CoreConclusionSchema(BaseModel):
+    """Core conclusion section of the decision dashboard."""
+    one_sentence: Optional[str] = None
+    signal_type: Optional[str] = None
+    time_sensitivity: Optional[str] = None
+    position_advice: Optional[dict] = None
+    action_plan_items: Optional[List[ActionPlanItemSchema]] = None
+
+
+class DashboardSection(BaseModel):
+    """Top-level dashboard data exposed in the API response."""
+    core_conclusion: Optional[CoreConclusionSchema] = None
+    # Other dashboard sections (data_perspective, battle_plan, intelligence)
+    # are not typed here but may be present in raw_result; expose as dict for extensibility.
+    data_perspective: Optional[dict] = None
+    battle_plan: Optional[dict] = None
+    intelligence: Optional[dict] = None
+
+
 class ReportMeta(BaseModel):
     """报告元信息"""
 
@@ -165,6 +199,7 @@ class AnalysisReport(BaseModel):
     summary: ReportSummary = Field(..., description="概览区")
     strategy: Optional[ReportStrategy] = Field(None, description="策略点位区")
     details: Optional[ReportDetails] = Field(None, description="详情区")
+    dashboard: Optional[DashboardSection] = Field(None, description="决策仪表盘结构化数据")
 
     class Config:
         json_schema_extra = {

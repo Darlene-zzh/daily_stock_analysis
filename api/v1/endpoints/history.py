@@ -324,11 +324,21 @@ def get_history_detail(
             sector_rankings=extracted_boards.get("sector_rankings"),
         )
         
+        dashboard_data = raw_result.get("dashboard")
+        dashboard = None
+        if isinstance(dashboard_data, dict):
+            from api.v1.schemas.history import DashboardSection
+            try:
+                dashboard = DashboardSection(**dashboard_data)
+            except Exception:
+                dashboard = None
+
         return AnalysisReport(
             meta=meta,
             summary=summary,
             strategy=strategy,
-            details=details
+            details=details,
+            dashboard=dashboard,
         )
         
     except HTTPException:

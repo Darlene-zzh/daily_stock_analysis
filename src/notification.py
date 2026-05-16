@@ -69,6 +69,71 @@ if TYPE_CHECKING:
     from src.analyzer import AnalysisResult
 
 
+def _render_action_plan_items(items: list) -> list:
+    """Render action_plan_items as markdown lines replacing the position-advice table.
+
+    Returns a list of markdown strings ending with a trailing empty string.
+    Direction emojis: buy=⬆️ sell=⬇️ stop_loss=🛑 take_profit=🎯
+    """
+    _DIRECTION_EMOJI = {
+        "buy": "⬆️",
+        "sell": "⬇️",
+        "stop_loss": "🛑",
+        "take_profit": "🎯",
+    }
+    _DIRECTION_ZH = {
+        "buy": "买入/加仓",
+        "sell": "减仓",
+        "stop_loss": "止损清仓",
+        "take_profit": "止盈",
+    }
+    _ORDINALS = ["①", "②", "③", "④", "⑤"]
+
+    lines = ["### 📋 持仓操作计划", ""]
+    for idx, item in enumerate(items[:4]):
+        direction = item.get("direction", "buy")
+        emoji = _DIRECTION_EMOJI.get(direction, "📌")
+        direction_zh = _DIRECTION_ZH.get(direction, direction)
+        ordinal = _ORDINALS[idx] if idx < len(_ORDINALS) else f"({idx+1})"
+        priority = item.get("priority", idx + 1)
+        trigger_price = item.get("trigger_price")
+        trigger_cond = item.get("trigger_condition", "")
+        shares = item.get("shares", 0)
+        pct_pos = item.get("pct_of_position")
+        pct_eq = item.get("pct_of_equity")
+        tech = item.get("technical_basis", "")
+        fund = item.get("fundamental_basis", "")
+        quant = item.get("quant_signal", "")
+        inv_rule = item.get("invalidation_rule", "")
+
+        if not shares or not trigger_price:
+            continue
+
+        # position sizing string
+        pos_str = ""
+        if pct_pos is not None:
+            pos_str = f"持仓 {pct_pos:.1f}%"
+        if pct_eq:
+            pos_str = f"{pos_str} / 权益 {pct_eq:.1f}%" if pos_str else f"权益 {pct_eq:.1f}%"
+        ops_str = f"{direction_zh} {shares} 股"
+        if pos_str:
+            ops_str += f"（{pos_str}）"
+
+        lines.append(f"**{ordinal} {emoji} {direction_zh}**（优先级 {priority}）— 触发价：${trigger_price:.2f}")
+        lines.append(f"- **触发**：{trigger_cond}")
+        lines.append(f"- **操作**：{ops_str}")
+        if tech:
+            lines.append(f"- **技术面**：{tech}")
+        if fund:
+            lines.append(f"- **基本面**：{fund}")
+        if quant:
+            lines.append(f"- **量化**：{quant}")
+        if inv_rule:
+            lines.append(f"- **失效**：{inv_rule}")
+        lines.append("")
+    return lines
+
+
 class NotificationChannel(Enum):
     """通知渠道类型"""
     WECHAT = "wechat"      # 企业微信
@@ -1059,8 +1124,14 @@ class NotificationService(
                     f"⏰ **{labels['time_sensitivity_label']}**: {time_sense}",
                     "",
                 ])
-                # 持仓分类建议（按 portfolio_match 过滤；None=两行兼容老行为）
-                if pos_advice:
+                # 持仓操作计划（action_plan_items 优先；fallback 到 position_advice 表格）
+                action_plan_items = (
+                    core.get("action_plan_items") if isinstance(core.get("action_plan_items"), list)
+                    else None
+                )
+                if action_plan_items:
+                    report_lines.extend(_render_action_plan_items(action_plan_items))
+                elif pos_advice:
                     match = getattr(result, "portfolio_match", None)
                     no_pos_text = pos_advice.get(
                         "no_position",
@@ -1075,13 +1146,9 @@ class NotificationService(
                         "|---------|---------|",
                     ]
                     if match == "held":
-                        body = [
-                            f"| 💼 **{labels['has_position_label']}** | {has_pos_text} |",
-                        ]
+                        body = [f"| 💼 **{labels['has_position_label']}** | {has_pos_text} |"]
                     elif match == "not_held":
-                        body = [
-                            f"| 🆕 **{labels['no_position_label']}** | {no_pos_text} |",
-                        ]
+                        body = [f"| 🆕 **{labels['no_position_label']}** | {no_pos_text} |"]
                     else:
                         body = [
                             f"| 🆕 **{labels['no_position_label']}** | {no_pos_text} |",

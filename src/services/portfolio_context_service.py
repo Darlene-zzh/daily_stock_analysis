@@ -62,6 +62,8 @@ class PortfolioContextResult:
     last_trade_date: Optional[str] = None
     last_trade_side: Optional[str] = None
     last_trade_price: Optional[float] = None
+    # Account-level aggregate (always populated when account_payload is available)
+    total_equity: float = 0.0  # account total equity in base currency
 
     def to_dict(self) -> Dict[str, Any]:
         return {
@@ -84,6 +86,7 @@ class PortfolioContextResult:
             "last_trade_date": self.last_trade_date,
             "last_trade_side": self.last_trade_side,
             "last_trade_price": self.last_trade_price,
+            "total_equity": self.total_equity,
         }
 
 
@@ -143,6 +146,7 @@ class PortfolioContextService:
                 base_currency=str(account_payload.get("base_currency", "")),
                 symbol=symbol_norm,
                 is_held=False,
+                total_equity=float(account_payload.get("total_equity", 0.0)),
             )
 
         if position is None:
@@ -153,6 +157,7 @@ class PortfolioContextService:
                 base_currency=str(account_payload.get("base_currency", "")),
                 symbol=symbol_norm,
                 is_held=False,
+                total_equity=float(account_payload.get("total_equity", 0.0)),
                 **stats,
             )
 
@@ -173,6 +178,7 @@ class PortfolioContextService:
                 if position.get("unrealized_pnl_pct") is not None
                 else None
             ),
+            total_equity=float(account_payload.get("total_equity", 0.0)),
             **stats,
         )
 
@@ -244,6 +250,10 @@ def render_portfolio_context_block(
             lines = [
                 "## [User Portfolio Context]",
                 f"- Account: {result.account_name}",
+            ]
+            if result.total_equity > 0:
+                lines.append(f"- Account equity: {result.total_equity:.2f} {result.base_currency}")
+            lines += [
                 f"- Position: {result.quantity:.4f} shares at avg cost "
                 f"{result.avg_cost:.4f} {result.position_currency or ''}/share",
                 f"- Current price: {result.last_price:.4f} {result.position_currency or ''}",
@@ -273,10 +283,14 @@ def render_portfolio_context_block(
             )
             return "\n".join(lines)
 
-        # zh
+        # zh held
         lines = [
             "## [持仓上下文]",
             f"- 账户：{result.account_name}",
+        ]
+        if result.total_equity > 0:
+            lines.append(f"- 账户总权益：{result.total_equity:.2f} {result.base_currency}")
+        lines += [
             f"- 持股数量：{result.quantity:.4f} 股 / 平均成本：{result.avg_cost:.4f} "
             f"{result.position_currency or ''}/股",
             f"- 当前价：{result.last_price:.4f} {result.position_currency or ''}",
@@ -308,18 +322,29 @@ def render_portfolio_context_block(
 
     # Not held — explicit "you do not own this" branch
     if lang == "en":
-        return (
-            "## [User Portfolio Context]\n"
-            f"- Account: {result.account_name}\n"
-            "- The user does not currently hold this symbol in this account.\n"
+        lines = [
+            "## [User Portfolio Context]",
+            f"- Account: {result.account_name}",
+        ]
+        if result.total_equity > 0:
+            lines.append(f"- Account equity: {result.total_equity:.2f} {result.base_currency}")
+        lines.append("- The user does not currently hold this symbol in this account.")
+        lines.append(
             "\n[If technicals / news provide a clear entry case, propose specific buy price"
             " levels, initial position size as % of equity, and the invalidation rule; otherwise"
             " recommend staying flat.]"
         )
-    return (
-        "## [持仓上下文]\n"
-        f"- 账户：{result.account_name}\n"
-        "- 用户当前未持有该标的。\n"
+        return "\n".join(lines)
+    # zh not-held
+    lines = [
+        "## [持仓上下文]",
+        f"- 账户：{result.account_name}",
+    ]
+    if result.total_equity > 0:
+        lines.append(f"- 账户总权益：{result.total_equity:.2f} {result.base_currency}")
+    lines.append("- 用户当前未持有该标的。")
+    lines.append(
         "\n[若技术面 / 新闻给出明确进场理由，请提出建仓价位、初始仓位规模（占权益的比例）和无效条件；"
         "否则建议观望，不强行给买点。]"
     )
+    return "\n".join(lines)

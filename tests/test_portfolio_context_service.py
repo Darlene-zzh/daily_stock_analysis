@@ -142,6 +142,81 @@ class PortfolioContextServiceTestCase(unittest.TestCase):
         self.assertEqual(result.last_trade_side, "sell")
         self.assertAlmostEqual(result.last_trade_price, 250.0, places=4)
 
+    def test_never_traded_includes_total_equity(self) -> None:
+        """total_equity is populated even when the user never traded the symbol."""
+        result = self.context_service.get_context(account_id=self.account["id"], symbol="AMD")
+        self.assertIsNotNone(result)
+        self.assertGreaterEqual(result.total_equity, 0.0)
+
+    def test_held_position_includes_total_equity(self) -> None:
+        """total_equity appears in the held-position branch."""
+        self.service.record_trade(
+            account_id=self.account["id"],
+            symbol="AMD",
+            side="buy",
+            quantity=10,
+            price=185.0,
+            trade_date=date(2026, 1, 1),
+        )
+        result = self.context_service.get_context(account_id=self.account["id"], symbol="AMD")
+        self.assertIsNotNone(result)
+        self.assertTrue(result.is_held)
+        self.assertGreaterEqual(result.total_equity, 0.0)
+
+    def test_render_block_zh_includes_equity_line(self) -> None:
+        """render_portfolio_context_block (zh) includes account equity line when > 0."""
+        from src.services.portfolio_context_service import (
+            PortfolioContextResult,
+            render_portfolio_context_block,
+        )
+        r = PortfolioContextResult(
+            account_id=1,
+            account_name="Test",
+            base_currency="GBP",
+            symbol="AMD",
+            is_held=False,
+            total_equity=2189.0,
+        )
+        block = render_portfolio_context_block(r, language="zh")
+        self.assertIn("账户总权益", block)
+        self.assertIn("2189.00", block)
+        self.assertIn("GBP", block)
+
+    def test_render_block_zh_omits_equity_line_when_zero(self) -> None:
+        """render_portfolio_context_block (zh) omits the equity line when total_equity=0."""
+        from src.services.portfolio_context_service import (
+            PortfolioContextResult,
+            render_portfolio_context_block,
+        )
+        r = PortfolioContextResult(
+            account_id=1,
+            account_name="Test",
+            base_currency="GBP",
+            symbol="AMD",
+            is_held=False,
+            total_equity=0.0,
+        )
+        block = render_portfolio_context_block(r, language="zh")
+        self.assertNotIn("账户总权益", block)
+
+    def test_render_block_en_includes_equity_line(self) -> None:
+        """render_portfolio_context_block (en) includes account equity line when > 0."""
+        from src.services.portfolio_context_service import (
+            PortfolioContextResult,
+            render_portfolio_context_block,
+        )
+        r = PortfolioContextResult(
+            account_id=1,
+            account_name="Test",
+            base_currency="GBP",
+            symbol="AMD",
+            is_held=False,
+            total_equity=2189.0,
+        )
+        block = render_portfolio_context_block(r, language="en")
+        self.assertIn("Account equity", block)
+        self.assertIn("2189.00", block)
+
 
 class RenderPortfolioContextBlockTestCase(unittest.TestCase):
     def _make_held_result(self):

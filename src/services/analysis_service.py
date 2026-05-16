@@ -198,7 +198,11 @@ class AnalysisService:
                 "risk_warning": result.risk_warning,
             }
         }
-        
+
+        # Expose dashboard for frontend structured rendering (action_plan_items, etc.)
+        dashboard_raw = getattr(result, "dashboard", None) or {}
+        report["dashboard"] = dashboard_raw
+
         return {
             "stock_code": result.code,
             "stock_name": stock_name,
