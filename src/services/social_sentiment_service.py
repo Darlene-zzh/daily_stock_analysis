@@ -63,7 +63,9 @@ class SocialSentimentService:
 
         svc = SocialSentimentService(api_key="sk_live_...", api_url="https://api.adanos.org")
         if svc.is_available:
-            context = svc.get_social_context("TSLA")
+            result = svc.get_social_context("TSLA")
+            if result:
+                context, sentiment_dims = result
     """
 
     # Cache TTL for trending endpoints (seconds)

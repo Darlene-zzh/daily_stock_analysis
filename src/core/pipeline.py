@@ -433,7 +433,8 @@ class StockAnalysisPipeline:
                 try:
                     social_result = self.social_sentiment_service.get_social_context(code)
                     if social_result:
-                        social_context, sentiment_dims = social_result
+                        # _sentiment_dims is consumed in Task 9 (pipeline.py wires into dashboard.intelligence)
+                        social_context, _sentiment_dims = social_result
                         logger.info(f"{stock_name}({code}) Social sentiment data retrieved")
                         if news_context:
                             news_context = news_context + "\n\n" + social_context
@@ -840,7 +841,8 @@ class StockAnalysisPipeline:
                 try:
                     social_result = self.social_sentiment_service.get_social_context(code)
                     if social_result:
-                        social_context, sentiment_dims = social_result
+                        # _sentiment_dims is consumed in Task 9 (pipeline.py wires into dashboard.intelligence)
+                        social_context, _sentiment_dims = social_result
                         existing = initial_context.get("news_context")
                         if existing:
                             initial_context["news_context"] = existing + "\n\n" + social_context

@@ -51,7 +51,7 @@ class TestFetchRedditReport(unittest.TestCase):
         self.assertEqual(result["report"]["buzz_score"], 85.5)
         mock_get.assert_called_once()
         call_args = mock_get.call_args
-        self.assertIn("/reddit/stocks/v1/report/TSLA", call_args[0][0])
+        self.assertIn("/reddit/stocks/v1/stock/TSLA", call_args[0][0])
 
     @patch("src.services.social_sentiment_service._get_with_retry")
     def test_http_error_returns_none(self, mock_get):
@@ -182,7 +182,7 @@ class TestGetSocialContext(unittest.TestCase):
     def test_formats_reddit_data(self, mock_get):
         def side_effect(url, **kwargs):
             resp = MagicMock()
-            if "/report/" in url:
+            if "/reddit/stocks/v1/stock/" in url:
                 resp.status_code = 200
                 resp.json.return_value = {
                     "report": {
@@ -207,11 +207,12 @@ class TestGetSocialContext(unittest.TestCase):
         result = svc.get_social_context("TSLA")
 
         self.assertIsNotNone(result)
-        self.assertIn("Social Sentiment Intelligence", result)
-        self.assertIn("Reddit", result)
-        self.assertIn("87.5", result)
-        self.assertIn("342", result)
-        self.assertIn("TSLA looking strong", result)
+        text, _dims = result
+        self.assertIn("Social Sentiment Intelligence", text)
+        self.assertIn("Reddit", text)
+        self.assertIn("87.5", text)
+        self.assertIn("342", text)
+        self.assertIn("TSLA looking strong", text)
 
     @patch("src.services.social_sentiment_service._get_with_retry")
     def test_includes_all_platforms(self, mock_get):
@@ -234,11 +235,12 @@ class TestGetSocialContext(unittest.TestCase):
         result = svc.get_social_context("AAPL")
 
         self.assertIsNotNone(result)
-        self.assertIn("Reddit", result)
-        self.assertIn("X (Twitter)", result)
-        self.assertIn("Polymarket", result)
-        self.assertIn("65", result)  # X buzz
-        self.assertIn("120", result)  # Polymarket trades
+        text, _dims = result
+        self.assertIn("Reddit", text)
+        self.assertIn("X (Twitter)", text)
+        self.assertIn("Polymarket", text)
+        self.assertIn("65", text)  # X buzz
+        self.assertIn("120", text)  # Polymarket trades
 
 
 class TestZeroValueHandling(unittest.TestCase):
