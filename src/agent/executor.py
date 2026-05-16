@@ -104,7 +104,22 @@ LEGACY_DEFAULT_AGENT_SYSTEM_PROMPT = """你是一位专注于趋势交易的{mar
                 "no_position": "空仓者建议",
                 "has_position": "持仓者建议"
             }},
-            "_comment_action_plan": "以下字段仅在用户消息中包含 [持仓上下文] 时输出；其他场景省略",
+            "_comment_strategy": "以下 4 字段为策略分类输出（适用于所有分析，不仅 portfolio）",
+            "strategy_choices": [
+                {{
+                    "id": "stepped_profit_taking",
+                    "label_zh": "阶梯式止盈",
+                    "emoji": "🪜",
+                    "applicable": true,
+                    "fit_condition": "已有浮盈，希望分批锁定",
+                    "key_params": "$236/$245/$255 三段减仓",
+                    "time_horizon": "滚动",
+                    "inapplicable_reason": null
+                }}
+            ],
+            "recommended_strategy": "stepped_profit_taking",
+            "strategy_thesis": "NVDA 当前... 建议按阶梯止盈对待... 优势是锁定胜利成果...缺点是若突破后再大涨会少赚一些。",
+            "_comment_action_plan": "以下字段在所有 portfolio-aware 分析中输出",
             "action_plan_items": [
                 {{
                     "trigger_price": 421.0,
@@ -113,13 +128,22 @@ LEGACY_DEFAULT_AGENT_SYSTEM_PROMPT = """你是一位专注于趋势交易的{mar
                     "shares": 30,
                     "pct_of_position": 20.0,
                     "pct_of_equity": 3.5,
-                    "technical_basis": "RSI=74 超买，MACD 动能减弱",
+                    "technical_basis": "RSI=74 超买",
                     "fundamental_basis": "诉讼风险尚未 price-in",
-                    "quant_signal": "量比 1.8，主力净流出",
+                    "quant_signal": "量比 1.8",
                     "invalidation_rule": "放量站稳 $428 作废",
                     "priority": 1
                 }}
-            ]
+            ],
+            "position_outcome_summary": {{
+                "remaining_shares_after_all_triggers": 0.0,
+                "worst_case_loss_pct": -10.0,
+                "worst_case_loss_amount": -12.0,
+                "worst_case_currency": "GBP",
+                "best_case_gain_pct": 30.0,
+                "best_case_gain_amount": 36.0,
+                "risk_reward_ratio": "1:3"
+            }}
         }},
         "data_perspective": {{
             "trend_status": {{"ma_alignment": "", "is_bullish": true, "trend_score": 0}},
@@ -132,7 +156,15 @@ LEGACY_DEFAULT_AGENT_SYSTEM_PROMPT = """你是一位专注于趋势交易的{mar
             "risk_alerts": [],
             "positive_catalysts": [],
             "earnings_outlook": "",
-            "sentiment_summary": ""
+            "sentiment_summary": "",
+            "sentiment_dimensions": {{
+                "_comment": "结构化情绪数据（仅美股有；A/HK 股 null）",
+                "reddit": {{"buzz_score": 84.4, "buzz_trend": "rising", "sentiment_score": 0.06}},
+                "x_twitter": {{"buzz_score": 89.0, "buzz_trend": "falling", "sentiment_score": 0.28}},
+                "polymarket": {{"buzz_score": 64.7, "sentiment_score": 0.13}},
+                "news": {{"buzz_score": 61.6, "buzz_trend": "stable", "sentiment_score": 0.48}},
+                "stocktwits": {{"bullish_ratio": 0.62, "bearish_ratio": 0.18}}
+            }}
         }},
         "battle_plan": {{
             "sniper_points": {{"ideal_buy": "", "secondary_buy": "", "stop_loss": "", "take_profit": ""}},
@@ -259,7 +291,22 @@ AGENT_SYSTEM_PROMPT = """你是一位{market_role}投资分析 Agent，拥有数
                 "no_position": "空仓者建议",
                 "has_position": "持仓者建议"
             }},
-            "_comment_action_plan": "以下字段仅在用户消息中包含 [持仓上下文] 时输出；其他场景省略",
+            "_comment_strategy": "以下 4 字段为策略分类输出（适用于所有分析，不仅 portfolio）",
+            "strategy_choices": [
+                {{
+                    "id": "stepped_profit_taking",
+                    "label_zh": "阶梯式止盈",
+                    "emoji": "🪜",
+                    "applicable": true,
+                    "fit_condition": "已有浮盈，希望分批锁定",
+                    "key_params": "$236/$245/$255 三段减仓",
+                    "time_horizon": "滚动",
+                    "inapplicable_reason": null
+                }}
+            ],
+            "recommended_strategy": "stepped_profit_taking",
+            "strategy_thesis": "NVDA 当前... 建议按阶梯止盈对待... 优势是锁定胜利成果...缺点是若突破后再大涨会少赚一些。",
+            "_comment_action_plan": "以下字段在所有 portfolio-aware 分析中输出",
             "action_plan_items": [
                 {{
                     "trigger_price": 421.0,
@@ -268,13 +315,22 @@ AGENT_SYSTEM_PROMPT = """你是一位{market_role}投资分析 Agent，拥有数
                     "shares": 30,
                     "pct_of_position": 20.0,
                     "pct_of_equity": 3.5,
-                    "technical_basis": "RSI=74 超买，MACD 动能减弱",
+                    "technical_basis": "RSI=74 超买",
                     "fundamental_basis": "诉讼风险尚未 price-in",
-                    "quant_signal": "量比 1.8，主力净流出",
+                    "quant_signal": "量比 1.8",
                     "invalidation_rule": "放量站稳 $428 作废",
                     "priority": 1
                 }}
-            ]
+            ],
+            "position_outcome_summary": {{
+                "remaining_shares_after_all_triggers": 0.0,
+                "worst_case_loss_pct": -10.0,
+                "worst_case_loss_amount": -12.0,
+                "worst_case_currency": "GBP",
+                "best_case_gain_pct": 30.0,
+                "best_case_gain_amount": 36.0,
+                "risk_reward_ratio": "1:3"
+            }}
         }},
         "data_perspective": {{
             "trend_status": {{"ma_alignment": "", "is_bullish": true, "trend_score": 0}},
@@ -287,7 +343,15 @@ AGENT_SYSTEM_PROMPT = """你是一位{market_role}投资分析 Agent，拥有数
             "risk_alerts": [],
             "positive_catalysts": [],
             "earnings_outlook": "",
-            "sentiment_summary": ""
+            "sentiment_summary": "",
+            "sentiment_dimensions": {{
+                "_comment": "结构化情绪数据（仅美股有；A/HK 股 null）",
+                "reddit": {{"buzz_score": 84.4, "buzz_trend": "rising", "sentiment_score": 0.06}},
+                "x_twitter": {{"buzz_score": 89.0, "buzz_trend": "falling", "sentiment_score": 0.28}},
+                "polymarket": {{"buzz_score": 64.7, "sentiment_score": 0.13}},
+                "news": {{"buzz_score": 61.6, "buzz_trend": "stable", "sentiment_score": 0.48}},
+                "stocktwits": {{"bullish_ratio": 0.62, "bearish_ratio": 0.18}}
+            }}
         }},
         "battle_plan": {{
             "sniper_points": {{"ideal_buy": "", "secondary_buy": "", "stop_loss": "", "take_profit": ""}},

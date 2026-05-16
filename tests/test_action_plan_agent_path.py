@@ -185,5 +185,16 @@ class StrategyClassificationUniversalTestCase(unittest.TestCase):
         self.assertEqual(called["args"], ("NVDA", None))
 
 
+class AgentPromptStrategyFieldsTestCase(unittest.TestCase):
+    def test_agent_prompts_include_strategy_choices(self):
+        from src.agent.executor import AGENT_SYSTEM_PROMPT, LEGACY_DEFAULT_AGENT_SYSTEM_PROMPT
+        for prompt in (AGENT_SYSTEM_PROMPT, LEGACY_DEFAULT_AGENT_SYSTEM_PROMPT):
+            self.assertIn("strategy_choices", prompt)
+            self.assertIn("recommended_strategy", prompt)
+            self.assertIn("strategy_thesis", prompt)
+            self.assertIn("position_outcome_summary", prompt)
+            self.assertIn("sentiment_dimensions", prompt)
+
+
 if __name__ == "__main__":
     unittest.main()
