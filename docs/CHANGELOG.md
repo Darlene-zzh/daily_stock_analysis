@@ -66,6 +66,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 - [改进] post-process 守门规则升级：strategy template 白/黑名单（stepped 禁 buy / wait_and_see ≤1 item）；long_term 缺真止损时自动追加 cost × 0.9；优先级 filter 后 1..N 连续编号。
 - [改进] `_try_inject_action_plan_items` 对所有股票分析触发（去掉 portfolio-context 门控），未持有场景下 cost-based 规则降级为现价相对规则。
 - [测试] 新增 6 个测试文件 / 30+ 用例覆盖 schema / prompt 构造 / strategy template 强制 / position outcome 计算 / sentiment 多源整合。
+- [修复] StockTwits service 实际写入后再没有被 `get_social_context` 调用，导致 `sentiment_dimensions.stocktwits` 始终为空；补 lazy import + fetch + `_build_sentiment_dimensions` 5 维输出。
+- [修复] `_try_inject_action_plan_items` 解析后新增 `_sanitize_strategy_choices` post-process：LLM 漏填 `id` 时按位置恢复（4 entry 模板下映射 0→long_term_hold..3→wait_and_see）、漏填 `label_zh`/`emoji` 时从 canonical map 回填、推荐策略强制 `applicable=True`、按 id 去重、完全空的 entry 丢弃。
+- [修复] 前端 `StrategySelector` 用 `key={c.id}` 在 LLM 漏填 id 时多张卡共享 `key=undefined`，切换股票时旧卡片累积——改为 `key={c.id || \`__strategy_${idx}__\`}` + 先 `.filter()` 过滤完全空 entry。label 缺失时整张卡片标题行隐藏，避免显示「📌 null」。
 
 ## [3.16.0] - 2026-05-10
 
