@@ -105,19 +105,32 @@ _LLM_GOOD_RESPONSE = json.dumps({
 
 
 class TryInjectActionPlanItemsTestCase(unittest.TestCase):
-    def test_skips_when_portfolio_block_missing(self) -> None:
+    def test_runs_universally_without_portfolio_block(self) -> None:
+        """Method is now universal — runs even without a portfolio context block.
+        Without portfolio context there is no avg_cost, so cost-basis filtering is
+        skipped and valid items are injected.  _LLM_GOOD_RESPONSE only carries
+        action_plan_items (no strategy fields), so items should still land in core.
+        """
         a = _make_analyzer(_LLM_GOOD_RESPONSE)
         result = _make_result()
         a._try_inject_action_plan_items(result, "PLTR", None)
-        self.assertIsNone(result.dashboard["core_conclusion"].get("action_plan_items"))
+        # Universal: items ARE injected even without portfolio context
+        self.assertIsNotNone(result.dashboard["core_conclusion"].get("action_plan_items"))
 
-    def test_skips_when_action_plan_items_already_populated(self) -> None:
+    def test_skips_when_both_strategy_and_items_already_populated(self) -> None:
+        """Skip guard now requires BOTH recommended_strategy (str) AND action_plan_items
+        (list) to be filled — a prior layer completed the full strategy classification.
+        """
         a = _make_analyzer(_LLM_GOOD_RESPONSE)
         existing = [{"trigger_price": 1, "direction": "buy", "priority": 1}]
         result = _make_result(action_plan_items=existing)
+        result.dashboard["core_conclusion"]["recommended_strategy"] = "swing_trade"
         a._try_inject_action_plan_items(result, "PLTR", _BLOCK_HELD)
         self.assertEqual(
             result.dashboard["core_conclusion"]["action_plan_items"], existing,
+        )
+        self.assertEqual(
+            result.dashboard["core_conclusion"]["recommended_strategy"], "swing_trade",
         )
 
     def test_injects_parsed_items_on_success(self) -> None:
@@ -264,9 +277,74 @@ class TryInjectActionPlanItemsTestCase(unittest.TestCase):
         result = _make_result()
         a._try_inject_action_plan_items(result, "PLTR", _BLOCK_HELD)
         # Verify the prompt actually surfaces the cost-basis constraint.
+        # New prompt uses build_strategy_classify_prompt — check its actual content.
         self.assertIn("成本价", captured["prompt"])
-        self.assertIn("[用户持仓上下文]", captured["prompt"])
+        self.assertIn("持仓上下文", captured["prompt"])
         self.assertIn("144.0 USD/股", captured["prompt"])
+
+
+class StrategyClassificationInjectionTestCase(unittest.TestCase):
+    def _make_result_no_strategy(self):
+        from src.analyzer import AnalysisResult
+        dash = _dashboard()
+        return AnalysisResult(
+            code="PLTR", name="Palantir", sentiment_score=43,
+            trend_prediction="震荡", operation_advice="减仓",
+            analysis_summary="", report_language="zh",
+            dashboard=dash, portfolio_match="held",
+        )
+
+    def test_runs_without_portfolio_context_too(self):
+        """Strategy classification must run for non-portfolio analyses (universal)."""
+        payload = json.dumps({
+            "strategy_choices": [
+                {"id": "swing_trade", "label_zh": "短线波段",
+                 "applicable": True, "fit_condition": "趋势强", "key_params": "MA20 防守"},
+            ],
+            "recommended_strategy": "swing_trade",
+            "strategy_thesis": "技术结构健康...",
+            "action_plan_items": [
+                {"trigger_price": 130.0, "direction": "buy", "shares": 1.0, "priority": 1},
+                {"trigger_price": 128.0, "direction": "stop_loss", "shares": 1.0, "priority": 2},
+                {"trigger_price": 140.0, "direction": "take_profit", "shares": 1.0, "priority": 3},
+            ],
+        }, ensure_ascii=False)
+        a = _make_analyzer(payload)
+        result = self._make_result_no_strategy()
+        a._try_inject_action_plan_items(result, "PLTR", portfolio_context_block=None)
+        core = result.dashboard["core_conclusion"]
+        self.assertEqual(core.get("recommended_strategy"), "swing_trade")
+        self.assertEqual(len(core.get("action_plan_items", [])), 3)
+
+    def test_injects_strategy_fields_when_present(self):
+        payload = json.dumps({
+            "strategy_choices": [
+                {"id": "stepped_profit_taking", "label_zh": "阶梯式止盈",
+                 "applicable": True},
+                {"id": "swing_trade", "label_zh": "短线波段",
+                 "applicable": False, "inapplicable_reason": "已有浮盈"},
+            ],
+            "recommended_strategy": "stepped_profit_taking",
+            "strategy_thesis": "NVDA 当前已 +15% 浮盈...",
+            "action_plan_items": [
+                {"trigger_price": 236.0, "direction": "take_profit",
+                 "shares": 0.25, "priority": 1},
+                {"trigger_price": 145.0, "direction": "stop_loss",
+                 "shares": 0.5, "priority": 2},
+            ],
+            "position_outcome_summary": {
+                "remaining_shares_after_all_triggers": 0.25,
+                "risk_reward_ratio": "1:3",
+            },
+        }, ensure_ascii=False)
+        a = _make_analyzer(payload)
+        result = _make_result()
+        a._try_inject_action_plan_items(result, "NVDA", _BLOCK_HELD)
+        core = result.dashboard["core_conclusion"]
+        self.assertEqual(len(core["strategy_choices"]), 2)
+        self.assertEqual(core["strategy_choices"][1]["applicable"], False)
+        self.assertIsNotNone(core["position_outcome_summary"])
+        self.assertEqual(core["position_outcome_summary"]["risk_reward_ratio"], "1:3")
 
 
 if __name__ == "__main__":
