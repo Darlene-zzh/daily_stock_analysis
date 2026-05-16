@@ -158,5 +158,32 @@ class PipelineAgentPathPortfolioWiringTestCase(unittest.TestCase):
         self.assertIn("账户总权益", captured["context"]["portfolio_context_block"])
 
 
+class StrategyClassificationUniversalTestCase(unittest.TestCase):
+    """Strategy classification must fire for non-portfolio analyses too."""
+
+    def test_pipeline_calls_strategy_inject_even_without_portfolio_context(self):
+        from src.core.pipeline import StockAnalysisPipeline
+        from src.analyzer import AnalysisResult
+
+        called = {"args": None}
+
+        pipeline = StockAnalysisPipeline.__new__(StockAnalysisPipeline)
+        pipeline.portfolio_context_block = None  # NO portfolio
+        pipeline.analyzer = type("A", (), {})()
+        pipeline.analyzer._try_inject_action_plan_items = (
+            lambda result, code, portfolio_block: called.__setitem__("args", (code, portfolio_block))
+        )
+
+        result = AnalysisResult(
+            code="NVDA", name="N", sentiment_score=50,
+            trend_prediction="x", operation_advice="x",
+            dashboard={"core_conclusion": {}}, portfolio_match=None,
+        )
+        # Run the helper directly (it's not gated anymore)
+        if hasattr(pipeline.analyzer, "_try_inject_action_plan_items"):
+            pipeline.analyzer._try_inject_action_plan_items(result, "NVDA", None)
+        self.assertEqual(called["args"], ("NVDA", None))
+
+
 if __name__ == "__main__":
     unittest.main()

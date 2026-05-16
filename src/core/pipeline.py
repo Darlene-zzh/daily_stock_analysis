@@ -2318,15 +2318,11 @@ def _apply_portfolio_match(result: "AnalysisResult", pipeline: "StockAnalysisPip
 def _fill_action_plan_items_if_missing(
     result: "AnalysisResult", portfolio_context_block: Optional[str]
 ) -> None:
-    """Synthesize action_plan_items when the LLM didn't fill the field.
+    """Synthesize action_plan_items when both LLM and post-process produced nothing.
 
-    Only triggers when (a) we did send a portfolio context to the LLM and (b) the
-    dashboard.core_conclusion doesn't already carry a non-empty action_plan_items
-    list. Mirrors the role of `_try_inject_zh_translations` for the `_zh` fields —
-    both are guardrails against mini-model schema non-compliance.
+    Universal: runs for any analysis, including non-portfolio. Pass-through to
+    synthesize_action_plan_items which handles is_held=False + strategy=None.
     """
-    if not portfolio_context_block or not str(portfolio_context_block).strip():
-        return
     dashboard = getattr(result, "dashboard", None)
     if not isinstance(dashboard, dict):
         return
@@ -2335,13 +2331,12 @@ def _fill_action_plan_items_if_missing(
         return
     existing = core.get("action_plan_items")
     if isinstance(existing, list) and existing:
-        return  # LLM cooperated — leave it alone.
+        return  # already populated upstream
 
     try:
         from src.services.portfolio_context_service import synthesize_action_plan_items
         is_held = getattr(result, "portfolio_match", None) == "held"
-        strategy = dashboard.get("core_conclusion", {}).get("recommended_strategy") \
-            if isinstance(dashboard, dict) else None
+        strategy = core.get("recommended_strategy")
         items = synthesize_action_plan_items(
             dashboard, portfolio_context_block,
             is_held=is_held, strategy=strategy,
