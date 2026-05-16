@@ -45,16 +45,18 @@ export const StrategySelector: React.FC<StrategySelectorProps> = ({
 
             return (
               <div key={c.id || `__strategy_${idx}__`} className={`${baseClasses} ${stateClasses}`}>
-                <div className="flex items-center justify-between">
-                  <span className="font-semibold text-sm text-foreground">
-                    {emoji} {label}
-                  </span>
-                  {isRecommended && (
-                    <span className="rounded bg-accent-text/20 px-1.5 py-0.5 text-[10px] font-medium text-accent-text">
-                      AI 推荐
+                {label && (
+                  <div className="flex items-center justify-between">
+                    <span className="font-semibold text-sm text-foreground">
+                      {emoji} {label}
                     </span>
-                  )}
-                </div>
+                    {isRecommended && (
+                      <span className="rounded bg-accent-text/20 px-1.5 py-0.5 text-[10px] font-medium text-accent-text">
+                        AI 推荐
+                      </span>
+                    )}
+                  </div>
+                )}
                 {!c.applicable && c.inapplicableReason && (
                   <p className="text-muted-text">⚪ 不适用：{c.inapplicableReason}</p>
                 )}
