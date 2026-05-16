@@ -2415,7 +2415,8 @@ intelligence 区块新增字段示例（仅供格式参考，实际内容由你�
         items = parsed.get("action_plan_items")
         if not isinstance(items, list):
             items = []
-        items = self._sanitize_action_plan_items(items, portfolio_context_block, code)
+        strategy = parsed.get("recommended_strategy") if isinstance(parsed.get("recommended_strategy"), str) else None
+        items = self._sanitize_action_plan_items(items, portfolio_context_block, code, strategy=strategy)
 
         # Inject all fields atomically
         if not isinstance(result.dashboard.get("core_conclusion"), dict):
@@ -2433,43 +2434,98 @@ intelligence 区块新增字段示例（仅供格式参考，实际内容由你�
         if isinstance(parsed.get("position_outcome_summary"), dict):
             core_out["position_outcome_summary"] = parsed["position_outcome_summary"]
 
+    _STRATEGY_FORBIDDEN_DIRECTIONS = {
+        "stepped_profit_taking": {"buy"},
+        "long_term_hold": set(),
+        "swing_trade": set(),
+        "wait_and_see": {"buy", "sell", "stop_loss", "take_profit"},
+    }
+    _STRATEGY_MAX_ITEMS = {
+        "long_term_hold": 3,
+        "swing_trade": 4,
+        "stepped_profit_taking": 4,
+        "wait_and_see": 1,
+    }
+
     def _sanitize_action_plan_items(
         self,
         items: list,
         portfolio_context_block: Optional[str],
         code: str,
+        strategy: Optional[str] = None,
     ) -> list:
-        """Extract the existing sanitization logic into a reusable method.
+        """Apply cost-basis sanitization + per-strategy template enforcement.
 
-        Cost-basis rules: drop take_profit at/below cost; reclassify stop_loss above
-        cost*1.02 as sell. Renumber priorities contiguously. (Per-strategy template
-        validation lives in Task 7.)
+        Per spec: stepped_profit_taking forbids buy; wait_and_see caps at 1 item;
+        long_term_hold requires a cost-based real stop_loss at avg_cost × 0.9 — if
+        missing we synthesize one.
         """
         from src.services.portfolio_context_service import _parse_portfolio_facts
         avg_cost = _parse_portfolio_facts(portfolio_context_block or "").get("avg_cost")
+        forbidden = self._STRATEGY_FORBIDDEN_DIRECTIONS.get(strategy or "", set())
+        max_items = self._STRATEGY_MAX_ITEMS.get(strategy or "", 4)
 
         normalized: list = []
-        for it in items[:4]:
+        for it in items[: max(max_items, 4)]:
             if not isinstance(it, dict):
                 continue
             trig = it.get("trigger_price")
             direction = it.get("direction")
             if trig is None or not direction:
                 continue
+            # Strategy template forbids this direction
+            if direction in forbidden:
+                logger.info(
+                    "[action_plan] %s strategy forbids direction=%s; dropping item @ %s for %s",
+                    strategy, direction, trig, code,
+                )
+                continue
+            # Cost-basis: drop TP at/below cost
             if (
                 direction == "take_profit" and avg_cost is not None
                 and isinstance(trig, (int, float)) and trig <= avg_cost * 1.005
             ):
-                logger.info("[action_plan] dropping take_profit @ %s ≤ cost %s", trig, avg_cost)
+                logger.info("[action_plan] dropping take_profit @ %s ≤ cost %s for %s", trig, avg_cost, code)
                 continue
+            # Cost-basis: reclassify stop_loss above cost as defensive sell
             if (
                 direction == "stop_loss" and avg_cost is not None
                 and isinstance(trig, (int, float)) and trig > avg_cost * 1.02
             ):
-                logger.info("[action_plan] reclassifying stop_loss @ %s > cost*1.02 as sell", trig)
+                logger.info(
+                    "[action_plan] reclassifying stop_loss @ %s > cost*1.02 as sell for %s", trig, code,
+                )
                 it = dict(it)
                 it["direction"] = "sell"
             normalized.append(it)
+
+        # Cap to strategy-specific max
+        normalized = normalized[:max_items]
+
+        # long_term_hold / stepped_profit_taking: must have a cost-based real stop_loss
+        if strategy in ("long_term_hold", "stepped_profit_taking") and avg_cost is not None:
+            has_real_stop = any(
+                it.get("direction") == "stop_loss"
+                and isinstance(it.get("trigger_price"), (int, float))
+                and it["trigger_price"] <= avg_cost * 0.95
+                for it in normalized
+            )
+            if not has_real_stop:
+                synth_stop = round(avg_cost * 0.9, 2)
+                normalized.append({
+                    "trigger_price": synth_stop,
+                    "trigger_condition": (
+                        f"基于成本基础的硬底线：成本价下方 10%，跌破该位强制止损"
+                    ),
+                    "direction": "stop_loss",
+                    "shares": 0,
+                    "pct_of_position": 100.0,
+                    "technical_basis": "基于成本基础的真止损位（非技术信号）",
+                    "fundamental_basis": "保护本金为先",
+                    "quant_signal": None,
+                    "invalidation_rule": f"当日强势收回 {round(avg_cost * 0.95, 2)} 以上则推迟",
+                    "priority": 99,
+                })
 
         # Renumber priorities 1..N
         normalized.sort(
