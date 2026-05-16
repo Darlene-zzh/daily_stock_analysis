@@ -105,6 +105,7 @@ class StockAnalysisPipeline:
         self.progress_callback = progress_callback
         self.portfolio_context_block = portfolio_context_block
         self.portfolio_match = portfolio_match
+        self._latest_sentiment_dims = None
 
         # 初始化各模块
         self.db = get_db()
@@ -433,8 +434,8 @@ class StockAnalysisPipeline:
                 try:
                     social_result = self.social_sentiment_service.get_social_context(code)
                     if social_result:
-                        # _sentiment_dims is consumed in Task 9 (pipeline.py wires into dashboard.intelligence)
-                        social_context, _sentiment_dims = social_result
+                        social_context, sentiment_dims = social_result
+                        self._latest_sentiment_dims = sentiment_dims
                         logger.info(f"{stock_name}({code}) Social sentiment data retrieved")
                         if news_context:
                             news_context = news_context + "\n\n" + social_context
@@ -501,6 +502,7 @@ class StockAnalysisPipeline:
                 result.current_price = realtime_data.get('price')
                 result.change_pct = realtime_data.get('change_pct')
                 # 持仓感知字段（PR portfolio-filter）：用于 renderer 过滤 position_advice 表格
+                _inject_sentiment_dimensions(result, getattr(self, "_latest_sentiment_dims", None))
                 _apply_portfolio_match(result, self)
                 # 美股中文报告后处理：注入 _zh 翻译字段（模型未自动输出时兜底）
                 if hasattr(self.analyzer, '_try_inject_zh_translations'):
@@ -841,8 +843,8 @@ class StockAnalysisPipeline:
                 try:
                     social_result = self.social_sentiment_service.get_social_context(code)
                     if social_result:
-                        # _sentiment_dims is consumed in Task 9 (pipeline.py wires into dashboard.intelligence)
-                        social_context, _sentiment_dims = social_result
+                        social_context, sentiment_dims = social_result
+                        self._latest_sentiment_dims = sentiment_dims
                         existing = initial_context.get("news_context")
                         if existing:
                             initial_context["news_context"] = existing + "\n\n" + social_context
@@ -924,6 +926,7 @@ class StockAnalysisPipeline:
 
             # 持仓感知 + 翻译后处理（与非 agent 路径保持一致，必须在保存 DB 前执行）
             if result:
+                _inject_sentiment_dimensions(result, getattr(self, "_latest_sentiment_dims", None))
                 _apply_portfolio_match(result, self)
                 if hasattr(self.analyzer, '_try_inject_zh_translations'):
                     try:
@@ -2280,6 +2283,25 @@ class StockAnalysisPipeline:
         if report_type == ReportType.BRIEF and hasattr(self.notifier, "generate_brief_report"):
             return self.notifier.generate_brief_report(results)
         return self.notifier.generate_dashboard_report(results)
+
+
+def _inject_sentiment_dimensions(
+    result: "AnalysisResult", dims: Optional[Dict[str, Any]]
+) -> None:
+    """Inject structured sentiment dimensions into result.dashboard.intelligence.
+
+    Safe no-op when dims is None or result has no dashboard. Existing
+    intelligence.sentiment_dimensions is overwritten (last-write-wins).
+    """
+    if not dims or not isinstance(dims, dict):
+        return
+    if not isinstance(getattr(result, "dashboard", None), dict):
+        return
+    intel = result.dashboard.get("intelligence")
+    if not isinstance(intel, dict):
+        intel = {}
+        result.dashboard["intelligence"] = intel
+    intel["sentiment_dimensions"] = dims
 
 
 def _apply_portfolio_match(result: "AnalysisResult", pipeline: "StockAnalysisPipeline") -> None:

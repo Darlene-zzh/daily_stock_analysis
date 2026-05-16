@@ -87,5 +87,25 @@ class GetSocialContextStructuredTestCase(unittest.TestCase):
         self.assertIsNone(result)
 
 
+class PipelineSentimentDimensionsInjectionTestCase(unittest.TestCase):
+    def test_sentiment_dimensions_lands_in_intelligence(self):
+        """When social_sentiment_service returns dims, pipeline must inject them."""
+        from src.analyzer import AnalysisResult
+        result = AnalysisResult(
+            code="NVDA", name="NVIDIA", sentiment_score=50,
+            trend_prediction="震荡", operation_advice="持有",
+            analysis_summary="", report_language="zh",
+            dashboard={"intelligence": {}},
+            portfolio_match="held",
+        )
+        from src.core.pipeline import _inject_sentiment_dimensions
+        dims = {"x_twitter": {"buzz_score": 89.0}, "news": {"sentiment_score": 0.48}}
+        _inject_sentiment_dimensions(result, dims)
+        self.assertEqual(
+            result.dashboard["intelligence"]["sentiment_dimensions"]["x_twitter"]["buzz_score"],
+            89.0,
+        )
+
+
 if __name__ == "__main__":
     unittest.main()
