@@ -101,6 +101,129 @@ def _render_action_plan_items(items: list) -> list:
     return lines
 
 
+_STRATEGY_EMOJI = {
+    "long_term_hold": "🌳",
+    "swing_trade": "⚡",
+    "stepped_profit_taking": "🪜",
+    "wait_and_see": "🚪",
+}
+_STRATEGY_LABEL_ZH = {
+    "long_term_hold": "长线持有",
+    "swing_trade": "短线波段",
+    "stepped_profit_taking": "阶梯式止盈",
+    "wait_and_see": "暂不操作",
+}
+
+
+def _render_strategy_section(
+    core: dict, labels: dict, report_language: str
+) -> list:
+    """Render 📌 策略选择 section as markdown lines."""
+    choices = core.get("strategy_choices") or []
+    recommended = core.get("recommended_strategy")
+    thesis = core.get("strategy_thesis")
+    if not choices and not recommended and not thesis:
+        return []
+
+    lines = [f"### 📌 {labels.get('strategy_section_heading', '策略选择')}", ""]
+
+    if choices:
+        lines.extend([
+            "| 策略 | 适用条件 | 关键参数 | 时间维度 |",
+            "|---|---|---|---|",
+        ])
+        for c in choices:
+            sid = c.get("id") or ""
+            emoji = c.get("emoji") or _STRATEGY_EMOJI.get(sid, "📌")
+            label = c.get("label_zh") or _STRATEGY_LABEL_ZH.get(sid, sid)
+            if not c.get("applicable", True):
+                reason = c.get("inapplicable_reason") or "不适用"
+                lines.append(f"| {emoji} {label} | ⚪ 不适用（{reason}） |  |  |")
+            else:
+                fit = c.get("fit_condition") or "—"
+                params = c.get("key_params") or "—"
+                horizon = c.get("time_horizon") or "—"
+                lines.append(f"| {emoji} {label} | {fit} | {params} | {horizon} |")
+        lines.append("")
+
+    if recommended:
+        emoji = _STRATEGY_EMOJI.get(recommended, "🎯")
+        label = _STRATEGY_LABEL_ZH.get(recommended, recommended)
+        heading = labels.get("recommended_strategy_heading", "AI 推荐策略")
+        lines.append(f"**🎯 {heading}**: {emoji} {label}")
+        lines.append("")
+
+    if thesis:
+        thesis_heading = labels.get("strategy_thesis_heading", "策略论述")
+        lines.append(f"**{thesis_heading}**：")
+        lines.append(f"> {thesis}")
+        lines.append("")
+
+    return lines
+
+
+def _render_sentiment_panel(intel: dict, labels: dict) -> list:
+    """Render 📱 市场情绪 section as markdown lines."""
+    dims = (intel or {}).get("sentiment_dimensions")
+    if not isinstance(dims, dict) or not dims:
+        return []
+
+    heading = labels.get("sentiment_section_heading", "市场情绪")
+    lines = [f"### 📱 {heading}", ""]
+    lines.extend(["| 来源 | Buzz | Sentiment | Trend | Mentions |", "|---|---|---|---|---|"])
+
+    source_order = ["news", "reddit", "x_twitter", "polymarket", "stocktwits"]
+    source_labels = {
+        "news": "📰 News",
+        "reddit": "🔴 Reddit",
+        "x_twitter": "🐦 X",
+        "polymarket": "🔮 Polymarket",
+        "stocktwits": "💬 StockTwits",
+    }
+    for key in source_order:
+        d = dims.get(key)
+        if not isinstance(d, dict):
+            continue
+        buzz = d.get("buzz_score")
+        sent = d.get("sentiment_score")
+        trend = d.get("buzz_trend") or "—"
+        mentions = d.get("mentions_7d") or d.get("messages_sampled") or "—"
+        if key == "stocktwits":
+            bull = d.get("bullish_ratio")
+            bear = d.get("bearish_ratio")
+            sent = f"Bull {round(bull*100)}% / Bear {round(bear*100)}%" if bull is not None else "—"
+            buzz = "—"
+            trend = "—"
+        lines.append(
+            f"| {source_labels[key]} | {buzz if buzz is not None else '—'} "
+            f"| {sent if sent is not None else '—'} | {trend} | {mentions} |"
+        )
+    lines.append("")
+    return lines
+
+
+def _render_position_outcome(outcome: dict, labels: dict) -> list:
+    """Render 仓位流水汇总 block."""
+    if not isinstance(outcome, dict) or not outcome:
+        return []
+    heading = labels.get("position_outcome_heading", "仓位流水汇总")
+    rr_label = labels.get("rr_ratio_label", "风险回报比")
+    remain = outcome.get("remaining_shares_after_all_triggers")
+    wl = outcome.get("worst_case_loss_amount")
+    wc = outcome.get("worst_case_currency") or ""
+    bg = outcome.get("best_case_gain_amount")
+    rr = outcome.get("risk_reward_ratio") or "N/A"
+    return [
+        f"**📊 {heading}**",
+        "",
+        f"- 执行所有触发后剩余仓位：{remain if remain is not None else '—'} 股",
+        f"- 最差止损：{wl if wl is not None else '—'} {wc}",
+        f"- 最好止盈：{bg if bg is not None else '—'} {wc}",
+        f"- {rr_label}：{rr}",
+        "",
+    ]
+
+
 class MarkdownReportGenerationError(Exception):
     """Exception raised when Markdown report generation fails due to internal errors."""
 
@@ -732,6 +855,9 @@ class HistoryService:
                     report_lines.append(f"{zh}")
             report_lines.append("")
 
+        # ========== 📱 市场情绪 ==========
+        report_lines.extend(_render_sentiment_panel(intel, labels))
+
         # ========== 核心结论 ==========
         core = dashboard.get('core_conclusion', {}) if dashboard else {}
         one_sentence = core.get('one_sentence', result.analysis_summary)
@@ -779,6 +905,14 @@ class HistoryService:
                     f"| 💼 **{labels['has_position_label']}** | {has_pos_text} |",
                 ]
             report_lines.extend(header + body + [""])
+
+        # ========== 📌 策略选择 ==========
+        report_lines.extend(_render_strategy_section(core, labels, report_language))
+
+        # ========== 📊 仓位流水汇总 ==========
+        report_lines.extend(_render_position_outcome(
+            core.get("position_outcome_summary"), labels,
+        ))
 
         # ========== 行情快照 ==========
         self._append_market_snapshot_to_report(report_lines, result, labels)

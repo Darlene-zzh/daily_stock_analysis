@@ -214,5 +214,80 @@ class BattlePlanHintLineTestCase(unittest.TestCase):
         self.assertNotIn("关键点位速查", md)
 
 
+class StrategyAndSentimentRendererTestCase(unittest.TestCase):
+    def _result_with_strategy(self):
+        dashboard = {
+            "core_conclusion": {
+                "one_sentence": "短线偏弱",
+                "signal_type": "🟡",
+                "time_sensitivity": "本周内",
+                "position_advice": {"no_position": "x", "has_position": "y"},
+                "strategy_choices": [
+                    {"id": "stepped_profit_taking", "label_zh": "阶梯式止盈",
+                     "emoji": "🪜", "applicable": True,
+                     "fit_condition": "已有浮盈", "key_params": "$236/$245",
+                     "time_horizon": "滚动"},
+                    {"id": "swing_trade", "label_zh": "短线波段",
+                     "emoji": "⚡", "applicable": False,
+                     "inapplicable_reason": "已有浮盈，不该频繁进出"},
+                ],
+                "recommended_strategy": "stepped_profit_taking",
+                "strategy_thesis": "NVDA 目前结构健康，建议阶梯式止盈兑现。",
+                "action_plan_items": [
+                    {"trigger_price": 236.5, "direction": "take_profit",
+                     "shares": 0.25, "pct_of_position": 33,
+                     "pct_of_equity": 2.35, "priority": 1,
+                     "trigger_condition": "突破 236"},
+                ],
+                "position_outcome_summary": {
+                    "remaining_shares_after_all_triggers": 0.0,
+                    "worst_case_loss_amount": -12.0,
+                    "worst_case_currency": "GBP",
+                    "best_case_gain_amount": 36.0,
+                    "risk_reward_ratio": "1:3",
+                },
+            },
+            "intelligence": {
+                "sentiment_dimensions": {
+                    "x_twitter": {"buzz_score": 89.0, "buzz_trend": "falling"},
+                    "news": {"buzz_score": 61.6, "sentiment_score": 0.48},
+                },
+            },
+        }
+        return AnalysisResult(
+            code="NVDA", name="NVIDIA", sentiment_score=50,
+            trend_prediction="震荡", operation_advice="持有",
+            analysis_summary="", report_language="zh",
+            dashboard=dashboard, portfolio_match="held",
+        )
+
+    def test_notification_renders_strategy_selector(self):
+        result = self._result_with_strategy()
+        md = NotificationService().generate_dashboard_report([result])
+        self.assertIn("策略选择", md)
+        self.assertIn("阶梯式止盈", md)
+        self.assertIn("已有浮盈，不该频繁进出", md)  # inapplicable_reason
+        self.assertIn("策略论述", md)
+
+    def test_notification_renders_sentiment_panel(self):
+        result = self._result_with_strategy()
+        md = NotificationService().generate_dashboard_report([result])
+        self.assertIn("市场情绪", md)
+        self.assertIn("89", md)  # x_twitter buzz
+
+    def test_notification_renders_position_outcome(self):
+        result = self._result_with_strategy()
+        md = NotificationService().generate_dashboard_report([result])
+        self.assertIn("仓位流水汇总", md)
+        self.assertIn("1:3", md)
+
+    def test_history_service_renders_strategy_selector(self):
+        svc = HistoryService.__new__(HistoryService)
+        result = self._result_with_strategy()
+        md = svc._generate_single_stock_markdown(result, _fake_record())
+        self.assertIn("策略选择", md)
+        self.assertIn("阶梯式止盈", md)
+
+
 if __name__ == "__main__":
     unittest.main()
