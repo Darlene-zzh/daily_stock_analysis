@@ -431,8 +431,9 @@ class StockAnalysisPipeline:
             # Step 4.5: Social sentiment intelligence (US stocks only)
             if self.social_sentiment_service is not None and self.social_sentiment_service.is_available and is_us_stock_code(code):
                 try:
-                    social_context = self.social_sentiment_service.get_social_context(code)
-                    if social_context:
+                    social_result = self.social_sentiment_service.get_social_context(code)
+                    if social_result:
+                        social_context, sentiment_dims = social_result
                         logger.info(f"{stock_name}({code}) Social sentiment data retrieved")
                         if news_context:
                             news_context = news_context + "\n\n" + social_context
@@ -837,8 +838,9 @@ class StockAnalysisPipeline:
             # can consume it through the existing news_context channel
             if self.social_sentiment_service is not None and self.social_sentiment_service.is_available and is_us_stock_code(code):
                 try:
-                    social_context = self.social_sentiment_service.get_social_context(code)
-                    if social_context:
+                    social_result = self.social_sentiment_service.get_social_context(code)
+                    if social_result:
+                        social_context, sentiment_dims = social_result
                         existing = initial_context.get("news_context")
                         if existing:
                             initial_context["news_context"] = existing + "\n\n" + social_context

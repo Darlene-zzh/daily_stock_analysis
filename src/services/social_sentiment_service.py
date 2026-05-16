@@ -203,10 +203,12 @@ class SocialSentimentService:
     # Main entry point
     # ------------------------------------------------------------------
 
-    def get_social_context(self, ticker: str) -> Optional[str]:
-        """
-        Fetch social sentiment from all platforms and return a formatted
-        text block for the LLM prompt.  Returns None if no data found.
+    def get_social_context(self, ticker: str) -> Optional[tuple]:
+        """Fetch all sentiment dimensions and return (text_for_llm, structured_dict).
+
+        Returns None when no source has data. The text is the legacy markdown block
+        for prompt injection; the dict is the structured payload for the dashboard's
+        intelligence.sentiment_dimensions field.
         """
         if not self.is_available:
             return None
@@ -228,11 +230,63 @@ class SocialSentimentService:
         if poly_trending:
             poly_entry = self._find_ticker_in_trending(poly_trending, ticker_upper)
 
+        # 4. News report
+        news_data = self.fetch_news_report(ticker_upper)
+
         # If no data from any source, skip
-        if not reddit_data and not x_entry and not poly_entry:
+        if not (reddit_data or x_entry or poly_entry or news_data):
             return None
 
-        return self._format_social_intel(ticker_upper, reddit_data, x_entry, poly_entry)
+        text = self._format_social_intel(ticker_upper, reddit_data, x_entry, poly_entry, news_data)
+        dims = self._build_sentiment_dimensions(reddit_data, x_entry, poly_entry, news_data)
+        return text, dims
+
+    @staticmethod
+    def _build_sentiment_dimensions(
+        reddit_data: Optional[Dict],
+        x_entry: Optional[Dict],
+        poly_entry: Optional[Dict],
+        news_data: Optional[Dict],
+    ) -> Dict[str, Dict]:
+        """Convert raw Adanos payloads into structured sentiment_dimensions dict."""
+        out: Dict[str, Dict] = {}
+        if reddit_data:
+            out["reddit"] = {
+                "buzz_score": reddit_data.get("buzz_score"),
+                "buzz_trend": reddit_data.get("trend"),
+                "sentiment_score": reddit_data.get("sentiment_score"),
+                "mentions_7d": reddit_data.get("mentions") or reddit_data.get("total_mentions"),
+                "bullish_pct": reddit_data.get("bullish_pct"),
+                "bearish_pct": reddit_data.get("bearish_pct"),
+                "subreddit_count": reddit_data.get("subreddit_count") or reddit_data.get("subreddits"),
+                "source": "adanos",
+            }
+        if x_entry:
+            out["x_twitter"] = {
+                "buzz_score": x_entry.get("buzz_score"),
+                "buzz_trend": x_entry.get("trend"),
+                "sentiment_score": x_entry.get("sentiment_score"),
+                "mentions_7d": x_entry.get("mentions") or x_entry.get("total_mentions"),
+                "source": "adanos",
+            }
+        if poly_entry:
+            out["polymarket"] = {
+                "buzz_score": poly_entry.get("buzz_score"),
+                "sentiment_score": poly_entry.get("sentiment_score") or poly_entry.get("market_sentiment"),
+                "trade_count": poly_entry.get("trade_count") or poly_entry.get("trades"),
+                "source": "adanos",
+            }
+        if news_data:
+            out["news"] = {
+                "buzz_score": news_data.get("buzz_score"),
+                "buzz_trend": news_data.get("trend"),
+                "sentiment_score": news_data.get("sentiment_score"),
+                "mentions_7d": news_data.get("mentions"),
+                "bullish_pct": news_data.get("bullish_pct"),
+                "bearish_pct": news_data.get("bearish_pct"),
+                "source": "adanos",
+            }
+        return out
 
     # ------------------------------------------------------------------
     # Formatting
@@ -261,6 +315,7 @@ class SocialSentimentService:
         reddit_data: Optional[Dict],
         x_entry: Optional[Dict],
         poly_entry: Optional[Dict],
+        news_data: Optional[Dict] = None,
     ) -> str:
         """Format social sentiment data as a prompt-ready text block."""
         lines = [f"📱 Social Sentiment Intelligence for {ticker} (Reddit / X / Polymarket)"]
@@ -352,6 +407,27 @@ class SocialSentimentService:
                 lines.append(f"  Trade Count: {poly_trades}")
         else:
             lines.append("\n🔮 Polymarket: No active prediction markets found")
+
+        if news_data:
+            lines.append("\n📰 News Sentiment:")
+            buzz = SocialSentimentService._coalesce(news_data.get("buzz_score"))
+            if buzz is not None:
+                trend_label = news_data.get("trend", "")
+                lines.append(
+                    f"  Buzz Score: {buzz}/100 ({trend_label})" if trend_label
+                    else f"  Buzz Score: {buzz}/100"
+                )
+            sentiment = SocialSentimentService._coalesce(news_data.get("sentiment_score"))
+            if sentiment is not None:
+                lines.append(f"  Sentiment Score: {sentiment}")
+            mentions = SocialSentimentService._coalesce(news_data.get("mentions"))
+            if mentions is not None:
+                lines.append(f"  Articles: {mentions} (7-day)")
+            top_sources = news_data.get("top_sources", [])
+            if top_sources:
+                names = [s.get("source") for s in top_sources[:3] if s.get("source")]
+                if names:
+                    lines.append(f"  Top sources: {', '.join(names)}")
 
         lines.append("")
         lines.append("Source: api.adanos.org — Real-time social sentiment aggregation")
