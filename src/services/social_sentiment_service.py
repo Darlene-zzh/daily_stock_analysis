@@ -159,6 +159,16 @@ class SocialSentimentService:
         url = f"{self._api_url}/reddit/stocks/v1/stock/{ticker.upper()}"
         return self._fetch_json(url)
 
+    def fetch_news_report(self, ticker: str) -> Optional[Dict]:
+        """Fetch detailed news sentiment for a single ticker from Adanos.
+
+        Endpoint: /news/stocks/v1/stock/{ticker}. Returns buzz_score, sentiment_score,
+        bullish_pct, bearish_pct, mentions, and top_sources (e.g. yahoo-finance,
+        motley-fool). Same X-API-Key header as other Adanos endpoints.
+        """
+        url = f"{self._api_url}/news/stocks/v1/stock/{ticker.upper()}"
+        return self._fetch_json(url)
+
     def fetch_reddit_trending(self) -> Optional[List[Dict]]:
         """Fetch Reddit trending stocks (cached)."""
         url = f"{self._api_url}/reddit/stocks/v1/trending"
