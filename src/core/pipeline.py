@@ -500,6 +500,12 @@ class StockAnalysisPipeline:
                 result.change_pct = realtime_data.get('change_pct')
                 # 持仓感知字段（PR portfolio-filter）：用于 renderer 过滤 position_advice 表格
                 _apply_portfolio_match(result, self)
+                # 美股中文报告后处理：注入 _zh 翻译字段（模型未自动输出时兜底）
+                if hasattr(self.analyzer, '_try_inject_zh_translations'):
+                    try:
+                        self.analyzer._try_inject_zh_translations(result, code)
+                    except Exception:
+                        pass  # 翻译失败不影响主流程
 
             # Step 7.6: chip_structure fallback (Issue #589)
             if result and chip_data:
@@ -897,6 +903,15 @@ class StockAnalysisPipeline:
                         logger.info(f"[{code}] Agent 模式: 新闻情报已保存 {len(news_response.results)} 条")
                 except Exception as e:
                     logger.warning(f"[{code}] Agent 模式保存新闻情报失败: {e}")
+
+            # 持仓感知 + 翻译后处理（与非 agent 路径保持一致，必须在保存 DB 前执行）
+            if result:
+                _apply_portfolio_match(result, self)
+                if hasattr(self.analyzer, '_try_inject_zh_translations'):
+                    try:
+                        self.analyzer._try_inject_zh_translations(result, code)
+                    except Exception:
+                        pass
 
             # 保存分析历史记录
             if result and result.success:

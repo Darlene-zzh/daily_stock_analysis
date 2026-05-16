@@ -58,6 +58,12 @@ class DiscordSender:
             logger.error(f"分割 Discord 消息失败: {e}, 尝试整段发送。")
             chunks = [content]
 
+        # 过滤空 chunk，避免 Discord API 400（全报告比精简报告长，分割后可能产生空段）
+        chunks = [c for c in chunks if c.strip()]
+        if not chunks:
+            logger.warning("Discord 消息内容为空，跳过推送")
+            return False
+
         # 优先使用 Webhook（配置简单，权限低）
         if self._discord_config['webhook_url']:
             return all(self._send_discord_webhook(chunk, timeout_seconds=timeout_seconds) for chunk in chunks)

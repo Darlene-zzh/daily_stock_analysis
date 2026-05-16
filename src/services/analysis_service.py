@@ -48,6 +48,7 @@ class AnalysisService:
         progress_callback: Optional[Callable[[int, str], None]] = None,
         portfolio_context_block: Optional[str] = None,
         portfolio_match: Optional[str] = None,
+        portfolio_account_id: Optional[int] = None,
     ) -> Optional[Dict[str, Any]]:
         """
         执行股票分析
@@ -71,14 +72,34 @@ class AnalysisService:
             from src.config import get_config
             from src.core.pipeline import StockAnalysisPipeline
             from src.enums import ReportType
-            
+
+            # 如果通过 task_queue 异步路径传来 portfolio_account_id 而没有 block，自动构建
+            if portfolio_account_id is not None and portfolio_context_block is None:
+                try:
+                    from src.report_language import normalize_report_language
+                    from src.services.portfolio_context_service import (
+                        PortfolioContextService,
+                        render_portfolio_context_block,
+                    )
+                    _ctx = PortfolioContextService().get_context(
+                        account_id=portfolio_account_id, symbol=stock_code
+                    )
+                    if _ctx is not None:
+                        _lang = normalize_report_language(
+                            getattr(get_config(), "report_language", "zh")
+                        )
+                        portfolio_context_block = render_portfolio_context_block(_ctx, language=_lang)
+                        portfolio_match = "held" if _ctx.is_held else "not_held"
+                except Exception as _exc:
+                    logger.warning("portfolio_account_id 上下文构建失败: %s", _exc)
+
             # 生成 query_id
             if query_id is None:
                 query_id = uuid.uuid4().hex
-            
+
             # 获取配置
             config = get_config()
-            
+
             # 创建分析流水线
             pipeline = StockAnalysisPipeline(
                 config=config,

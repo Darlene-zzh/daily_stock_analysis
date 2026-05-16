@@ -348,7 +348,7 @@ export const useStockPoolStore = create<StockPoolState>((set, get) => ({
     try {
       await analysisApi.analyzeAsync({
         stockCode: normalizedStockCode,
-        reportType: 'detailed',
+        reportType: 'full',
         stockName,
         originalQuery: originalQuery || stockCodeInput,
         selectionSource,

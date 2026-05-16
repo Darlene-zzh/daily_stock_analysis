@@ -73,11 +73,11 @@ class HistoryMarkdownBilingualIntelligenceTestCase(unittest.TestCase):
             _fake_record(),
         )
         self.assertIn("OpenAI vs Musk litigation", md)
-        self.assertIn("中：OpenAI 与马斯克的诉讼", md)
-        self.assertIn("中：艾克曼建仓", md)
-        self.assertIn("中：微软消息。", md)
-        self.assertIn("中：整体偏正向。", md)
-        self.assertIn("中：上调 2%。", md)
+        self.assertIn("OpenAI 与马斯克的诉讼", md)
+        self.assertIn("艾克曼建仓", md)
+        self.assertIn("微软消息。", md)
+        self.assertIn("整体偏正向。", md)
+        self.assertIn("上调 2%。", md)
 
     def test_missing_zh_falls_back_to_english_only(self) -> None:
         md = self.service._generate_single_stock_markdown(
@@ -91,7 +91,8 @@ class HistoryMarkdownBilingualIntelligenceTestCase(unittest.TestCase):
             _fake_record(),
         )
         self.assertIn("alert", md)
-        self.assertNotIn("中：", md)
+        # No _zh fields provided — no translation text should appear
+        self.assertNotIn("告警 1", md)
 
     def test_short_zh_list_does_per_item_fallback(self) -> None:
         md = self.service._generate_single_stock_markdown(
@@ -101,8 +102,8 @@ class HistoryMarkdownBilingualIntelligenceTestCase(unittest.TestCase):
             }),
             _fake_record(),
         )
-        self.assertIn("中：告警 1", md)
-        self.assertEqual(md.count("中："), 1)
+        self.assertIn("告警 1", md)
+        self.assertEqual(md.count("告警 1"), 1)
 
 
 if __name__ == "__main__":

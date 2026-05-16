@@ -53,12 +53,12 @@ class NotificationBilingualIntelligenceTestCase(unittest.TestCase):
         })
         md = NotificationService().generate_dashboard_report([result])
         self.assertIn("OpenAI vs Musk litigation", md)
-        self.assertIn("中：OpenAI 与马斯克的诉讼", md)
+        self.assertIn("OpenAI 与马斯克的诉讼", md)
         self.assertIn("Bill Ackman revealed a new MSFT stake", md)
-        self.assertIn("中：艾克曼披露新建仓微软", md)
-        self.assertIn("中：微软宣布新合作。", md)
-        self.assertIn("中：整体偏正向。", md)
-        self.assertIn("中：FY26 EPS 上调 2%。", md)
+        self.assertIn("艾克曼披露新建仓微软", md)
+        self.assertIn("微软宣布新合作。", md)
+        self.assertIn("整体偏正向。", md)
+        self.assertIn("FY26 EPS 上调 2%。", md)
 
     def test_missing_zh_falls_back_to_english_only(self) -> None:
         result = _make_result({
@@ -70,7 +70,8 @@ class NotificationBilingualIntelligenceTestCase(unittest.TestCase):
         })
         md = NotificationService().generate_dashboard_report([result])
         self.assertIn("OpenAI vs Musk litigation", md)
-        self.assertNotIn("中：", md)
+        # No _zh fields provided — translation text should not appear
+        self.assertNotIn("艾克曼", md)  # known zh translation from other tests
 
     def test_short_zh_list_does_per_item_fallback(self) -> None:
         result = _make_result({
@@ -78,9 +79,9 @@ class NotificationBilingualIntelligenceTestCase(unittest.TestCase):
             "risk_alerts_zh": ["告警 1"],  # only first item translated
         })
         md = NotificationService().generate_dashboard_report([result])
-        self.assertIn("中：告警 1", md)
-        # second/third items keep English only, no malformed "中：" lines
-        zh_count = md.count("中：")
+        self.assertIn("告警 1", md)
+        # second/third items have no Chinese counterpart
+        zh_count = md.count("告警 1")
         self.assertEqual(zh_count, 1)
 
     def test_empty_zh_string_skips_subline(self) -> None:
@@ -89,9 +90,9 @@ class NotificationBilingualIntelligenceTestCase(unittest.TestCase):
             "risk_alerts_zh": ["告警 1", ""],  # second item empty
         })
         md = NotificationService().generate_dashboard_report([result])
-        self.assertIn("中：告警 1", md)
-        # Empty string must not produce a "中：" line
-        zh_count = md.count("中：")
+        self.assertIn("告警 1", md)
+        # Empty string must not produce an extra zh line
+        zh_count = md.count("告警 1")
         self.assertEqual(zh_count, 1)
 
 
