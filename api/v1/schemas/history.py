@@ -126,6 +126,32 @@ class ActionPlanItemSchema(BaseModel):
     priority: Optional[int] = None
 
 
+class StrategyChoiceSchema(BaseModel):
+    """One candidate strategy in the per-stock strategy comparison."""
+    # Constrained to the four fixed ids: long_term_hold / swing_trade /
+    # stepped_profit_taking / wait_and_see. Free-form to stay forward-compatible
+    # with future additions; behavior validated at the post-process layer instead.
+    id: Optional[str] = None
+    label_zh: Optional[str] = None
+    emoji: Optional[str] = None
+    applicable: Optional[bool] = True
+    fit_condition: Optional[str] = None
+    key_params: Optional[str] = None
+    time_horizon: Optional[str] = None
+    inapplicable_reason: Optional[str] = None
+
+
+class PositionOutcomeSummarySchema(BaseModel):
+    """Aggregated outcome metrics after all action_plan_items are executed."""
+    remaining_shares_after_all_triggers: Optional[float] = None
+    worst_case_loss_pct: Optional[float] = None
+    worst_case_loss_amount: Optional[float] = None
+    worst_case_currency: Optional[str] = None
+    best_case_gain_pct: Optional[float] = None
+    best_case_gain_amount: Optional[float] = None
+    risk_reward_ratio: Optional[str] = None
+
+
 class CoreConclusionSchema(BaseModel):
     """Core conclusion section of the decision dashboard."""
     one_sentence: Optional[str] = None
@@ -133,6 +159,10 @@ class CoreConclusionSchema(BaseModel):
     time_sensitivity: Optional[str] = None
     position_advice: Optional[dict] = None
     action_plan_items: Optional[List[ActionPlanItemSchema]] = None
+    strategy_choices: Optional[List[StrategyChoiceSchema]] = None
+    recommended_strategy: Optional[str] = None
+    strategy_thesis: Optional[str] = None
+    position_outcome_summary: Optional[PositionOutcomeSummarySchema] = None
 
 
 class DashboardSection(BaseModel):
