@@ -63,6 +63,31 @@ class ActionPlanAPIResponseTestCase(unittest.TestCase):
         self.assertEqual(items[0]["trigger_price"], 421.0)
         self.assertEqual(items[0]["shares"], 30)
 
+    def test_action_plan_item_schema_accepts_fractional_shares(self) -> None:
+        """Trading 212 / Robinhood / etc. let users hold fractional shares (e.g. 0.7597).
+        If shares is typed as int, Pydantic silently truncates 0.25 → 0, the renderer
+        skips items where `not shares` is true, and entire action plans disappear from
+        the API response. shares MUST be float.
+        """
+        from api.v1.schemas.history import ActionPlanItemSchema
+
+        for fractional in (0.25, 0.05, 0.7597, 1.5):
+            item = ActionPlanItemSchema(
+                trigger_price=200.0,
+                direction="sell",
+                shares=fractional,
+                priority=1,
+            )
+            self.assertEqual(item.shares, fractional, f"shares={fractional} must round-trip")
+
+    def test_action_plan_item_schema_accepts_integer_shares(self) -> None:
+        """Integer holdings still work."""
+        from api.v1.schemas.history import ActionPlanItemSchema
+        item = ActionPlanItemSchema(
+            trigger_price=200.0, direction="sell", shares=30, priority=1,
+        )
+        self.assertEqual(item.shares, 30.0)
+
 
 if __name__ == "__main__":
     unittest.main()

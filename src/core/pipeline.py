@@ -506,6 +506,16 @@ class StockAnalysisPipeline:
                         self.analyzer._try_inject_zh_translations(result, code)
                     except Exception:
                         pass  # 翻译失败不影响主流程
+                # action_plan_items 二阶兜底：先用聚焦 LLM 调用（成本价/三维数据感知），
+                # LLM 失败再退到 dashboard-only 合成
+                if hasattr(self.analyzer, '_try_inject_action_plan_items'):
+                    try:
+                        self.analyzer._try_inject_action_plan_items(
+                            result, code, self.portfolio_context_block
+                        )
+                    except Exception:
+                        pass
+                _fill_action_plan_items_if_missing(result, self.portfolio_context_block)
 
             # Step 7.6: chip_structure fallback (Issue #589)
             if result and chip_data:
@@ -817,6 +827,10 @@ class StockAnalysisPipeline:
                 initial_context["chip_distribution"] = self._safe_to_dict(chip_data)
             if trend_result:
                 initial_context["trend_result"] = self._safe_to_dict(trend_result)
+            # Mirror the non-agent path so the agent LLM also sees portfolio context and
+            # emits structured action_plan_items. Executor reads this key in _build_user_message.
+            if self.portfolio_context_block and str(self.portfolio_context_block).strip():
+                initial_context["portfolio_context_block"] = self.portfolio_context_block
 
             # Agent path: inject social sentiment as news_context so both
             # executor (_build_user_message) and orchestrator (ctx.set_data)
@@ -912,6 +926,14 @@ class StockAnalysisPipeline:
                         self.analyzer._try_inject_zh_translations(result, code)
                     except Exception:
                         pass
+                if hasattr(self.analyzer, '_try_inject_action_plan_items'):
+                    try:
+                        self.analyzer._try_inject_action_plan_items(
+                            result, code, self.portfolio_context_block
+                        )
+                    except Exception:
+                        pass
+                _fill_action_plan_items_if_missing(result, self.portfolio_context_block)
 
             # 保存分析历史记录
             if result and result.success:
@@ -2265,3 +2287,39 @@ def _apply_portfolio_match(result: "AnalysisResult", pipeline: "StockAnalysisPip
     match = getattr(pipeline, "portfolio_match", None)
     if match is not None:
         result.portfolio_match = match
+
+
+def _fill_action_plan_items_if_missing(
+    result: "AnalysisResult", portfolio_context_block: Optional[str]
+) -> None:
+    """Synthesize action_plan_items when the LLM didn't fill the field.
+
+    Only triggers when (a) we did send a portfolio context to the LLM and (b) the
+    dashboard.core_conclusion doesn't already carry a non-empty action_plan_items
+    list. Mirrors the role of `_try_inject_zh_translations` for the `_zh` fields —
+    both are guardrails against mini-model schema non-compliance.
+    """
+    if not portfolio_context_block or not str(portfolio_context_block).strip():
+        return
+    dashboard = getattr(result, "dashboard", None)
+    if not isinstance(dashboard, dict):
+        return
+    core = dashboard.get("core_conclusion")
+    if not isinstance(core, dict):
+        return
+    existing = core.get("action_plan_items")
+    if isinstance(existing, list) and existing:
+        return  # LLM cooperated — leave it alone.
+
+    try:
+        from src.services.portfolio_context_service import synthesize_action_plan_items
+        is_held = getattr(result, "portfolio_match", None) == "held"
+        items = synthesize_action_plan_items(
+            dashboard, portfolio_context_block, is_held=is_held
+        )
+    except Exception:
+        # Synthesis failures must not break the analysis pipeline.
+        return
+    if items:
+        core["action_plan_items"] = items
+        dashboard["core_conclusion"] = core

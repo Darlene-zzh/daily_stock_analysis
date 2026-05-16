@@ -441,6 +441,30 @@ class TestSearXNGSearchProvider(unittest.TestCase):
         self.assertTrue(service.is_available)
         self.assertTrue(any(provider.name == "SearXNG" for provider in service._providers))
 
+    def test_search_service_registers_both_self_hosted_and_public_searxng(self):
+        """When self-hosted SearXNG is configured AND public instances are enabled,
+        both should be registered as separate providers so the fallback chain can
+        try self-hosted first and fall back to public if Docker is down.
+        """
+        service = SearchService(
+            searxng_base_urls=["http://localhost:8888"],
+            searxng_public_instances_enabled=True,
+        )
+        names = [p.name for p in service._providers]
+        self.assertIn("SearXNG", names)
+        self.assertIn("SearXNG-public", names)
+        # Self-hosted must come before public so the fallback chain prefers it.
+        self.assertLess(names.index("SearXNG"), names.index("SearXNG-public"))
+
+    def test_search_service_self_hosted_only_when_public_disabled(self):
+        service = SearchService(
+            searxng_base_urls=["http://localhost:8888"],
+            searxng_public_instances_enabled=False,
+        )
+        names = [p.name for p in service._providers]
+        self.assertIn("SearXNG", names)
+        self.assertNotIn("SearXNG-public", names)
+
 
 if __name__ == "__main__":
     unittest.main()

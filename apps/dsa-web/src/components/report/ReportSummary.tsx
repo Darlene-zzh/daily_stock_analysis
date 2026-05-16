@@ -1,6 +1,7 @@
 import React from 'react';
 import type { AnalysisResult, AnalysisReport } from '../../types/analysis';
 import { ReportOverview } from './ReportOverview';
+import { ActionPlanTable } from './ActionPlanTable';
 import { ReportStrategy } from './ReportStrategy';
 import { ReportNews } from './ReportNews';
 import { ReportDetails } from './ReportDetails';
@@ -41,6 +42,14 @@ export const ReportSummary: React.FC<ReportSummaryProps> = ({
         details={details}
         isHistory={isHistory}
       />
+
+      {/* 结构化持仓操作计划（当 action_plan_items 存在时显示） */}
+      {report.dashboard?.coreConclusion?.actionPlanItems &&
+        report.dashboard.coreConclusion.actionPlanItems.length > 0 && (
+          <div className="rounded-xl border border-subtle bg-card p-4">
+            <ActionPlanTable items={report.dashboard.coreConclusion.actionPlanItems} />
+          </div>
+        )}
 
       {/* 策略点位区 */}
       <ReportStrategy strategy={strategy} language={reportLanguage} />

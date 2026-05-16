@@ -97,13 +97,29 @@ LEGACY_DEFAULT_AGENT_SYSTEM_PROMPT = """你是一位专注于趋势交易的{mar
     "confidence_level": "高/中/低",
     "dashboard": {{
         "core_conclusion": {{
-            "one_sentence": "一句话核心结论（30字以内）",
+            "one_sentence": "核心结论（直接告诉用户做什么，可以包含关键价位，无字数硬性上限）",
             "signal_type": "🟢买入信号/🟡持有观望/🔴卖出信号/⚠️风险警告",
             "time_sensitivity": "立即行动/今日内/本周内/不急",
             "position_advice": {{
                 "no_position": "空仓者建议",
                 "has_position": "持仓者建议"
-            }}
+            }},
+            "_comment_action_plan": "以下字段仅在用户消息中包含 [持仓上下文] 时输出；其他场景省略",
+            "action_plan_items": [
+                {{
+                    "trigger_price": 421.0,
+                    "trigger_condition": "价格回踩 MA5 后企稳 2 日",
+                    "direction": "sell",
+                    "shares": 30,
+                    "pct_of_position": 20.0,
+                    "pct_of_equity": 3.5,
+                    "technical_basis": "RSI=74 超买，MACD 动能减弱",
+                    "fundamental_basis": "诉讼风险尚未 price-in",
+                    "quant_signal": "量比 1.8，主力净流出",
+                    "invalidation_rule": "放量站稳 $428 作废",
+                    "priority": 1
+                }}
+            ]
         }},
         "data_perspective": {{
             "trend_status": {{"ma_alignment": "", "is_bullish": true, "trend_score": 0}},
@@ -236,13 +252,29 @@ AGENT_SYSTEM_PROMPT = """你是一位{market_role}投资分析 Agent，拥有数
     "confidence_level": "高/中/低",
     "dashboard": {{
         "core_conclusion": {{
-            "one_sentence": "一句话核心结论（30字以内）",
+            "one_sentence": "核心结论（直接告诉用户做什么，可以包含关键价位，无字数硬性上限）",
             "signal_type": "🟢买入信号/🟡持有观望/🔴卖出信号/⚠️风险警告",
             "time_sensitivity": "立即行动/今日内/本周内/不急",
             "position_advice": {{
                 "no_position": "空仓者建议",
                 "has_position": "持仓者建议"
-            }}
+            }},
+            "_comment_action_plan": "以下字段仅在用户消息中包含 [持仓上下文] 时输出；其他场景省略",
+            "action_plan_items": [
+                {{
+                    "trigger_price": 421.0,
+                    "trigger_condition": "价格回踩 MA5 后企稳 2 日",
+                    "direction": "sell",
+                    "shares": 30,
+                    "pct_of_position": 20.0,
+                    "pct_of_equity": 3.5,
+                    "technical_basis": "RSI=74 超买，MACD 动能减弱",
+                    "fundamental_basis": "诉讼风险尚未 price-in",
+                    "quant_signal": "量比 1.8，主力净流出",
+                    "invalidation_rule": "放量站稳 $428 作废",
+                    "priority": 1
+                }}
+            ]
         }},
         "data_perspective": {{
             "trend_status": {{"ma_alignment": "", "is_bullish": true, "trend_score": 0}},
@@ -669,6 +701,15 @@ class AgentExecutor:
                 parts.append(f"\n[系统已获取的筹码分布]\n{json.dumps(context['chip_distribution'], ensure_ascii=False)}")
             if context.get("news_context"):
                 parts.append(f"\n[系统已获取的新闻与舆情情报]\n{context['news_context']}")
+            # Portfolio context (only present when user analyzes with an account selected).
+            # Must be paired with action_plan_instruction so the LLM emits action_plan_items.
+            pcb = context.get("portfolio_context_block")
+            if pcb and str(pcb).strip():
+                from src.services.portfolio_context_service import build_action_plan_instruction
+                parts.append(f"\n{pcb}")
+                instruction = build_action_plan_instruction(pcb)
+                if instruction:
+                    parts.append(instruction)
 
         parts.append("\n请使用可用工具获取缺失的数据（如历史K线、新闻等），然后以决策仪表盘 JSON 格式输出分析结果。")
         return "\n".join(parts)

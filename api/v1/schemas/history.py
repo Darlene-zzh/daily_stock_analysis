@@ -112,7 +112,11 @@ class ActionPlanItemSchema(BaseModel):
     trigger_price: Optional[float] = None
     trigger_condition: Optional[str] = None
     direction: Optional[str] = None  # buy | sell | stop_loss | take_profit
-    shares: Optional[int] = None
+    # shares MUST be float — fractional-share accounts (Trading 212, Robinhood) routinely
+    # hold positions like 0.7597 shares. Typing as int caused Pydantic to coerce 0.25 → 0,
+    # the renderer dropped them via `if not shares: continue`, and entire action plans
+    # disappeared for users holding fractional shares.
+    shares: Optional[float] = None
     pct_of_position: Optional[float] = None  # null when not held
     pct_of_equity: Optional[float] = None
     technical_basis: Optional[str] = None

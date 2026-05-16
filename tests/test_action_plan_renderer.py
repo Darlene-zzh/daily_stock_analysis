@@ -46,7 +46,7 @@ _SAMPLE_ACTION_ITEMS = [
 ]
 
 
-def _make_result(action_plan_items=None, portfolio_match="held") -> AnalysisResult:
+def _make_result(action_plan_items=None, portfolio_match="held", include_battle=False) -> AnalysisResult:
     dashboard = {
         "core_conclusion": {
             "one_sentence": "短线回调风险上升，建议分批减仓。",
@@ -61,6 +61,20 @@ def _make_result(action_plan_items=None, portfolio_match="held") -> AnalysisResu
     }
     if action_plan_items is not None:
         dashboard["core_conclusion"]["action_plan_items"] = action_plan_items
+    if include_battle:
+        dashboard["battle_plan"] = {
+            "sniper_points": {
+                "ideal_buy": "420.0",
+                "secondary_buy": "415.0",
+                "stop_loss": "405.0",
+                "take_profit": "445.0",
+            },
+            "position_strategy": {
+                "suggested_position": "降仓防守",
+                "entry_plan": "可观察，不追高。",
+                "risk_control": "止损参考 405.0",
+            },
+        }
     r = AnalysisResult(
         code="MCD",
         name="McDonald's",
@@ -130,6 +144,74 @@ class NotificationActionPlanRendererTestCase(unittest.TestCase):
         md = svc._generate_single_stock_markdown(result, _fake_record())
         self.assertNotIn("持仓操作计划", md)
         self.assertIn("空仓者", md)
+
+
+class BattlePlanLabelSwitchTestCase(unittest.TestCase):
+    """When the user already holds the stock, the battle_plan strategy line
+    should read 调仓策略 instead of 建仓策略.
+    """
+
+    def test_history_service_uses_tiao_cang_when_held(self) -> None:
+        svc = HistoryService.__new__(HistoryService)
+        result = _make_result(portfolio_match="held", include_battle=True)
+        md = svc._generate_single_stock_markdown(result, _fake_record())
+        self.assertIn("调仓策略", md)
+        self.assertNotIn("- 建仓策略:", md)
+
+    def test_history_service_keeps_jian_cang_when_not_held(self) -> None:
+        svc = HistoryService.__new__(HistoryService)
+        result = _make_result(portfolio_match="not_held", include_battle=True)
+        md = svc._generate_single_stock_markdown(result, _fake_record())
+        self.assertIn("建仓策略", md)
+        self.assertNotIn("调仓策略", md)
+
+    def test_notification_uses_tiao_cang_when_held(self) -> None:
+        result = _make_result(portfolio_match="held", include_battle=True)
+        md = NotificationService().generate_dashboard_report([result])
+        self.assertIn("调仓策略", md)
+        self.assertNotIn("- 建仓策略:", md)
+
+    def test_notification_keeps_jian_cang_when_not_held(self) -> None:
+        result = _make_result(portfolio_match="not_held", include_battle=True)
+        md = NotificationService().generate_dashboard_report([result])
+        self.assertIn("建仓策略", md)
+        self.assertNotIn("调仓策略", md)
+
+
+class BattlePlanHintLineTestCase(unittest.TestCase):
+    """When action_plan_items is present, the 作战计划 block should label itself
+    as a quick-glance summary so the reader knows the playbook is above.
+    """
+
+    def test_history_service_adds_hint_when_action_plan_present(self) -> None:
+        svc = HistoryService.__new__(HistoryService)
+        result = _make_result(
+            action_plan_items=_SAMPLE_ACTION_ITEMS,
+            portfolio_match="held",
+            include_battle=True,
+        )
+        md = svc._generate_single_stock_markdown(result, _fake_record())
+        self.assertIn("关键点位速查", md)
+
+    def test_history_service_no_hint_without_action_plan(self) -> None:
+        svc = HistoryService.__new__(HistoryService)
+        result = _make_result(action_plan_items=None, portfolio_match="held", include_battle=True)
+        md = svc._generate_single_stock_markdown(result, _fake_record())
+        self.assertNotIn("关键点位速查", md)
+
+    def test_notification_adds_hint_when_action_plan_present(self) -> None:
+        result = _make_result(
+            action_plan_items=_SAMPLE_ACTION_ITEMS,
+            portfolio_match="held",
+            include_battle=True,
+        )
+        md = NotificationService().generate_dashboard_report([result])
+        self.assertIn("关键点位速查", md)
+
+    def test_notification_no_hint_without_action_plan(self) -> None:
+        result = _make_result(action_plan_items=None, portfolio_match="held", include_battle=True)
+        md = NotificationService().generate_dashboard_report([result])
+        self.assertNotIn("关键点位速查", md)
 
 
 if __name__ == "__main__":

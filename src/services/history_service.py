@@ -857,13 +857,26 @@ class HistoryService:
                 f"### 🎯 {labels['battle_plan_heading']}",
                 "",
             ])
+            # When a structured operation plan exists, signal to the reader that the
+            # battle plan below is the at-a-glance reference and the detailed playbook
+            # lives in the action_plan_items section above.
+            if action_plan_items and report_language != "en":
+                report_lines.extend([
+                    "_关键点位速查（多步骤执行计划见上方「📋 持仓操作计划」）_",
+                    "",
+                ])
+            elif action_plan_items:
+                report_lines.extend([
+                    "_Key levels at a glance (see the structured action plan above for the executable playbook)._",
+                    "",
+                ])
             # 狙击点位
             sniper = battle.get('sniper_points', {})
             if sniper:
                 report_lines.extend([
                     f"**📍 {labels['action_points_heading']}**",
                     "",
-                    f"| {labels['action_points_heading']} | {labels['current_price_label']} |",
+                    f"| {labels['action_points_heading']} | {labels['trigger_price_label']} |",
                     "|---------|------|",
                     f"| 🎯 {labels['ideal_buy_label']} | {self._clean_sniper_value(sniper.get('ideal_buy', 'N/A'))} |",
                     f"| 🔵 {labels['secondary_buy_label']} | {self._clean_sniper_value(sniper.get('secondary_buy', 'N/A'))} |",
@@ -874,9 +887,18 @@ class HistoryService:
             # 仓位策略
             position = battle.get('position_strategy', {})
             if position:
+                # When the user is already a holder, "建仓策略" is awkward — rename to
+                # "调仓策略" so the entry-strategy text reads as position adjustment.
+                entry_label = labels['entry_plan_label']
+                if (
+                    getattr(result, "portfolio_match", None) == "held"
+                    and report_language != "en"
+                    and entry_label == "建仓策略"
+                ):
+                    entry_label = "调仓策略"
                 report_lines.extend([
                     f"**💰 {labels['suggested_position_label']}**: {position.get('suggested_position', 'N/A')}",
-                    f"- {labels['entry_plan_label']}: {position.get('entry_plan', 'N/A')}",
+                    f"- {entry_label}: {position.get('entry_plan', 'N/A')}",
                     f"- {labels['risk_control_label']}: {position.get('risk_control', 'N/A')}",
                     "",
                 ])

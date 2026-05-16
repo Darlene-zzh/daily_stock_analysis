@@ -50,6 +50,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 - [新功能] 新增 macOS LaunchAgent 自动后台运行脚本（`scripts/launchd/install-webui.sh` / `uninstall-webui.sh` + `com.dsa.webui.plist.template`），把 `python main.py --webui-only` 注册为登录自启动、崩溃自动重启的常驻服务，日志写入 `~/Library/Logs/dsa-webui.{log,err.log}`；`docs/full-guide.md` 同步补 macOS 后台常驻使用说明。
 - [改进] Trading 212 `Card debit` 行改为现金账本流出事件（direction=out，取 `abs(Total)`），让账本与 Trading 212 自身现金口径一致；同时为 LSE 上市 UCITS ETF（如 EQGB / VUAG）补 `.L` 后缀的实时行情回退路径，遇到 pence 报价（>1000 GBP/股）自动按 ÷100 归一为 GBP。
 - [chore] 把 `webui.log` 加进 `.gitignore`，避免 `python main.py --webui-only` 的运行时日志被 git status 跟踪。
+- [新功能] 持仓上下文分析新增结构化 `action_plan_items` 操作计划区块，含触发价/股数/双仓位百分比/技术-基本面-量化三维依据/失效条件，前端新增 `ActionPlanTable` 卡片。
+- [新功能] Agent 路径同步打通持仓上下文注入，并新增 `_try_inject_action_plan_items` 聚焦 LLM 调用 + 基于成本价的兜底合成（持仓成本价上方才允许止盈），三层防御保证 mini 模型漏填时区块仍可见。
+- [改进] 报告 `一句话决策` 不再被多 agent 编排器二次截断；`作战计划` 在持仓者场景使用「调仓策略」label；操作点位表表头改为「触发价」。
+- [改进] 搜索后端 SearXNG 自建实例与公共池可同时注册（之前互斥），fallback chain 顺序 `Tavily → 自建 SearXNG → 公共 SearXNG`，Tavily 月度配额耗尽时无缝兜底。
+- [测试] 新增 60+ 用例覆盖 action_plan_items 渲染、prompt 注入、agent 路径打通、合成兜底、cost-basis 守门、LLM 解析及 SearXNG 双 provider 注册。
+- [修复] `ActionPlanItemSchema.shares` 由 `Optional[int]` 改为 `Optional[float]`，避免 Pydantic 将分数股（如 Trading 212 的 0.7597 股）静默 truncate 为 0 导致整张操作计划在 API 响应里消失。
+- [修复] `stop_loss` 触发价高于成本价 1.02× 时由 LLM 后处理和 synthesis 兜底统一改写为 `sell` 方向（防守性减仓而非止损），口诀「take_profit 必在成本上方，stop_loss 必在成本下方」同步进 LLM prompt。
+- [修复] action_plan_items 在 cost-basis 过滤后重新编号 `priority` 为连续 1..N，避免 UI 显示 `优先级 1 / 优先级 3` 中间出现跳号。
+- [修复] 异步任务轮询的 DB 兜底分支（服务重启后）和同步 analyze 响应均补传 `dashboard`，否则前端 `持仓操作计划` 区块在这两条路径下静默消失。
+- [改进] 前端 `ActionPlanTable` 增加 `triggerPrice` / `shares` 的 null-safety；`pctOfEquity` 渲染条件由 `?` 改为 `!= null` 以保留 0% 值；分数股自动按 4 位小数格式化。
 
 ## [3.16.0] - 2026-05-10
 

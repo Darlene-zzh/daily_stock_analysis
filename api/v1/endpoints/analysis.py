@@ -829,7 +829,17 @@ def get_analysis_status(task_id: str) -> TaskStatus:
                 if change_pct is None:
                     change_pct = realtime_quote_raw.get('pct_chg')
 
-            # Build report from DB record so completed tasks return real data
+            # Build report from DB record so completed tasks return real data.
+            # Surface the raw dashboard dict so structured fields (action_plan_items,
+            # core_conclusion, etc.) survive the in-memory→DB fallback. Without this,
+            # any task polled after a server restart loses the 持仓操作计划 region
+            # on the frontend even though it's persisted in raw_result.
+            dashboard_data = None
+            if isinstance(raw_result, dict):
+                dash = raw_result.get("dashboard")
+                if isinstance(dash, dict):
+                    dashboard_data = dash
+
             report_dict = AnalysisReport(
                 meta=ReportMeta(
                     id=record.id,
@@ -855,6 +865,7 @@ def get_analysis_status(task_id: str) -> TaskStatus:
                     stop_loss=_stringify_report_strategy_value(getattr(record, 'stop_loss', None)),
                     take_profit=_stringify_report_strategy_value(getattr(record, 'take_profit', None)),
                 ),
+                dashboard=dashboard_data,
             ).model_dump()
             return TaskStatus(
                 task_id=task_id,
@@ -1020,9 +1031,17 @@ def _build_analysis_report(
             sector_rankings=extracted_boards.get("sector_rankings"),
         )
 
+    # Surface dashboard so action_plan_items and other structured fields flow through
+    # to the frontend. Without this, sync analyze responses lose 持仓操作计划 even
+    # though the data exists upstream.
+    dashboard_payload = report_data.get("dashboard")
+    if not isinstance(dashboard_payload, dict):
+        dashboard_payload = None
+
     return AnalysisReport(
         meta=meta,
         summary=summary,
         strategy=strategy,
-        details=details
+        details=details,
+        dashboard=dashboard_payload,
     )

@@ -104,12 +104,46 @@ export interface ReportDetails {
   sectorRankings?: SectorRankings;
 }
 
+/** One entry in a portfolio-aware structured action plan. */
+export interface ActionPlanItem {
+  triggerPrice: number;
+  triggerCondition: string;
+  direction: 'buy' | 'sell' | 'stop_loss' | 'take_profit';
+  /** Fractional-share accounts (Trading 212, Robinhood) routinely emit < 1. */
+  shares: number;
+  /** null when the user does not currently hold the symbol */
+  pctOfPosition: number | null;
+  pctOfEquity: number;
+  technicalBasis: string;
+  fundamentalBasis: string;
+  quantSignal: string;
+  invalidationRule: string;
+  /** 1 = highest priority; renumbered contiguously post-filter (1..N, N ≤ 4). */
+  priority: number;
+}
+
+export interface CoreConclusion {
+  oneSentence?: string;
+  signalType?: string;
+  timeSensitivity?: string;
+  positionAdvice?: { noPosition?: string; hasPosition?: string };
+  actionPlanItems?: ActionPlanItem[];
+}
+
+export interface DashboardSection {
+  coreConclusion?: CoreConclusion;
+  dataPerspective?: Record<string, unknown>;
+  battlePlan?: Record<string, unknown>;
+  intelligence?: Record<string, unknown>;
+}
+
 /** Full analysis report */
 export interface AnalysisReport {
   meta: ReportMeta;
   summary: ReportSummary;
   strategy?: ReportStrategy;
   details?: ReportDetails;
+  dashboard?: DashboardSection;
 }
 
 // ============ Analysis Result Types ============

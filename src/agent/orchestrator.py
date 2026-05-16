@@ -961,7 +961,9 @@ class AgentOrchestrator:
             intelligence["latest_news"] = latest_news
 
         if not core.get("one_sentence"):
-            core["one_sentence"] = _truncate_text(analysis_summary, 60)
+            # analysis_summary is already capped at 220 (line 872 above) — re-truncating
+            # here just produced "…" mid-sentence in the rendered card. Use it whole.
+            core["one_sentence"] = analysis_summary
         if not core.get("time_sensitivity"):
             core["time_sensitivity"] = "本周内"
         if not core.get("signal_type"):
