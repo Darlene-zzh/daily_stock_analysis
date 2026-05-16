@@ -2340,8 +2340,11 @@ def _fill_action_plan_items_if_missing(
     try:
         from src.services.portfolio_context_service import synthesize_action_plan_items
         is_held = getattr(result, "portfolio_match", None) == "held"
+        strategy = dashboard.get("core_conclusion", {}).get("recommended_strategy") \
+            if isinstance(dashboard, dict) else None
         items = synthesize_action_plan_items(
-            dashboard, portfolio_context_block, is_held=is_held
+            dashboard, portfolio_context_block,
+            is_held=is_held, strategy=strategy,
         )
     except Exception:
         # Synthesis failures must not break the analysis pipeline.

@@ -610,6 +610,7 @@ def synthesize_action_plan_items(
     portfolio_context_block: Optional[str],
     *,
     is_held: bool,
+    strategy: Optional[str] = None,
 ) -> List[Dict[str, Any]]:
     """Synthesize 1-2 action_plan_items from existing dashboard data + portfolio facts.
 
@@ -845,5 +846,62 @@ def synthesize_action_plan_items(
             "invalidation_rule": "若无法站稳目标位则保留仓位",
             "priority": 3,
         })
+
+    # ---- Apply per-strategy template ----
+    if strategy == "wait_and_see":
+        # Replace items with at most 1 event-reminder item
+        items = items[:1] if items else []
+    elif strategy == "stepped_profit_taking":
+        items = [it for it in items if it.get("direction") != "buy"]
+        # Append a cost-based stop_loss if missing
+        if is_held and avg_cost is not None and not any(
+            it.get("direction") == "stop_loss"
+            and isinstance(it.get("trigger_price"), (int, float))
+            and it["trigger_price"] <= avg_cost * 0.97
+            for it in items
+        ):
+            items.append({
+                "trigger_price": round(avg_cost * 0.95, 2),
+                "trigger_condition": "基于成本基础的 protection stop",
+                "direction": "stop_loss",
+                "shares": round(shares, 4) if shares and shares < 1 else round(shares or 0),
+                "pct_of_position": 100.0,
+                "pct_of_equity": _pct_of_equity(shares or 0, avg_cost, equity),
+                "technical_basis": "cost-based protection (非技术信号)",
+                "fundamental_basis": fundamental_basis,
+                "quant_signal": None,
+                "invalidation_rule": f"当日强势收回 {round(avg_cost * 0.97, 2)} 以上则推迟",
+                "priority": 99,
+            })
+    elif strategy == "long_term_hold":
+        # Filter out short-term triggers (within 5% of current price)
+        items = [
+            it for it in items
+            if not (
+                isinstance(it.get("trigger_price"), (int, float))
+                and last_price is not None
+                and abs(it["trigger_price"] - last_price) / last_price < 0.05
+            )
+        ]
+        # Append cost-based hard stop if missing
+        if is_held and avg_cost is not None and not any(
+            it.get("direction") == "stop_loss"
+            and isinstance(it.get("trigger_price"), (int, float))
+            and it["trigger_price"] <= avg_cost * 0.91
+            for it in items
+        ):
+            items.append({
+                "trigger_price": round(avg_cost * 0.9, 2),
+                "trigger_condition": "长线持有的硬底线：成本下方 10%",
+                "direction": "stop_loss",
+                "shares": round(shares, 4) if shares and shares < 1 else round(shares or 0),
+                "pct_of_position": 100.0,
+                "pct_of_equity": _pct_of_equity(shares or 0, avg_cost, equity),
+                "technical_basis": "基于成本基础（非技术信号）",
+                "fundamental_basis": fundamental_basis,
+                "quant_signal": None,
+                "invalidation_rule": "基本面叙事破裂时直接执行；技术反弹可推迟",
+                "priority": 99,
+            })
 
     return items

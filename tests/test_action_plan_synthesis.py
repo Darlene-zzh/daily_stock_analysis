@@ -342,5 +342,65 @@ class OrchestratorOneSentenceFallbackTestCase(unittest.TestCase):
         self.assertIn('core["one_sentence"] = analysis_summary', text)
 
 
+class StrategyAwareSynthesisTestCase(unittest.TestCase):
+    """When synthesize_action_plan_items is given a strategy hint, items must
+    follow per-strategy templates (mirrors LLM-output post-process enforcement).
+    """
+
+    def _dash(self):
+        return {
+            "battle_plan": {
+                "sniper_points": {
+                    "ideal_buy": 130.0, "stop_loss": 128.0, "take_profit": 145.0,
+                },
+            },
+            "data_perspective": {"trend_status": {"ma_alignment": "bullish"}},
+            "intelligence": {"earnings_outlook": "正面"},
+        }
+
+    def test_synthesis_long_term_hold_includes_cost_based_stop(self):
+        from src.services.portfolio_context_service import synthesize_action_plan_items
+        block = """## [持仓上下文]
+- 持股数量：1 股 / 平均成本：100.0 USD/股
+- 账户总权益：1000.00 USD
+- 当前价：130.0 USD
+"""
+        items = synthesize_action_plan_items(
+            self._dash(), block, is_held=True, strategy="long_term_hold",
+        )
+        # Must contain a stop_loss at cost*0.9 = 90 or below
+        cost_stops = [
+            it for it in items
+            if it["direction"] == "stop_loss"
+            and isinstance(it["trigger_price"], (int, float))
+            and it["trigger_price"] <= 91.0
+        ]
+        self.assertGreaterEqual(len(cost_stops), 1)
+
+    def test_synthesis_stepped_profit_taking_excludes_buy(self):
+        from src.services.portfolio_context_service import synthesize_action_plan_items
+        block = """## [持仓上下文]
+- 持股数量：1 股 / 平均成本：100.0 USD/股
+- 账户总权益：1000.00 USD
+- 当前价：130.0 USD
+"""
+        items = synthesize_action_plan_items(
+            self._dash(), block, is_held=True, strategy="stepped_profit_taking",
+        )
+        directions = [it["direction"] for it in items]
+        self.assertNotIn("buy", directions)
+
+    def test_synthesis_wait_and_see_caps_at_one_item(self):
+        from src.services.portfolio_context_service import synthesize_action_plan_items
+        block = """## [持仓上下文]
+- 持股数量：1 股 / 平均成本：100.0 USD/股
+- 账户总权益：1000.00 USD
+"""
+        items = synthesize_action_plan_items(
+            self._dash(), block, is_held=True, strategy="wait_and_see",
+        )
+        self.assertLessEqual(len(items), 1)
+
+
 if __name__ == "__main__":
     unittest.main()
