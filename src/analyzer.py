@@ -2431,6 +2431,19 @@ intelligence 区块新增字段示例（仅供格式参考，实际内容由你�
             core_out["strategy_thesis"] = parsed["strategy_thesis"]
         if items:
             core_out["action_plan_items"] = items
+            # Compute position outcome when portfolio is held and LLM didn't already supply one
+            if not isinstance(core_out.get("position_outcome_summary"), dict):
+                from src.services.portfolio_context_service import _parse_portfolio_facts
+                facts = _parse_portfolio_facts(portfolio_context_block or "")
+                outcome = self._compute_position_outcome_summary(
+                    items=items,
+                    holding_shares=facts.get("shares"),
+                    avg_cost=facts.get("avg_cost"),
+                    current_price=facts.get("last_price"),
+                    base_currency=facts.get("base_currency") or "USD",
+                )
+                if outcome:
+                    core_out["position_outcome_summary"] = outcome
         if isinstance(parsed.get("position_outcome_summary"), dict):
             core_out["position_outcome_summary"] = parsed["position_outcome_summary"]
 
@@ -2446,6 +2459,64 @@ intelligence 区块新增字段示例（仅供格式参考，实际内容由你�
         "stepped_profit_taking": 4,
         "wait_and_see": 1,
     }
+
+    def _compute_position_outcome_summary(
+        self,
+        items: list,
+        holding_shares: Optional[float],
+        avg_cost: Optional[float],
+        current_price: Optional[float],
+        base_currency: str,
+    ) -> Optional[Dict[str, Any]]:
+        """Aggregate action_plan_items into worst-case loss / best-case gain / R:R.
+
+        Returns None when portfolio facts are unavailable (no holding or no cost basis).
+        """
+        if holding_shares is None or holding_shares <= 0 or avg_cost is None:
+            return None
+
+        actioned = 0.0
+        worst_loss = 0.0
+        best_gain = 0.0
+        for it in items:
+            shares = it.get("shares")
+            trig = it.get("trigger_price")
+            direction = it.get("direction")
+            if shares is None or trig is None:
+                continue
+            try:
+                shares_f = float(shares)
+                trig_f = float(trig)
+            except (TypeError, ValueError):
+                continue
+            if shares_f <= 0:
+                continue
+            actioned += shares_f
+            pnl = (trig_f - avg_cost) * shares_f
+            if direction == "stop_loss" or pnl < 0:
+                worst_loss += pnl
+            elif direction in ("take_profit", "sell") and pnl > 0:
+                best_gain += pnl
+
+        remaining = max(0.0, holding_shares - actioned)
+        position_value = holding_shares * avg_cost
+        worst_pct = (worst_loss / position_value * 100.0) if position_value > 0 else 0.0
+        best_pct = (best_gain / position_value * 100.0) if position_value > 0 else 0.0
+
+        if worst_loss < 0:
+            rr_ratio = f"1:{round(abs(best_gain / worst_loss), 1)}"
+        else:
+            rr_ratio = "N/A"
+
+        return {
+            "remaining_shares_after_all_triggers": round(remaining, 4),
+            "worst_case_loss_pct": round(worst_pct, 1),
+            "worst_case_loss_amount": round(worst_loss, 2),
+            "worst_case_currency": base_currency,
+            "best_case_gain_pct": round(best_pct, 1),
+            "best_case_gain_amount": round(best_gain, 2),
+            "risk_reward_ratio": rr_ratio,
+        }
 
     def _sanitize_action_plan_items(
         self,
