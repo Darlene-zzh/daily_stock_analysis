@@ -197,6 +197,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 - [新功能] 首页空状态区新增「持仓热点图 Treemap」：色块大小 = 仓位市值、颜色 = 浮盈百分比（红-灰-绿渐变），点击直接进入该股分析。复用 recharts，无新增依赖。
 - [测试] 新增 6 个 `_lookup_recent_cache_response` 用例 + 5 个 portfolio snapshot TTL 缓存用例（HIT / MISS / 跨账户 / TTL=0 / 手动清理 / 非法 env 值）。
 - [测试] `tests/test_portfolio_context_service.py` setUp 现在清理 snapshot TTL 缓存，避免跨测试缓存污染。
+- [修复] `recommended_strategy=stepped_profit_taking` 且 LLM 没产出具体止盈分级时，sanitizer 自动合成 3 档止盈阶梯（cost ×1.05 / ×1.12 / ×1.20，仓位分配 30/40/30），与现有的成本基础硬止损共存；Gemini 2.5 Flash 经常把策略论述写在 `strategy_thesis` 里却忘了写 `action_plan_items`，老逻辑就会让前端「AI 推荐分批止盈」下面什么具体价位都没有。
+- [文档] `.env.example` 新增 Cerebras 免费层渠道配置示例（60K TPM / ~1700 RPD，与 Gemini 完全独立桶），可作为撞日上限后的 zero-cost fallback。
 
 ## [3.14.0] - 2026-04-26
 
