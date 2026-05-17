@@ -203,6 +203,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 - [修复] Agent loop 撞 `max_steps` 没产出 tool-free 终止消息时，从历史中捞最近一条带 content 的 assistant 消息作为 final answer（之前直接 success=False；新逻辑只在历史里完全没文本时才彻底失败）。这彻底修了非 Gemini fallback model（Cerebras Qwen / OpenRouter DeepSeek 等）走 OpenAI-compat 后 tool-call 收口形态跟 Gemini 不一致导致的 "Agent loop did not produce a final answer"。
 - [修复] `_try_inject_zh_translations` 现在按字段检查原始内容是否已是中文（CJK 字符占比 ≥30%），是的话直接镜像到 `_zh` 槽不再调 LLM——Gemini 撞配额后 fallback 到中文母语模型（Qwen3-235B / DeepSeek-V4）会让基础字段已经是中文，老逻辑会 Chinese→Chinese 再翻译一遍，产生两份措辞不一样的复读。
 - [测试] 新增 14 个用例：3 个 agent salvage 用例 + 11 个 Chinese 检测 / 翻译 gate 用例。
+- [新功能] 首页新增「持仓热点图 Treemap」（recharts，红绿渐变，色块大小=市值、颜色=浮盈%，点击进入分析），替代空状态。
+- [改进] 24h 同股缓存命中时前端**自动跳转**到那只股的报告，并在报告顶部显示 InlineAlert 提示「今日已分析过 X / 下面是 N 小时前 的分析结果 / 强制刷新」按钮——避免用户以为页面坏了。`task.to_dict()` 在 `status=completed` 时携带完整 `result` payload，SSE 一并下发 `report.meta.cached / cached_at / cache_age_seconds`，前端 store 新增 `syncTaskCompleted` 自动设 `selectedReport`。
+- [新功能] `.env` 多 provider fallback 链路（gemini → openrouter → cerebras → groq），LiteLLM Router 通过 api_base override 路由到对应家。预设链路：Gemini 2.5 Flash → DeepSeek-V4-Free → Cerebras Qwen3-235B → MiniMax-M2.5-Free → Groq Llama-3.3-70B，约 ~1900 RPD 总额。
+- [文档] `.env.example` 同步新增 Cerebras / Groq / OpenRouter channel 配置示例 + 2026-05 验证过的免费模型名（Qwen3-235B、DeepSeek-V4-Flash、MiniMax-M2.5 等）。
 
 ## [3.14.0] - 2026-04-26
 
