@@ -586,8 +586,65 @@ def run_agent_loop(
                 messages=messages,
             )
 
-    # Max steps exceeded
-    logger.warning("Agent hit max steps (%d)", max_steps)
+    # ------------------------------------------------------------------
+    # Max steps exceeded — salvage the most recent assistant text response
+    # ------------------------------------------------------------------
+    #
+    # Background (2026-05-17): Gemini reliably converges by emitting a
+    # tool-free assistant message after gathering enough data, which hits
+    # the `else` branch above and returns success. Non-Gemini fallback
+    # providers (Cerebras Qwen-3-235B, OpenRouter DeepSeek-V4, Groq Llama)
+    # behave differently — they often keep emitting `tool_calls` on every
+    # turn or, conversely, emit text alongside tool_calls without ever
+    # producing a tool-free message. Both styles previously bailed here
+    # with `success=False, content=""`, which surfaced as the screenshot
+    # the user flagged ("Agent loop did not produce a final answer").
+    #
+    # Salvage: walk backwards through `messages` for the most recent
+    # assistant message with non-empty textual content. Even when the
+    # model also requested tools on that turn, the prose it wrote alongside
+    # is usable as a final answer for downstream post-processing.
+    salvaged_content = ""
+    for msg in reversed(messages):
+        if msg.get("role") != "assistant":
+            continue
+        c = msg.get("content")
+        if isinstance(c, str) and c.strip():
+            salvaged_content = c
+            break
+        # Some adapters wrap content as list-of-parts; handle that shape.
+        if isinstance(c, list):
+            joined = " ".join(
+                part.get("text", "")
+                for part in c
+                if isinstance(part, dict) and isinstance(part.get("text"), str)
+            ).strip()
+            if joined:
+                salvaged_content = joined
+                break
+
+    if salvaged_content:
+        logger.warning(
+            "Agent hit max steps (%d) without a tool-free final answer — "
+            "salvaging %d chars of the most recent assistant message",
+            max_steps, len(salvaged_content),
+        )
+        return RunLoopResult(
+            success=True,
+            content=salvaged_content,
+            tool_calls_log=tool_calls_log,
+            total_steps=max_steps,
+            total_tokens=total_tokens,
+            provider=provider_used,
+            models_used=models_used,
+            error=None,
+            messages=messages,
+        )
+
+    logger.warning(
+        "Agent hit max steps (%d) AND no salvageable assistant content — failing",
+        max_steps,
+    )
     return RunLoopResult(
         success=False,
         content="",
