@@ -7,7 +7,7 @@ import { analysisApi } from '../api/analysis';
 import { portfolioApi } from '../api/portfolio';
 import { systemConfigApi } from '../api/systemConfig';
 import type { PortfolioAccountItem } from '../types/portfolio';
-import { ApiErrorAlert, ConfirmDialog, Button, EmptyState, InlineAlert } from '../components/common';
+import { ApiErrorAlert, ConfirmDialog, Button, InlineAlert } from '../components/common';
 import { DashboardStateBlock } from '../components/dashboard';
 import { StockAutocomplete } from '../components/StockAutocomplete';
 import { HistoryList } from '../components/history';
@@ -661,9 +661,12 @@ const HomePage: React.FC = () => {
                 <ReportSummary data={selectedReport} isHistory />
               </div>
             ) : (
-              <div className="flex h-full flex-col items-stretch justify-start gap-4 py-4">
-                {/* Portfolio heatmap — at-a-glance view of holdings. */}
-                {/* Click a block to trigger a re-analysis of that stock. */}
+              // Empty-state region: treemap doubles as both the "what should I
+              // do here?" prompt and the "what's my portfolio doing right now?"
+              // glance. `min-h-0 overflow-y-auto` lets the parent scroll if the
+              // user's holdings list grows past the section height, instead of
+              // clipping the bottom-row blocks like the first iteration did.
+              <div className="flex h-full min-h-0 flex-col items-stretch justify-start gap-4 overflow-y-auto py-4">
                 <PortfolioHeatmapTreemap
                   onSelectSymbol={(symbol) => {
                     setQuery(symbol);
@@ -673,18 +676,6 @@ const HomePage: React.FC = () => {
                     });
                   }}
                 />
-                <div className="flex items-center justify-center">
-                  <EmptyState
-                    title="开始分析"
-                    description="输入股票代码进行分析，或直接点击上方持仓热点图。"
-                    className="max-w-xl border-dashed"
-                    icon={(
-                      <svg className="h-6 w-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
-                      </svg>
-                    )}
-                  />
-                </div>
               </div>
             )}
           </section>

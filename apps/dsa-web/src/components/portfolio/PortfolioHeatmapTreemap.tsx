@@ -26,7 +26,9 @@ export interface PortfolioHeatmapTreemapProps {
   accountId?: number;
   /** Click handler when a block is selected. */
   onSelectSymbol?: (symbol: string) => void;
-  /** Container height; defaults to 420px which fits the home-page empty slot. */
+  /** Container height; defaults to 520px so the smallest holdings still have
+   *  room for a one-line ticker label without being clipped at the bottom of
+   *  the parent scroll region. */
   height?: number;
   /** Override the snapshot data instead of fetching (useful for tests + storybook). */
   positionsOverride?: PortfolioPositionItem[];
@@ -42,24 +44,39 @@ type TreemapDatum = {
   avgCost: number;
 };
 
-/** Colour scale: red at -10%+, grey at flat, green at +10%+. Linear in between. */
+/**
+ * Colour scale for a position's unrealized PnL %. Designed to read well on a
+ * light card background and to feel like a financial dashboard (Bloomberg /
+ * TradingView) rather than a candy-coloured saturated palette.
+ *
+ * Tuning notes:
+ *   - The previous version went all the way to pure rgb(240, 14, 32) red and
+ *     rgb(0, 240, 36) green, which clashed badly with the cream/off-white
+ *     surface and was the user's reported "刺眼" complaint.
+ *   - Saturation is capped at ~55%, lightness at ~42% so blocks read as muted
+ *     forest-green and brick-red instead of traffic-light primaries.
+ *   - The visual cap of "extreme" is now ±15% (the practical max for a
+ *     stock-level unrealized PnL on day 1 of a position). Anything beyond is
+ *     clamped to the same extreme.
+ */
 function colourForPnlPct(pct: number | null): string {
-  if (pct == null || Number.isNaN(pct)) return 'var(--color-surface-muted, #2a2f3a)';
-  const clamped = Math.max(-10, Math.min(10, pct));
-  if (clamped >= 0) {
-    // 0 → grey-green, 10 → vivid green
-    const intensity = clamped / 10;
-    const r = Math.round(64 - 64 * intensity);
-    const g = Math.round(140 + 100 * intensity);
-    const b = Math.round(96 - 60 * intensity);
-    return `rgb(${r},${g},${b})`;
-  }
-  // -10 → vivid red, 0 → grey-red
-  const intensity = -clamped / 10;
-  const r = Math.round(140 + 100 * intensity);
-  const g = Math.round(64 - 50 * intensity);
-  const b = Math.round(72 - 40 * intensity);
-  return `rgb(${r},${g},${b})`;
+  if (pct == null || Number.isNaN(pct)) return '#7a7e8a';
+
+  const CAP = 15;
+  const clamped = Math.max(-CAP, Math.min(CAP, pct));
+  const t = Math.abs(clamped) / CAP;          // 0 at flat → 1 at extreme
+
+  // HSL interpolation: flat = warm slate (218°, 6%, 55%);
+  // gain ramps toward forest green (148°, 55%, 38%);
+  // loss ramps toward muted brick (358°, 52%, 47%).
+  const flat = { h: 218, s: 6, l: 55 };
+  const gainEnd = { h: 148, s: 55, l: 38 };
+  const lossEnd = { h: 358, s: 52, l: 47 };
+  const target = clamped >= 0 ? gainEnd : lossEnd;
+  const h = flat.h + (target.h - flat.h) * t;
+  const s = flat.s + (target.s - flat.s) * t;
+  const l = flat.l + (target.l - flat.l) * t;
+  return `hsl(${h.toFixed(0)}, ${s.toFixed(0)}%, ${l.toFixed(0)}%)`;
 }
 
 function formatPct(pct: number | null): string {
@@ -87,9 +104,16 @@ interface TreemapContentProps {
 
 function TreemapBlock({ x = 0, y = 0, width = 0, height = 0, name, pnlPct }: TreemapContentProps) {
   const fill = colourForPnlPct(pnlPct ?? null);
-  // Only render label when block is big enough to fit ~3 chars + percentage.
-  const showLabel = width > 48 && height > 36;
-  const showPct = width > 60 && height > 54;
+  // Tier thresholds: tiniest blocks just show the ticker on one line; medium
+  // blocks add the percentage; large blocks get a roomier two-line layout.
+  // Without the symbol-only tier, the right-edge "NET" sliver in the user's
+  // screenshot rendered with no label at all.
+  const showSymbol = width > 26 && height > 18;
+  const showPct = width > 56 && height > 40;
+  const isLarge = width > 90 && height > 70;
+  const symbolSize = isLarge ? 18 : Math.max(10, Math.min(15, Math.min(width, height) / 5));
+  const pctSize = isLarge ? 13 : Math.max(9, Math.min(12, Math.min(width, height) / 7));
+
   return (
     <g>
       <rect
@@ -99,20 +123,21 @@ function TreemapBlock({ x = 0, y = 0, width = 0, height = 0, name, pnlPct }: Tre
         height={height}
         style={{
           fill,
-          stroke: 'rgba(0,0,0,0.35)',
+          stroke: 'rgba(255,255,255,0.18)',
           strokeWidth: 1,
           cursor: 'pointer',
         }}
       />
-      {showLabel && name ? (
+      {showSymbol && name ? (
         <text
           x={x + width / 2}
-          y={y + height / 2}
+          y={y + height / 2 - (showPct ? Math.round(pctSize * 0.6) : 0)}
           textAnchor="middle"
           dominantBaseline="middle"
-          fontSize={Math.min(16, Math.max(11, Math.min(width, height) / 5))}
+          fontSize={symbolSize}
           fontWeight={600}
-          fill="rgba(255,255,255,0.96)"
+          fill="rgba(255,255,255,0.98)"
+          style={{ pointerEvents: 'none', letterSpacing: '0.02em' }}
         >
           {name}
         </text>
@@ -120,10 +145,12 @@ function TreemapBlock({ x = 0, y = 0, width = 0, height = 0, name, pnlPct }: Tre
       {showPct ? (
         <text
           x={x + width / 2}
-          y={y + height / 2 + 16}
+          y={y + height / 2 + Math.round(symbolSize * 0.85)}
           textAnchor="middle"
-          fontSize={Math.min(13, Math.max(10, Math.min(width, height) / 7))}
-          fill="rgba(255,255,255,0.86)"
+          dominantBaseline="middle"
+          fontSize={pctSize}
+          fill="rgba(255,255,255,0.88)"
+          style={{ pointerEvents: 'none', fontVariantNumeric: 'tabular-nums' }}
         >
           {formatPct(pnlPct ?? null)}
         </text>
@@ -161,7 +188,7 @@ function HeatmapTooltip({ active, payload }: CustomTooltipProps) {
 export const PortfolioHeatmapTreemap: React.FC<PortfolioHeatmapTreemapProps> = ({
   accountId,
   onSelectSymbol,
-  height = 420,
+  height = 520,
   positionsOverride,
 }) => {
   const [positions, setPositions] = useState<PortfolioPositionItem[]>(positionsOverride ?? []);
