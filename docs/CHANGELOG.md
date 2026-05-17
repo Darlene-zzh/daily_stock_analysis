@@ -199,6 +199,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 - [测试] `tests/test_portfolio_context_service.py` setUp 现在清理 snapshot TTL 缓存，避免跨测试缓存污染。
 - [修复] `recommended_strategy=stepped_profit_taking` 且 LLM 没产出具体止盈分级时，sanitizer 自动合成 3 档止盈阶梯（cost ×1.05 / ×1.12 / ×1.20，仓位分配 30/40/30），与现有的成本基础硬止损共存；Gemini 2.5 Flash 经常把策略论述写在 `strategy_thesis` 里却忘了写 `action_plan_items`，老逻辑就会让前端「AI 推荐分批止盈」下面什么具体价位都没有。
 - [文档] `.env.example` 新增 Cerebras 免费层渠道配置示例（60K TPM / ~1700 RPD，与 Gemini 完全独立桶），可作为撞日上限后的 zero-cost fallback。
+- [修复] Agent 模式 LiteLLM Router 现在带 fallback chain（之前只传了 `num_retries=2`，撞 429 时只重试同一个已限流的 deployment，导致 agent loop 跑满 max_steps 直接放弃；新逻辑把 `LITELLM_FALLBACK_MODELS` 拍平成 LiteLLM Router 的 `fallbacks=` 入参，撞限自动跳到下一家 provider）。
+- [修复] Agent loop 撞 `max_steps` 没产出 tool-free 终止消息时，从历史中捞最近一条带 content 的 assistant 消息作为 final answer（之前直接 success=False；新逻辑只在历史里完全没文本时才彻底失败）。这彻底修了非 Gemini fallback model（Cerebras Qwen / OpenRouter DeepSeek 等）走 OpenAI-compat 后 tool-call 收口形态跟 Gemini 不一致导致的 "Agent loop did not produce a final answer"。
+- [修复] `_try_inject_zh_translations` 现在按字段检查原始内容是否已是中文（CJK 字符占比 ≥30%），是的话直接镜像到 `_zh` 槽不再调 LLM——Gemini 撞配额后 fallback 到中文母语模型（Qwen3-235B / DeepSeek-V4）会让基础字段已经是中文，老逻辑会 Chinese→Chinese 再翻译一遍，产生两份措辞不一样的复读。
+- [测试] 新增 14 个用例：3 个 agent salvage 用例 + 11 个 Chinese 检测 / 翻译 gate 用例。
 
 ## [3.14.0] - 2026-04-26
 
