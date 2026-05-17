@@ -196,17 +196,44 @@ class LLMToolAdapter:
         # --- Channel / YAML path ---
         if self._has_channel_config():
             model_list = config.llm_model_list
+            # Bug fix 2026-05-17: without an explicit `fallbacks=` the Router
+            # only retries the SAME deployment on 429 / TPM-limit, then gives
+            # up — which causes the agent loop to bail with "did not produce a
+            # final answer" the moment Gemini's daily cap (or Cerebras's TPM
+            # cap) is hit. Build a fallbacks map so the agent uses the same
+            # priority chain that non-agent code uses via LITELLM_FALLBACK_MODELS.
+            fallback_chain = [litellm_model] + [
+                m for m in (config.litellm_fallback_models or [])
+                if m and m != litellm_model
+            ]
+            unique_models = list(dict.fromkeys(
+                e['litellm_params']['model'] for e in model_list
+            ))
+            # Filter the chain to only deployments the Router actually knows
+            # about; an unknown model_name would short-circuit fallback.
+            fallback_chain = [m for m in fallback_chain if m in set(unique_models)]
+            # Router accepts: [{model_name: [fallback_1, fallback_2, ...]}, ...]
+            # Build it so every primary model falls through to whatever comes
+            # after it in the priority chain, plus a universal "*" entry as a
+            # last resort.
+            fallbacks_for_router: List[Dict[str, List[str]]] = []
+            for idx, m in enumerate(fallback_chain):
+                downstream = fallback_chain[idx + 1:]
+                if downstream:
+                    fallbacks_for_router.append({m: downstream})
+            if fallback_chain:
+                fallbacks_for_router.append({"*": fallback_chain})
+
             self._router = Router(
                 model_list=model_list,
                 routing_strategy="simple-shuffle",
                 num_retries=2,
+                fallbacks=fallbacks_for_router or None,
             )
-            unique_models = list(dict.fromkeys(
-                e['litellm_params']['model'] for e in model_list
-            ))
             logger.info(
                 f"Agent LLM: Router initialized from channels/YAML — "
-                f"{len(model_list)} deployment(s), models: {unique_models}"
+                f"{len(model_list)} deployment(s), models: {unique_models}, "
+                f"fallback chain: {fallback_chain}"
             )
             return
 
