@@ -225,5 +225,105 @@ class WaitAndSeeMaxItemsTestCase(unittest.TestCase):
         self.assertEqual(GeminiAnalyzer._STRATEGY_MAX_ITEMS["wait_and_see"], 0)
 
 
+class SteppedProfitTakingLadderSynthesisTestCase(unittest.TestCase):
+    """When Gemini emits `recommended_strategy=stepped_profit_taking` but no
+    take_profit items, the post-process must synthesize a 3-step ladder anchored
+    on cost basis. Without this, the user sees "AI 推荐分批止盈" with zero
+    concrete trigger prices — exactly the screenshot the user flagged.
+    """
+
+    def test_synthesizes_three_step_ladder_when_no_tps(self):
+        from src.analyzer import GeminiAnalyzer
+
+        analyzer = GeminiAnalyzer.__new__(GeminiAnalyzer)
+        # Cost 100, 1 share, no take_profit emitted by LLM
+        result = analyzer._sanitize_action_plan_items(
+            items=[],
+            portfolio_context_block=(
+                "持仓状态：已持有\n持股数量：1 股\n平均成本：100.0 USD/股\n"
+                "当前价：106.0\n账户总权益：500.00 GBP\n"
+            ),
+            code="STUB",
+            strategy="stepped_profit_taking",
+        )
+
+        take_profits = [it for it in result if it.get("direction") == "take_profit"]
+        self.assertEqual(len(take_profits), 3, "must synth exactly 3 ladder rungs")
+        # Triggers should be ascending: +5%, +12%, +20%
+        triggers = sorted(it["trigger_price"] for it in take_profits)
+        self.assertAlmostEqual(triggers[0], 105.0)
+        self.assertAlmostEqual(triggers[1], 112.0)
+        self.assertAlmostEqual(triggers[2], 120.0)
+        # Allocation should add up to 100%
+        total_pct = sum(it["pct_of_position"] for it in take_profits)
+        self.assertEqual(total_pct, 100.0)
+
+    def test_does_not_double_synth_when_llm_already_emitted_a_tp(self):
+        from src.analyzer import GeminiAnalyzer
+
+        analyzer = GeminiAnalyzer.__new__(GeminiAnalyzer)
+        llm_tp = {
+            "trigger_price": 115.0,
+            "direction": "take_profit",
+            "shares": 0.5,
+            "priority": 1,
+        }
+        result = analyzer._sanitize_action_plan_items(
+            items=[llm_tp],
+            portfolio_context_block=(
+                "持仓状态：已持有\n持股数量：1 股\n平均成本：100.0 USD/股\n"
+                "当前价：110.0\n账户总权益：500.00 GBP\n"
+            ),
+            code="STUB",
+            strategy="stepped_profit_taking",
+        )
+
+        take_profits = [it for it in result if it.get("direction") == "take_profit"]
+        self.assertEqual(len(take_profits), 1, "must NOT synth when LLM already provided a TP")
+        self.assertAlmostEqual(take_profits[0]["trigger_price"], 115.0)
+
+    def test_ladder_synth_includes_real_cost_stop_loss(self):
+        """The defensive stop at cost × 0.9 must coexist with the new TP ladder."""
+        from src.analyzer import GeminiAnalyzer
+
+        analyzer = GeminiAnalyzer.__new__(GeminiAnalyzer)
+        result = analyzer._sanitize_action_plan_items(
+            items=[],
+            portfolio_context_block=(
+                "持仓状态：已持有\n持股数量：1 股\n平均成本：100.0 USD/股\n"
+                "当前价：106.0\n账户总权益：500.00 GBP\n"
+            ),
+            code="STUB",
+            strategy="stepped_profit_taking",
+        )
+
+        stops = [it for it in result if it.get("direction") == "stop_loss"]
+        tps = [it for it in result if it.get("direction") == "take_profit"]
+        self.assertEqual(len(stops), 1)
+        self.assertEqual(len(tps), 3)
+        self.assertAlmostEqual(stops[0]["trigger_price"], 90.0)
+
+    def test_no_synth_for_other_strategies(self):
+        """long_term_hold + wait_and_see + swing_trade must not get the ladder."""
+        from src.analyzer import GeminiAnalyzer
+
+        analyzer = GeminiAnalyzer.__new__(GeminiAnalyzer)
+        for s in ("long_term_hold", "swing_trade", "wait_and_see"):
+            result = analyzer._sanitize_action_plan_items(
+                items=[],
+                portfolio_context_block=(
+                    "持仓状态：已持有\n持股数量：1 股\n平均成本：100.0 USD/股\n"
+                    "当前价：106.0\n账户总权益：500.00 GBP\n"
+                ),
+                code="STUB",
+                strategy=s,
+            )
+            tps = [it for it in result if it.get("direction") == "take_profit"]
+            self.assertEqual(
+                len(tps), 0,
+                f"strategy={s} must NOT get an auto-synth TP ladder",
+            )
+
+
 if __name__ == "__main__":
     unittest.main()

@@ -45,46 +45,46 @@ type TreemapDatum = {
 };
 
 /**
- * Colour scale for a position's unrealized PnL % — Morandi-inspired dusty
- * palette designed to feel like an oil-painted financial dashboard rather
- * than a saturated dataviz tool.
+ * Colour scale for a position's unrealized PnL % — TradingView / Yahoo Finance
+ * heatmap aesthetic: clearly red for losses, clearly green for gains, but with
+ * controlled saturation so the surface reads as a financial dashboard rather
+ * than a saturated candy palette.
  *
- * Tuning notes:
- *   - Saturation is capped at 24% so even the extreme blocks read as chalky
- *     terracotta / dusty sage instead of brick-red / forest-green. This is
- *     the second pass after the user's "still ugly, please use Morandi" note.
- *   - Lightness sits in the 48-62 band so white text stays legible on every
- *     tile and the surfaces feel powdery, not glossy.
- *   - Flat is a warm taupe (orange-30, sat-8, light-62) so a 0% position
- *     doesn't look "cold" — Morandi work consistently warms the neutral.
- *   - Three-stop interpolation (flat → mid → extreme) gives a smoother
- *     visual ramp than two-stop and avoids the muddy mid-band when only
- *     two anchors are used.
- *   - Visual extreme is clamped at ±15%.
+ * Pass history:
+ *   - pass 1 (commit 99ebf8c): raw rgb() lerp, full-saturation primary
+ *     red/green. User: "刺眼".
+ *   - pass 2 (commit 834a25d): HSL with 55% saturation. User: still ugly.
+ *   - pass 3 (commit 874d50e): Morandi dusty clay / sage / taupe. User:
+ *     "ugly, go back to red+green".
+ *   - pass 4 (this commit): red + green hues retained, three-stop ramp,
+ *     saturation capped at 48%, lightness 40-58. Avoids the candy look of
+ *     pass 1 while keeping the colours unmistakably red and green.
+ *
+ * Extreme is clamped at ±15%.
  */
 function colourForPnlPct(pct: number | null): string {
-  if (pct == null || Number.isNaN(pct)) return 'hsl(30, 8%, 56%)';
+  if (pct == null || Number.isNaN(pct)) return 'hsl(220, 6%, 55%)';
 
   const CAP = 15;
   const clamped = Math.max(-CAP, Math.min(CAP, pct));
   const t = Math.abs(clamped) / CAP;          // 0 at flat → 1 at extreme
 
-  // Three-stop Morandi ramp (HSL anchors). Lightness sits in the 42-56 band
-  // so white labels keep at least ~3.5:1 contrast on every tile.
-  //   flat    : warm taupe — 0% position
-  //   mid     : dusty clay (loss) / dusty sage (gain) — around ±5%
-  //   extreme : deep terracotta (loss) / muted eucalyptus (gain) — ±15%
-  const flat = { h: 30, s: 8, l: 56 };
-  const gainMid = { h: 110, s: 14, l: 52 };
-  const gainEnd = { h: 130, s: 22, l: 42 };
-  const lossMid = { h: 18, s: 18, l: 54 };
-  const lossEnd = { h: 8, s: 24, l: 46 };
+  // Three-stop ramp. Hues stay firmly in red (0–8°) and green (138–148°),
+  // so the colour identity is never ambiguous. Saturation/lightness are
+  // tuned so even the extreme tile doesn't shout against a light card.
+  //   flat    : cool slate — 0% position (neutral, slightly blue-grey)
+  //   mid     : muted rose (loss) / muted leaf (gain) — around ±5%
+  //   extreme : warm brick-red (loss) / forest-green (gain) — ±15%
+  const flat = { h: 220, s: 6, l: 55 };
+  const gainMid = { h: 138, s: 30, l: 52 };
+  const gainEnd = { h: 148, s: 46, l: 40 };
+  const lossMid = { h: 6, s: 38, l: 56 };
+  const lossEnd = { h: 4, s: 48, l: 44 };
 
   const mid = clamped >= 0 ? gainMid : lossMid;
   const end = clamped >= 0 ? gainEnd : lossEnd;
 
-  // Two-segment lerp: [0, 0.5] flat→mid, [0.5, 1] mid→end. Smoother than
-  // a single linear ramp between flat and extreme.
+  // Two-segment lerp gives a smoother visual curve than a single flat→end ramp.
   const lerp = (a: number, b: number, k: number) => a + (b - a) * k;
   let h: number, s: number, l: number;
   if (t <= 0.5) {
