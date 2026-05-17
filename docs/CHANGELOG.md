@@ -185,6 +185,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [3.14.1] - 2026-04-26
 - [测试] 修正大盘复盘 prompt 测试对“明日交易计划”标题的断言，并同步桌面端版本号，恢复发布 gate。
+- [修复] `_try_inject_action_plan_items` 在 LLM 已填 `recommended_strategy` + `action_plan_items` 时不再直接 return，改为**总是**对 LLM 输出跑 sanitization + strategy_choices 整理；Gemini 2.5 Flash 等模型经常给出 `wait_and_see` + `stop_loss` 这类策略不一致的组合，老逻辑让脏数据直接落库。
+- [修复] `position_outcome_summary` 改由 `_compute_position_outcome_summary` 从 sanitized `action_plan_items` 重算，不再信任 LLM 自报；Gemini 2.5 Flash 之前在 MSFT 上回报过 -£2394 这种与真实持仓不符的 worst-case 数字。
+- [修复] `_STRATEGY_MAX_ITEMS["wait_and_see"]` 由 1 收紧到 0，使「暂不操作」推荐时 action_plan_items 真正为空（之前 1 表示允许保留一条，常导致 LLM 给出的 stop_loss 溜过去）。
+- [修复] `_compute_position_outcome_summary` 当 `shares=0` 但 `pct_of_position>0` 时按 `pct × holding_shares` 推导股数（并对超过 100% 的离谱比例做上限钳制），避免 LLM 漏填 shares 导致计算空跑；items 为空或全部被过滤时返回 None，UI 隐藏卡片。
+- [修复] 当 `recommended_strategy === "wait_and_see"` 时，前端「狙击点位」卡片和后端两套 Markdown 渲染（`src/notification.py` + `src/services/history_service.py`）追加「点位仅供参考，不建议据此入场」提示并把价位灰化，避免与「暂不操作」建议直接打架。
+- [测试] 新增 `tests/test_action_plan_enforcer_always_sanitize.py`：8 个用例覆盖 enforcer 始终 sanitize、bogus outcome 被重算、wait_and_see=0 上限、shares 从 pct 推导、超 100% 钳制、空 items 隐藏 outcome 卡。
 
 ## [3.14.0] - 2026-04-26
 
