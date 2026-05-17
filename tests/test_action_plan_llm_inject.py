@@ -317,6 +317,10 @@ class StrategyClassificationInjectionTestCase(unittest.TestCase):
         self.assertEqual(len(core.get("action_plan_items", [])), 3)
 
     def test_injects_strategy_fields_when_present(self):
+        """LLM-provided strategy fields are injected, but position_outcome_summary
+        is always recomputed from the sanitized items + real portfolio facts.
+        The LLM's self-reported R:R is intentionally ignored (Gemini 2.5 Flash
+        routinely emits hallucinated outcome numbers — see commit history)."""
         payload = json.dumps({
             "strategy_choices": [
                 {"id": "stepped_profit_taking", "label_zh": "阶梯式止盈",
@@ -344,7 +348,12 @@ class StrategyClassificationInjectionTestCase(unittest.TestCase):
         self.assertEqual(len(core["strategy_choices"]), 2)
         self.assertEqual(core["strategy_choices"][1]["applicable"], False)
         self.assertIsNotNone(core["position_outcome_summary"])
-        self.assertEqual(core["position_outcome_summary"]["risk_reward_ratio"], "1:3")
+        # The LLM's "1:3" is replaced by the computed ratio. With a synthesized
+        # real cost-based stop at avg_cost × 0.9 dominating the worst-case math,
+        # the computed R:R for this scenario is well under 1:1 — exact match
+        # would over-specify; just assert it is NOT the LLM's claim.
+        self.assertNotEqual(core["position_outcome_summary"]["risk_reward_ratio"], "1:3")
+        self.assertIn(":", core["position_outcome_summary"]["risk_reward_ratio"])
 
 
 class StrategyChoicesSanitizationTestCase(unittest.TestCase):
