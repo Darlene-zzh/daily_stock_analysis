@@ -237,6 +237,55 @@ def apply_placeholder_fill(result: "AnalysisResult", missing_fields: List[str]) 
                 sniper_points["stop_loss"] = placeholder
 
 
+# ---------- Chinese-content detector (used to gate _zh translation) ----------
+
+def _field_is_predominantly_chinese(value: Any, threshold: float = 0.30) -> bool:
+    """True when a string / list-of-strings is mostly CJK characters.
+
+    Why this exists: the `_try_inject_zh_translations` post-process used to
+    fire whenever the analysis ran on a US ticker with `REPORT_LANGUAGE=zh`,
+    without checking whether the source field was actually English. After we
+    wired Cerebras Qwen3-235B and OpenRouter DeepSeek-V4 as Gemini fallbacks
+    (both Chinese-native), the base field already came back in Chinese and
+    the translator would then translate Chinese→Chinese, producing slightly
+    paraphrased duplicates on the dashboard.
+
+    The threshold defaults to 30% — well above any English text that happens
+    to mention a Chinese company name in passing, well below any genuinely
+    Chinese paragraph that has a sprinkle of English tickers like "(NVDA)".
+    """
+    def _count(text: str) -> tuple[int, int]:
+        if not isinstance(text, str):
+            return 0, 0
+        cjk = sum(1 for c in text if '一' <= c <= '鿿')
+        # Count alpha + CJK as "meaningful" characters; ignore whitespace,
+        # punctuation, digits — they're shared across languages.
+        meaningful = sum(1 for c in text if c.isalpha() or '一' <= c <= '鿿')
+        return cjk, meaningful
+
+    cjk_total = 0
+    meaningful_total = 0
+    if isinstance(value, str):
+        cjk_total, meaningful_total = _count(value)
+    elif isinstance(value, list):
+        for item in value:
+            if isinstance(item, str):
+                a, b = _count(item)
+                cjk_total += a
+                meaningful_total += b
+            elif isinstance(item, dict):
+                # Risk alerts / news items are sometimes dict-shaped — peek at
+                # the obvious text fields.
+                for k in ("text", "title", "summary", "description", "content"):
+                    if isinstance(item.get(k), str):
+                        a, b = _count(item[k])
+                        cjk_total += a
+                        meaningful_total += b
+    if meaningful_total == 0:
+        return False
+    return (cjk_total / meaningful_total) >= threshold
+
+
 # ---------- chip_structure fallback (Issue #589) ----------
 
 _CHIP_KEYS: tuple = ("profit_ratio", "avg_cost", "concentration", "chip_health")
@@ -2262,6 +2311,13 @@ intelligence 区块新增字段示例（仅供格式参考，实际内容由你�
 
         Called when the main LLM didn't produce *_zh fields (e.g. mini models that
         don't follow the extended schema). Fails silently — the caller wraps in try/except.
+
+        Skips per-field when the source field already contains predominantly Chinese
+        text — without this gate, falling back to a Chinese-native model (Cerebras
+        Qwen3-235B, OpenRouter DeepSeek-V4) produced Chinese in the base field,
+        then the translator translated Chinese→Chinese and re-injected slightly
+        different wording into the _zh slot, yielding duplicate / paraphrased
+        content on the dashboard.
         """
         if not result or not result.dashboard:
             return
@@ -2279,12 +2335,24 @@ intelligence 区块新增字段示例（仅供格式参考，实际内容由你�
         if intel.get('risk_alerts_zh') or intel.get('positive_catalysts_zh') or intel.get('latest_news_zh'):
             return
 
-        # Collect fields that exist in this analysis
+        # Collect fields that exist in this analysis AND are not already Chinese.
         to_translate: dict = {}
+        already_chinese: dict = {}
         for key in ('risk_alerts', 'positive_catalysts', 'latest_news', 'sentiment_summary', 'earnings_outlook'):
             val = intel.get(key)
-            if val and (isinstance(val, list) and val) or (isinstance(val, str) and val.strip()):
+            if not val:
+                continue
+            if not ((isinstance(val, list) and val) or (isinstance(val, str) and val.strip())):
+                continue
+            if _field_is_predominantly_chinese(val):
+                # Mirror straight into the _zh slot so the renderer (which
+                # prefers *_zh when present) still has something to show, but
+                # don't waste an LLM call on it.
+                already_chinese[f"{key}_zh"] = val
+            else:
                 to_translate[key] = val
+        for k, v in already_chinese.items():
+            result.dashboard['intelligence'][k] = v
         if not to_translate:
             return
 
