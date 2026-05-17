@@ -10,6 +10,7 @@
 3. 保存分析结果到数据库
 """
 
+import json
 import logging
 import uuid
 from typing import Optional, Dict, Any, Callable
@@ -72,6 +73,14 @@ class AnalysisService:
             from src.config import get_config
             from src.core.pipeline import StockAnalysisPipeline
             from src.enums import ReportType
+
+            # P0.3: 同日同股 24h 报告缓存。默认开启（ANALYSIS_CACHE_HOURS=24），
+            # 同一只股 24h 内重复点「分析」不再烧 LLM 配额，直接返回缓存报告。
+            # force_refresh=True 或 ANALYSIS_CACHE_HOURS=0 时绕过。
+            if not force_refresh:
+                cached = self._lookup_recent_cache_response(stock_code, report_type)
+                if cached is not None:
+                    return cached
 
             # 如果通过 task_queue 异步路径传来 portfolio_account_id 而没有 block，自动构建
             if portfolio_account_id is not None and portfolio_context_block is None:
@@ -208,3 +217,85 @@ class AnalysisService:
             "stock_name": stock_name,
             "report": report,
         }
+
+    def _lookup_recent_cache_response(
+        self, stock_code: str, report_type: str
+    ) -> Optional[Dict[str, Any]]:
+        """Return a cached `_build_analysis_response` payload for the same stock
+        analyzed within the last ``ANALYSIS_CACHE_HOURS`` window.
+
+        Returns None when caching is disabled, no recent record exists, or any
+        step fails — caller falls through to a fresh pipeline run in that case.
+        """
+        import os
+        from datetime import datetime
+
+        try:
+            cache_hours_raw = os.getenv("ANALYSIS_CACHE_HOURS", "24").strip()
+            cache_hours = float(cache_hours_raw) if cache_hours_raw else 0.0
+        except ValueError:
+            cache_hours = 0.0
+        if cache_hours <= 0:
+            return None
+
+        try:
+            recent_records = self.repo.get_list(code=stock_code, days=1, limit=1)
+        except Exception as exc:
+            logger.debug("[analyze_stock] cache lookup repo error: %s", exc)
+            return None
+        if not recent_records:
+            return None
+
+        rec = recent_records[0]
+        raw_payload = getattr(rec, "raw_result", None)
+        if not raw_payload:
+            return None
+        created_at = getattr(rec, "created_at", None)
+        if created_at is None:
+            return None
+        age_seconds = (datetime.now() - created_at).total_seconds()
+        if age_seconds < 0 or age_seconds > cache_hours * 3600.0:
+            return None
+
+        try:
+            from src.analyzer import AnalysisResult
+            from dataclasses import fields as dc_fields
+            payload: Dict[str, Any]
+            if isinstance(raw_payload, str):
+                payload = json.loads(raw_payload)
+            elif isinstance(raw_payload, dict):
+                payload = raw_payload
+            else:
+                return None
+            if not payload.get("success", True):
+                return None  # do not cache failed analyses
+            valid_keys = {f.name for f in dc_fields(AnalysisResult)}
+            ctor_kwargs = {k: v for k, v in payload.items() if k in valid_keys}
+            # `code` and `name` are required positional fields of the dataclass
+            if "code" not in ctor_kwargs:
+                ctor_kwargs["code"] = stock_code
+            if "name" not in ctor_kwargs:
+                ctor_kwargs["name"] = getattr(rec, "stock_name", None) or stock_code
+            # required-ish fields must be present even if upstream omitted
+            for required in ("sentiment_score", "trend_prediction", "operation_advice"):
+                ctor_kwargs.setdefault(required, payload.get(required, 0 if required == "sentiment_score" else ""))
+            result = AnalysisResult(**ctor_kwargs)
+        except Exception as exc:
+            logger.info(
+                "[analyze_stock] cache reconstruction failed for %s (%s); will run live",
+                stock_code, exc,
+            )
+            return None
+
+        response = self._build_analysis_response(
+            result, getattr(rec, "query_id", None) or stock_code, report_type=report_type
+        )
+        meta = response.setdefault("report", {}).setdefault("meta", {})
+        meta["cached"] = True
+        meta["cached_at"] = created_at.isoformat()
+        meta["cache_age_seconds"] = int(age_seconds)
+        logger.info(
+            "[analyze_stock] cache HIT for %s (age=%ds, limit=%.1fh) — skipping LLM call",
+            stock_code, int(age_seconds), cache_hours,
+        )
+        return response

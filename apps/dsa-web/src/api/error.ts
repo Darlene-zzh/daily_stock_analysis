@@ -9,11 +9,21 @@ export type ApiErrorCategory =
   | 'portfolio_oversell'
   | 'portfolio_busy'
   | 'upstream_llm_400'
+  | 'upstream_rate_limit'
   | 'upstream_timeout'
   | 'upstream_network'
   | 'local_connection_failed'
   | 'http_error'
   | 'unknown';
+
+export interface RateLimitDetails {
+  /** Retry delay in seconds extracted from upstream message, if any. */
+  retryAfterSeconds?: number;
+  /** Upstream provider hint (gemini / openai / ...) extracted from message. */
+  provider?: string;
+  /** Whether the upstream message mentions a daily quota cap. */
+  isDailyQuota?: boolean;
+}
 
 export interface ParsedApiError {
   title: string;
@@ -21,6 +31,41 @@ export interface ParsedApiError {
   rawMessage: string;
   status?: number;
   category: ApiErrorCategory;
+  /** Populated when category === 'upstream_rate_limit'. */
+  rateLimit?: RateLimitDetails;
+}
+
+/**
+ * Parse a backend rate-limit error message into a friendly format.
+ *
+ * Examples we want to handle gracefully:
+ *   - litellm.RateLimitError: geminiException - {"error":{"code":429,...
+ *     "Please retry in 58.7s. ... limit: 20, model: gemini-2.5-flash-lite ..."}
+ *   - HTTP 429 with body "rate limit exceeded"
+ *   - "All LLM models failed (rate-limit encountered during fallback)"
+ */
+function parseRateLimit(matchText: string, status?: number): RateLimitDetails | null {
+  const looksLikeRateLimit = status === 429
+    || /rate[-\s]?limit|ratelimit|RESOURCE_EXHAUSTED|quota exceeded|429/i.test(matchText);
+  if (!looksLikeRateLimit) return null;
+
+  const details: RateLimitDetails = {};
+  const retryMatch = matchText.match(/retry\s+in\s+([0-9]+(?:\.[0-9]+)?)\s*s/i);
+  if (retryMatch) {
+    const sec = parseFloat(retryMatch[1]);
+    if (!Number.isNaN(sec) && sec > 0) details.retryAfterSeconds = Math.ceil(sec);
+  }
+
+  if (/gemini|generativelanguage/i.test(matchText)) details.provider = 'gemini';
+  else if (/openai|gpt-/i.test(matchText)) details.provider = 'openai';
+  else if (/deepseek/i.test(matchText)) details.provider = 'deepseek';
+  else if (/anthropic|claude/i.test(matchText)) details.provider = 'anthropic';
+
+  if (/PerDayPerProject|per_day|daily quota|free_tier_requests/i.test(matchText)) {
+    details.isDailyQuota = true;
+  }
+
+  return details;
 }
 
 type ResponseLike = {
@@ -43,6 +88,7 @@ type CreateParsedApiErrorOptions = {
   rawMessage?: string;
   status?: number;
   category?: ApiErrorCategory;
+  rateLimit?: RateLimitDetails;
 };
 
 function isRecord(value: unknown): value is Record<string, unknown> {
@@ -211,6 +257,7 @@ export function createParsedApiError(options: CreateParsedApiErrorOptions): Pars
     rawMessage: options.rawMessage?.trim() || options.message,
     status: options.status,
     category: options.category ?? 'unknown',
+    rateLimit: options.rateLimit,
   };
 }
 
@@ -400,6 +447,29 @@ export function parseApiError(error: unknown): ParsedApiError {
       rawMessage,
       status,
       category: 'upstream_timeout',
+    });
+  }
+
+  // 上游限流 / 配额 — 必须放在通用 502/503 之前，因为 Gemini 的 429 body 也包含
+  // "quota" / "limit" 等关键词，generic 网络错分类会把它当成 DNS / 代理问题。
+  const rateLimit = parseRateLimit(matchText, status);
+  if (rateLimit) {
+    const provider = rateLimit.provider ? `（${rateLimit.provider}）` : '';
+    const cap = rateLimit.isDailyQuota
+      ? `今日免费额度已用完${provider}`
+      : `请求被上游限流${provider}`;
+    const retry = rateLimit.retryAfterSeconds
+      ? `，约 ${rateLimit.retryAfterSeconds} 秒后可重试`
+      : rateLimit.isDailyQuota
+        ? '，请明日额度刷新后重试，或在系统设置里接入付费 fallback'
+        : '，请稍后再试';
+    return createParsedApiError({
+      title: '上游模型暂时不可用',
+      message: `${cap}${retry}。`,
+      rawMessage,
+      status,
+      category: 'upstream_rate_limit',
+      rateLimit,
     });
   }
 

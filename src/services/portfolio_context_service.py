@@ -27,15 +27,80 @@ from __future__ import annotations
 
 import json
 import logging
+import os
+import threading
+import time
 from dataclasses import dataclass
 from datetime import date
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List, Optional, Tuple
 
 from data_provider.base import canonical_stock_code
 from src.repositories.portfolio_repo import PortfolioRepository
 from src.services.portfolio_service import PortfolioService
 
 logger = logging.getLogger(__name__)
+
+
+# ---------------------------------------------------------------------------
+# Snapshot TTL cache
+# ---------------------------------------------------------------------------
+#
+# `PortfolioService.get_portfolio_snapshot` is the dominant cost in the
+# analysis pipeline — it sequentially fetches a realtime quote for every
+# position the user owns (10 holdings × ~30-60s yfinance latency = 5-10 min
+# of pure I/O before the LLM even starts).
+#
+# For LLM-decision purposes a 5-10 minute stale snapshot is more than fresh
+# enough (the model is reasoning over fundamentals + technicals + cost basis,
+# not making a millisecond-scale trading decision). So we memoize the snapshot
+# per account with a short TTL. The cache is process-local; restarts clear it.
+#
+# Rollback: PORTFOLIO_SNAPSHOT_TTL_SECONDS=0 in .env disables the cache.
+# Override with explicit `bypass_cache=True` from callers (rare).
+
+_DEFAULT_SNAPSHOT_TTL_SECONDS = 600.0  # 10 minutes
+_SNAPSHOT_CACHE_LOCK = threading.Lock()
+# key = (account_id_or_None, as_of_iso, cost_method) → (timestamp, snapshot_dict)
+_SNAPSHOT_CACHE: Dict[Tuple[Optional[int], str, str], Tuple[float, Dict[str, Any]]] = {}
+
+
+def _snapshot_ttl_seconds() -> float:
+    raw = os.getenv("PORTFOLIO_SNAPSHOT_TTL_SECONDS", "").strip()
+    if not raw:
+        return _DEFAULT_SNAPSHOT_TTL_SECONDS
+    try:
+        return max(0.0, float(raw))
+    except ValueError:
+        logger.warning("Invalid PORTFOLIO_SNAPSHOT_TTL_SECONDS=%r — falling back to default", raw)
+        return _DEFAULT_SNAPSHOT_TTL_SECONDS
+
+
+def _get_cached_snapshot(key: Tuple[Optional[int], str, str]) -> Optional[Dict[str, Any]]:
+    ttl = _snapshot_ttl_seconds()
+    if ttl <= 0:
+        return None
+    with _SNAPSHOT_CACHE_LOCK:
+        entry = _SNAPSHOT_CACHE.get(key)
+        if not entry:
+            return None
+        ts, payload = entry
+        if time.time() - ts > ttl:
+            _SNAPSHOT_CACHE.pop(key, None)
+            return None
+        return payload
+
+
+def _put_cached_snapshot(key: Tuple[Optional[int], str, str], snapshot: Dict[str, Any]) -> None:
+    if _snapshot_ttl_seconds() <= 0:
+        return
+    with _SNAPSHOT_CACHE_LOCK:
+        _SNAPSHOT_CACHE[key] = (time.time(), snapshot)
+
+
+def clear_portfolio_snapshot_cache() -> None:
+    """Public hook for tests + admin endpoints that want a forced refresh."""
+    with _SNAPSHOT_CACHE_LOCK:
+        _SNAPSHOT_CACHE.clear()
 
 
 @dataclass
@@ -116,14 +181,21 @@ class PortfolioContextService:
 
         target_date = as_of or date.today()
 
-        try:
-            snapshot = self._service.get_portfolio_snapshot(
-                account_id=account_id,
-                as_of=target_date,
-            )
-        except ValueError:
-            # Account does not exist / inactive — nothing to compose.
-            return None
+        # TTL-cached snapshot — see top-of-module rationale. Avoids re-fetching
+        # 10+ realtime quotes for every single-stock analysis when the user
+        # rapidly fires several analyses in a row.
+        cache_key: Tuple[Optional[int], str, str] = (account_id, target_date.isoformat(), "fifo")
+        snapshot = _get_cached_snapshot(cache_key)
+        if snapshot is None:
+            try:
+                snapshot = self._service.get_portfolio_snapshot(
+                    account_id=account_id,
+                    as_of=target_date,
+                )
+            except ValueError:
+                # Account does not exist / inactive — nothing to compose.
+                return None
+            _put_cached_snapshot(cache_key, snapshot)
 
         accounts = snapshot.get("accounts") or []
         if not accounts:
