@@ -13,6 +13,7 @@ import { StockAutocomplete } from '../components/StockAutocomplete';
 import { HistoryList } from '../components/history';
 import { ReportMarkdown, ReportSummary } from '../components/report';
 import { TaskPanel } from '../components/tasks';
+import { PortfolioHeatmapTreemap } from '../components/portfolio/PortfolioHeatmapTreemap';
 import { useDashboardLifecycle, useHomeDashboardState } from '../hooks';
 import type { SetupStatusResponse } from '../types/systemConfig';
 import { getReportText, normalizeReportLanguage } from '../utils/reportLanguage';
@@ -660,17 +661,30 @@ const HomePage: React.FC = () => {
                 <ReportSummary data={selectedReport} isHistory />
               </div>
             ) : (
-              <div className="flex h-full items-center justify-center">
-                <EmptyState
-                  title="开始分析"
-                  description="输入股票代码进行分析，或从左侧选择历史报告查看。"
-                  className="max-w-xl border-dashed"
-                  icon={(
-                    <svg className="h-6 w-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
-                    </svg>
-                  )}
+              <div className="flex h-full flex-col items-stretch justify-start gap-4 py-4">
+                {/* Portfolio heatmap — at-a-glance view of holdings. */}
+                {/* Click a block to trigger a re-analysis of that stock. */}
+                <PortfolioHeatmapTreemap
+                  onSelectSymbol={(symbol) => {
+                    setQuery(symbol);
+                    void submitAnalysis({
+                      stockCode: symbol,
+                      selectionSource: 'manual',
+                    });
+                  }}
                 />
+                <div className="flex items-center justify-center">
+                  <EmptyState
+                    title="开始分析"
+                    description="输入股票代码进行分析，或直接点击上方持仓热点图。"
+                    className="max-w-xl border-dashed"
+                    icon={(
+                      <svg className="h-6 w-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
+                      </svg>
+                    )}
+                  />
+                </div>
               </div>
             )}
           </section>

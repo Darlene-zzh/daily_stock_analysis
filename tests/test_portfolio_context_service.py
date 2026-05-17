@@ -35,6 +35,11 @@ class PortfolioContextServiceTestCase(unittest.TestCase):
         os.environ["DATABASE_PATH"] = str(self.db_path)
         Config.reset_instance()
         DatabaseManager.reset_instance()
+        # Reset the module-level snapshot TTL cache so a snapshot cached by a
+        # previous test (with a different temp DB / account fixture) doesn't
+        # bleed into this case and short-circuit `get_portfolio_snapshot`.
+        from src.services.portfolio_context_service import clear_portfolio_snapshot_cache
+        clear_portfolio_snapshot_cache()
         self.service = PortfolioService()
         self.context_service = PortfolioContextService(portfolio_service=self.service)
         self.account = self.service.create_account(
