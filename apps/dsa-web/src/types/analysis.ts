@@ -45,6 +45,14 @@ export interface ReportMeta {
   currentPrice?: number;
   changePct?: number;
   modelUsed?: string;  // LLM model used for analysis
+  // ----- 24h same-stock cache hint (P0.3) -----
+  // When the backend short-circuited because the user re-analyzed the same
+  // stock within ANALYSIS_CACHE_HOURS, these are populated so the UI can
+  // show a "today's existing analysis" banner instead of silently rendering
+  // a stale-looking report.
+  cached?: boolean;
+  cachedAt?: string;          // ISO timestamp of when the cached record was first written
+  cacheAgeSeconds?: number;   // seconds between cached_at and the moment the cache was served
 }
 
 /** Sentiment label */
@@ -279,6 +287,12 @@ export interface TaskInfo {
   error?: string;
   originalQuery?: string;
   selectionSource?: string;
+  /**
+   * Present on `task_completed` events: the full analysis result payload.
+   * Used to auto-navigate the report panel without an extra history fetch,
+   * and to surface `report.meta.cached` for the 24h cache-hit banner.
+   */
+  result?: AnalysisResult;
 }
 
 /** Task list response */

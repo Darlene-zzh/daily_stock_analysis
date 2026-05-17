@@ -40,6 +40,7 @@ export function useHomeDashboardState() {
       submitAnalysis: state.submitAnalysis,
       syncTaskCreated: state.syncTaskCreated,
       syncTaskUpdated: state.syncTaskUpdated,
+      syncTaskCompleted: state.syncTaskCompleted,
       syncTaskFailed: state.syncTaskFailed,
       removeTask: state.removeTask,
       openMarkdownDrawer: state.openMarkdownDrawer,

@@ -7,6 +7,7 @@ type UseDashboardLifecycleOptions = {
   refreshHistory: (silent?: boolean) => Promise<void>;
   syncTaskCreated: (task: TaskInfo) => void;
   syncTaskUpdated: (task: TaskInfo) => void;
+  syncTaskCompleted: (task: TaskInfo) => void;
   syncTaskFailed: (task: TaskInfo) => void;
   removeTask: (taskId: string) => void;
   enabled?: boolean;
@@ -17,6 +18,7 @@ export function useDashboardLifecycle({
   refreshHistory,
   syncTaskCreated,
   syncTaskUpdated,
+  syncTaskCompleted,
   syncTaskFailed,
   removeTask,
   enabled = true,
@@ -79,7 +81,10 @@ export function useDashboardLifecycle({
     onTaskStarted: syncTaskUpdated,
     onTaskProgress: syncTaskUpdated,
     onTaskCompleted: (task) => {
-      syncTaskUpdated(task);
+      // syncTaskCompleted both updates the activeTasks list AND auto-selects
+      // the just-finished report (including 24h cache-hit short-circuits) so
+      // the user sees their result without having to click into history.
+      syncTaskCompleted(task);
       void refreshHistory(true);
       scheduleTaskRemoval(task.taskId, 2_000);
     },

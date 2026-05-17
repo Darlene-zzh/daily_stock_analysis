@@ -69,6 +69,7 @@ export interface StockPoolState {
   setPortfolioAccountId: (accountId: number | null) => void;
   syncTaskCreated: (task: TaskInfo) => void;
   syncTaskUpdated: (task: TaskInfo) => void;
+  syncTaskCompleted: (task: TaskInfo) => void;
   syncTaskFailed: (task: TaskInfo) => void;
   removeTask: (taskId: string) => void;
   resetDashboardState: () => void;
@@ -404,6 +405,24 @@ export const useStockPoolStore = create<StockPoolState>((set, get) => ({
     if (index >= 0) {
       nextTasks[index] = task;
       set({ activeTasks: nextTasks });
+    }
+  },
+
+  syncTaskCompleted: (task) => {
+    // First propagate the task-state update so the active task list refreshes.
+    get().syncTaskUpdated(task);
+    // Then auto-navigate the report panel to the just-finished analysis so
+    // the user sees their result without having to click into history. This
+    // matters most for the 24h same-stock cache path (P0.3) — the task
+    // completes nearly instantly with `report.meta.cached=true`, and without
+    // this auto-select the user would think the page is broken because the
+    // stale report they were already viewing didn't change.
+    if (task.result?.report) {
+      set({
+        selectedReport: task.result.report,
+        error: null,
+        isLoadingReport: false,
+      });
     }
   },
 

@@ -9,11 +9,28 @@ import { PositionOutcomeSummary } from './PositionOutcomeSummary';
 import { ReportStrategy } from './ReportStrategy';
 import { ReportNews } from './ReportNews';
 import { ReportDetails } from './ReportDetails';
+import { InlineAlert, Button } from '../common';
 import { getReportText, normalizeReportLanguage } from '../../utils/reportLanguage';
 
 interface ReportSummaryProps {
   data: AnalysisResult | AnalysisReport;
   isHistory?: boolean;
+  /**
+   * Called when the user wants to bypass the 24h same-stock cache and
+   * re-run a fresh analysis. The banner that surfaces this is only shown
+   * when the backend served a cached result (`report.meta.cached === true`).
+   */
+  onForceRefresh?: (stockCode: string) => void;
+}
+
+/** Render "X 小时 Y 分钟前" given a number of seconds. */
+function formatCacheAge(seconds?: number): string {
+  if (!seconds || seconds <= 0) return '刚刚';
+  if (seconds < 60) return `${seconds} 秒前`;
+  if (seconds < 3600) return `${Math.floor(seconds / 60)} 分钟前`;
+  const hours = Math.floor(seconds / 3600);
+  const mins = Math.floor((seconds % 3600) / 60);
+  return mins > 0 ? `${hours} 小时 ${mins} 分钟前` : `${hours} 小时前`;
 }
 
 /**
@@ -23,6 +40,7 @@ interface ReportSummaryProps {
 export const ReportSummary: React.FC<ReportSummaryProps> = ({
   data,
   isHistory = false,
+  onForceRefresh,
 }) => {
   // 兼容 AnalysisResult 和 AnalysisReport 两种数据格式
   const report: AnalysisReport = 'report' in data ? data.report : data;
@@ -36,9 +54,38 @@ export const ReportSummary: React.FC<ReportSummaryProps> = ({
   const shouldShowModel = Boolean(
     modelUsed && !['unknown', 'error', 'none', 'null', 'n/a'].includes(modelUsed.toLowerCase()),
   );
+  // 24h same-stock cache hint — banner only shows when backend served a
+  // cached payload (P0.3 ANALYSIS_CACHE_HOURS). Without this banner the user
+  // re-submits the same ticker, sees the prior report come back unchanged,
+  // and assumes the page is broken.
+  const isCached = meta.cached === true;
+  const cacheAgeLabel = isCached ? formatCacheAge(meta.cacheAgeSeconds) : '';
 
   return (
     <div className="space-y-5 pb-8 animate-fade-in">
+      {isCached && (
+        <InlineAlert
+          variant="info"
+          title={`今日已分析过 ${meta.stockCode}`}
+          message={
+            <span>
+              下面是 <b>{cacheAgeLabel}</b> 的分析结果，为节省额度直接展示缓存。
+              数据/价格可能已过期，如需重新分析请点击右侧按钮。
+            </span>
+          }
+          action={
+            onForceRefresh ? (
+              <Button
+                size="sm"
+                variant="ghost"
+                onClick={() => onForceRefresh(meta.stockCode)}
+              >
+                强制刷新
+              </Button>
+            ) : undefined
+          }
+        />
+      )}
       {/* 概览区（首屏） */}
       <ReportOverview
         meta={meta}

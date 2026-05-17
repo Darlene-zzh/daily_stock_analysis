@@ -111,6 +111,7 @@ const HomePage: React.FC = () => {
     setPortfolioAccountId,
     syncTaskCreated,
     syncTaskUpdated,
+    syncTaskCompleted,
     syncTaskFailed,
     removeTask,
     openMarkdownDrawer,
@@ -159,6 +160,7 @@ const HomePage: React.FC = () => {
     refreshHistory,
     syncTaskCreated,
     syncTaskUpdated,
+    syncTaskCompleted,
     syncTaskFailed,
     removeTask,
   });
@@ -658,7 +660,22 @@ const HomePage: React.FC = () => {
                     {reportText.fullReport}
                   </Button>
                 </div>
-                <ReportSummary data={selectedReport} isHistory />
+                <ReportSummary
+                  data={selectedReport}
+                  isHistory
+                  onForceRefresh={(stockCode) => {
+                    // User clicked "强制刷新" inside the cached-result banner
+                    // (P0.3 24h same-stock cache). Re-submit with
+                    // force_refresh=true to bypass the cache and run a fresh
+                    // pipeline. setQuery so the input echoes back the choice.
+                    setQuery(stockCode);
+                    void submitAnalysis({
+                      stockCode,
+                      selectionSource: 'manual',
+                      forceRefresh: true,
+                    });
+                  }}
+                />
               </div>
             ) : (
               // Empty-state region: treemap doubles as both the "what should I

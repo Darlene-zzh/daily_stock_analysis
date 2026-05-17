@@ -109,7 +109,7 @@ export function useTaskStream(options: UseTaskStreamOptions = {}): UseTaskStream
 
   // Convert snake_case payloads into camelCase TaskInfo objects.
   const toCamelCase = (data: Record<string, unknown>): TaskInfo => {
-    return {
+    const taskInfo: TaskInfo = {
       taskId: data.task_id as string,
       stockCode: data.stock_code as string,
       stockName: data.stock_name as string | undefined,
@@ -124,6 +124,30 @@ export function useTaskStream(options: UseTaskStreamOptions = {}): UseTaskStream
       originalQuery: data.original_query as string | undefined,
       selectionSource: data.selection_source as string | undefined,
     };
+    // Completed-task SSE events carry the full analysis result so the report
+    // panel can auto-navigate without an extra history fetch. Recurse on the
+    // nested payload because the server emits snake_case throughout.
+    const rawResult = data.result;
+    if (rawResult && typeof rawResult === 'object') {
+      taskInfo.result = deepCamelCase(rawResult) as TaskInfo['result'];
+    }
+    return taskInfo;
+  };
+
+  // Recursively snake_case → camelCase for nested objects/arrays.
+  // The shared `toCamelCase` util in `api/utils.ts` does this; duplicated
+  // here to avoid an import cycle between hooks and api.
+  const deepCamelCase = (input: unknown): unknown => {
+    if (Array.isArray(input)) return input.map(deepCamelCase);
+    if (input && typeof input === 'object') {
+      const out: Record<string, unknown> = {};
+      for (const [k, v] of Object.entries(input as Record<string, unknown>)) {
+        const camelKey = k.replace(/_([a-z])/g, (_, c: string) => c.toUpperCase());
+        out[camelKey] = deepCamelCase(v);
+      }
+      return out;
+    }
+    return input;
   };
 
   // Parse an SSE payload.
@@ -135,6 +159,10 @@ export function useTaskStream(options: UseTaskStreamOptions = {}): UseTaskStream
       console.error('Failed to parse SSE event data:', e);
       return null;
     }
+    // toCamelCase / deepCamelCase are defined as pure functions inside this
+    // component scope and don't capture any reactive state; they're stable
+    // across renders, so omitting them from the dep array is intentional.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   // Create an EventSource connection.

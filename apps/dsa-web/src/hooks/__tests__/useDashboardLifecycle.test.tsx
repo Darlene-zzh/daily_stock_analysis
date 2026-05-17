@@ -37,6 +37,7 @@ describe('useDashboardLifecycle', () => {
         refreshHistory,
         syncTaskCreated: vi.fn(),
         syncTaskUpdated: vi.fn(),
+        syncTaskCompleted: vi.fn(),
         syncTaskFailed: vi.fn(),
         removeTask: vi.fn(),
       }),
@@ -69,6 +70,7 @@ describe('useDashboardLifecycle', () => {
         refreshHistory: vi.fn().mockResolvedValue(undefined),
         syncTaskCreated: vi.fn(),
         syncTaskUpdated: vi.fn(),
+        syncTaskCompleted: vi.fn(),
         syncTaskFailed: vi.fn(),
         removeTask,
       }),
@@ -95,12 +97,14 @@ describe('useDashboardLifecycle', () => {
     const syncTaskUpdated = vi.fn();
     const removeTask = vi.fn();
 
+    const syncTaskCompleted = vi.fn();
     renderHook(() =>
       useDashboardLifecycle({
         loadInitialHistory: vi.fn().mockResolvedValue(undefined),
         refreshHistory,
         syncTaskCreated: vi.fn(),
         syncTaskUpdated,
+        syncTaskCompleted,
         syncTaskFailed: vi.fn(),
         removeTask,
       }),
@@ -113,7 +117,9 @@ describe('useDashboardLifecycle', () => {
       taskStreamOptions?.onTaskCompleted?.(completedTask);
     });
 
-    expect(syncTaskUpdated).toHaveBeenCalledWith(completedTask);
+    // onTaskCompleted now routes through syncTaskCompleted (which itself
+    // calls syncTaskUpdated internally — see stockPoolStore.syncTaskCompleted).
+    expect(syncTaskCompleted).toHaveBeenCalledWith(completedTask);
     expect(refreshHistory).toHaveBeenCalledWith(true);
 
     act(() => {
@@ -132,6 +138,7 @@ describe('useDashboardLifecycle', () => {
         refreshHistory: vi.fn().mockResolvedValue(undefined),
         syncTaskCreated: vi.fn(),
         syncTaskUpdated,
+        syncTaskCompleted: vi.fn(),
         syncTaskFailed: vi.fn(),
         removeTask: vi.fn(),
       }),
@@ -162,6 +169,7 @@ describe('useDashboardLifecycle', () => {
         refreshHistory: vi.fn().mockResolvedValue(undefined),
         syncTaskCreated: vi.fn(),
         syncTaskUpdated: vi.fn(),
+        syncTaskCompleted: vi.fn(),
         syncTaskFailed,
         removeTask,
       }),

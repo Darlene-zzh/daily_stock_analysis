@@ -74,7 +74,7 @@ class TaskInfo:
     
     def to_dict(self) -> Dict[str, Any]:
         """Convert task info into an API-friendly dictionary."""
-        return {
+        payload: Dict[str, Any] = {
             "task_id": self.task_id,
             "stock_code": self.stock_code,
             "stock_name": self.stock_name,
@@ -89,6 +89,14 @@ class TaskInfo:
             "original_query": self.original_query,
             "selection_source": self.selection_source,
         }
+        # Expose the analysis result on completed tasks so the SSE consumer can
+        # auto-navigate the report panel to the just-finished analysis — both
+        # for fresh runs AND for cache-hit short-circuits (the latter carry
+        # `report.meta.cached=true` for the "今日已分析过" banner).
+        # Skipping this for non-terminal states keeps SSE payloads small.
+        if self.status == TaskStatus.COMPLETED and isinstance(self.result, dict):
+            payload["result"] = self.result
+        return payload
     
     def copy(self) -> 'TaskInfo':
         """Create a shallow copy of the task information."""
