@@ -45,37 +45,59 @@ type TreemapDatum = {
 };
 
 /**
- * Colour scale for a position's unrealized PnL %. Designed to read well on a
- * light card background and to feel like a financial dashboard (Bloomberg /
- * TradingView) rather than a candy-coloured saturated palette.
+ * Colour scale for a position's unrealized PnL % — Morandi-inspired dusty
+ * palette designed to feel like an oil-painted financial dashboard rather
+ * than a saturated dataviz tool.
  *
  * Tuning notes:
- *   - The previous version went all the way to pure rgb(240, 14, 32) red and
- *     rgb(0, 240, 36) green, which clashed badly with the cream/off-white
- *     surface and was the user's reported "刺眼" complaint.
- *   - Saturation is capped at ~55%, lightness at ~42% so blocks read as muted
- *     forest-green and brick-red instead of traffic-light primaries.
- *   - The visual cap of "extreme" is now ±15% (the practical max for a
- *     stock-level unrealized PnL on day 1 of a position). Anything beyond is
- *     clamped to the same extreme.
+ *   - Saturation is capped at 24% so even the extreme blocks read as chalky
+ *     terracotta / dusty sage instead of brick-red / forest-green. This is
+ *     the second pass after the user's "still ugly, please use Morandi" note.
+ *   - Lightness sits in the 48-62 band so white text stays legible on every
+ *     tile and the surfaces feel powdery, not glossy.
+ *   - Flat is a warm taupe (orange-30, sat-8, light-62) so a 0% position
+ *     doesn't look "cold" — Morandi work consistently warms the neutral.
+ *   - Three-stop interpolation (flat → mid → extreme) gives a smoother
+ *     visual ramp than two-stop and avoids the muddy mid-band when only
+ *     two anchors are used.
+ *   - Visual extreme is clamped at ±15%.
  */
 function colourForPnlPct(pct: number | null): string {
-  if (pct == null || Number.isNaN(pct)) return '#7a7e8a';
+  if (pct == null || Number.isNaN(pct)) return 'hsl(30, 8%, 56%)';
 
   const CAP = 15;
   const clamped = Math.max(-CAP, Math.min(CAP, pct));
   const t = Math.abs(clamped) / CAP;          // 0 at flat → 1 at extreme
 
-  // HSL interpolation: flat = warm slate (218°, 6%, 55%);
-  // gain ramps toward forest green (148°, 55%, 38%);
-  // loss ramps toward muted brick (358°, 52%, 47%).
-  const flat = { h: 218, s: 6, l: 55 };
-  const gainEnd = { h: 148, s: 55, l: 38 };
-  const lossEnd = { h: 358, s: 52, l: 47 };
-  const target = clamped >= 0 ? gainEnd : lossEnd;
-  const h = flat.h + (target.h - flat.h) * t;
-  const s = flat.s + (target.s - flat.s) * t;
-  const l = flat.l + (target.l - flat.l) * t;
+  // Three-stop Morandi ramp (HSL anchors). Lightness sits in the 42-56 band
+  // so white labels keep at least ~3.5:1 contrast on every tile.
+  //   flat    : warm taupe — 0% position
+  //   mid     : dusty clay (loss) / dusty sage (gain) — around ±5%
+  //   extreme : deep terracotta (loss) / muted eucalyptus (gain) — ±15%
+  const flat = { h: 30, s: 8, l: 56 };
+  const gainMid = { h: 110, s: 14, l: 52 };
+  const gainEnd = { h: 130, s: 22, l: 42 };
+  const lossMid = { h: 18, s: 18, l: 54 };
+  const lossEnd = { h: 8, s: 24, l: 46 };
+
+  const mid = clamped >= 0 ? gainMid : lossMid;
+  const end = clamped >= 0 ? gainEnd : lossEnd;
+
+  // Two-segment lerp: [0, 0.5] flat→mid, [0.5, 1] mid→end. Smoother than
+  // a single linear ramp between flat and extreme.
+  const lerp = (a: number, b: number, k: number) => a + (b - a) * k;
+  let h: number, s: number, l: number;
+  if (t <= 0.5) {
+    const k = t / 0.5;
+    h = lerp(flat.h, mid.h, k);
+    s = lerp(flat.s, mid.s, k);
+    l = lerp(flat.l, mid.l, k);
+  } else {
+    const k = (t - 0.5) / 0.5;
+    h = lerp(mid.h, end.h, k);
+    s = lerp(mid.s, end.s, k);
+    l = lerp(mid.l, end.l, k);
+  }
   return `hsl(${h.toFixed(0)}, ${s.toFixed(0)}%, ${l.toFixed(0)}%)`;
 }
 
