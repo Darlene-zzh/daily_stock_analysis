@@ -191,6 +191,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 - [修复] `_compute_position_outcome_summary` 当 `shares=0` 但 `pct_of_position>0` 时按 `pct × holding_shares` 推导股数（并对超过 100% 的离谱比例做上限钳制），避免 LLM 漏填 shares 导致计算空跑；items 为空或全部被过滤时返回 None，UI 隐藏卡片。
 - [修复] 当 `recommended_strategy === "wait_and_see"` 时，前端「狙击点位」卡片和后端两套 Markdown 渲染（`src/notification.py` + `src/services/history_service.py`）追加「点位仅供参考，不建议据此入场」提示并把价位灰化，避免与「暂不操作」建议直接打架。
 - [测试] 新增 `tests/test_action_plan_enforcer_always_sanitize.py`：8 个用例覆盖 enforcer 始终 sanitize、bogus outcome 被重算、wait_and_see=0 上限、shares 从 pct 推导、超 100% 钳制、空 items 隐藏 outcome 卡。
+- [新功能] 同一只股 24h 内重复分析直接返回缓存报告，不再烧 LLM 配额；`ANALYSIS_CACHE_HOURS`（默认 24，设为 0 关闭）控制窗口，`force_refresh=true` 单次绕过。
+- [改进] `PortfolioContextService.get_context` 现在用进程内 TTL 缓存（key=account+date+cost_method，默认 600s）包住 `get_portfolio_snapshot`；连续分析多只股时第 2/3/... 只不再重复刷新整账户实时价，单次分析耗时从 ~16min 下降到 ~1min。`PORTFOLIO_SNAPSHOT_TTL_SECONDS=0` 关闭。
+- [改进] 前端错误提示新增 `upstream_rate_limit` 分类，Gemini/OpenAI 等的 429 响应不再以原始 `litellm.RateLimitError` 栈丢给用户，而是显示「今日免费额度已用完（gemini）」或「请求被上游限流，约 N 秒后可重试」；自动识别 daily quota / per-minute throttle 两种场景。
+- [新功能] 首页空状态区新增「持仓热点图 Treemap」：色块大小 = 仓位市值、颜色 = 浮盈百分比（红-灰-绿渐变），点击直接进入该股分析。复用 recharts，无新增依赖。
+- [测试] 新增 6 个 `_lookup_recent_cache_response` 用例 + 5 个 portfolio snapshot TTL 缓存用例（HIT / MISS / 跨账户 / TTL=0 / 手动清理 / 非法 env 值）。
+- [测试] `tests/test_portfolio_context_service.py` setUp 现在清理 snapshot TTL 缓存，避免跨测试缓存污染。
 
 ## [3.14.0] - 2026-04-26
 
