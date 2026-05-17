@@ -1007,9 +1007,12 @@ class HistoryService:
             # 狙击点位
             sniper = battle.get('sniper_points', {})
             if sniper:
+                report_lines.append(f"**📍 {labels['action_points_heading']}**")
+                report_lines.append("")
+                if core.get('recommended_strategy') == 'wait_and_see':
+                    report_lines.append(labels.get('action_points_wait_notice', ''))
+                    report_lines.append("")
                 report_lines.extend([
-                    f"**📍 {labels['action_points_heading']}**",
-                    "",
                     f"| {labels['action_points_heading']} | {labels['trigger_price_label']} |",
                     "|---------|------|",
                     f"| 🎯 {labels['ideal_buy_label']} | {self._clean_sniper_value(sniper.get('ideal_buy', 'N/A'))} |",

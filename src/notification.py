@@ -1371,9 +1371,12 @@ class NotificationService(
                     # 狙击点位
                     sniper = battle.get('sniper_points', {})
                     if sniper:
+                        report_lines.append(f"**📍 {labels['action_points_heading']}**")
+                        report_lines.append("")
+                        if core.get('recommended_strategy') == 'wait_and_see':
+                            report_lines.append(labels.get('action_points_wait_notice', ''))
+                            report_lines.append("")
                         report_lines.extend([
-                            f"**📍 {labels['action_points_heading']}**",
-                            "",
                             f"| {labels['action_points_heading']} | {labels['trigger_price_label']} |",
                             "|---------|------|",
                             f"| 🎯 {labels['ideal_buy_label']} | {self._clean_sniper_value(sniper.get('ideal_buy', 'N/A'))} |",
@@ -1584,6 +1587,8 @@ class NotificationService(
                     if take_profit:
                         points.append(f"🎊{labels['take_profit_label']}:{take_profit[:15]}")
                     if points:
+                        if core and core.get('recommended_strategy') == 'wait_and_see':
+                            lines.append("⚠️ " + (labels.get('action_points_wait_notice') or '').lstrip('_').rstrip('_'))
                         lines.append(" | ".join(points))
                         lines.append("")
                 
@@ -1842,9 +1847,12 @@ class NotificationService(
         # 狙击点位
         sniper = battle.get('sniper_points', {}) if battle else {}
         if sniper:
+            lines.append(f"### 🎯 {labels['action_points_heading']}")
+            lines.append("")
+            if core and core.get('recommended_strategy') == 'wait_and_see':
+                lines.append(labels.get('action_points_wait_notice', ''))
+                lines.append("")
             lines.extend([
-                f"### 🎯 {labels['action_points_heading']}",
-                "",
                 f"| {labels['ideal_buy_label']} | {labels['stop_loss_label']} | {labels['take_profit_label']} |",
                 "|------|------|------|",
             ])
