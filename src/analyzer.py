@@ -1292,6 +1292,12 @@ class AnalysisResult:
             'current_price': self.current_price,
             'change_pct': self.change_pct,
             'model_used': self.model_used,
+            # Runtime-attached attributes (set via setattr by helpers like
+            # _apply_portfolio_match in src/core/pipeline.py). Must be
+            # serialised so history_service._rebuild_analysis_result can
+            # restore them; otherwise the renderer's portfolio_match=="held"
+            # check fails on historical reports.
+            'portfolio_match': getattr(self, 'portfolio_match', None),
         }
 
     def get_core_conclusion(self) -> str:
