@@ -79,6 +79,61 @@ class AnalyzeRequest(BaseModel):
         ),
         example=1,
     )
+    enable_investment_committee: bool = Field(
+        False,
+        description=(
+            "Sprint 1A opt-in：是否在标准分析后追加 Bull/Bear 辩论 + 4 大师视角 + "
+            "Risk/PM 的「投委会」流程；默认关闭，对默认链路零影响。"
+        ),
+        example=False,
+    )
+    committee_debate_rounds: int = Field(
+        2,
+        description="投委会 Bull/Bear 辩论轮数，1~3，默认 2。",
+        ge=1,
+        le=3,
+        example=2,
+    )
+    enable_decision_journal_reflection: bool = Field(
+        False,
+        description=(
+            "Sprint 2 opt-in：是否在 prompt 中拼入历史决策日志（含已实现"
+            "原始收益与基准 alpha）作为反思上下文；默认关闭。日志写入始终"
+            "发生，所以可以先积累再开启读路径。"
+        ),
+        example=False,
+    )
+    enable_quant_signal: bool = Field(
+        False,
+        description=(
+            "Sprint 3 opt-in：是否在 prompt 中拼入 qlib Alpha158 + LightGBM"
+            "的量化辅助信号（因子快照 + 短期预测）；默认关闭。该信号仅作为"
+            "辅助观察，不会取代基本面/技术面/情绪面分析。需要先运行"
+            "scripts/setup_qlib_data.sh 下载数据并训练模型；未安装 qlib 或"
+            "缺少模型权重时静默 no-op，不影响默认链路。"
+        ),
+        example=False,
+    )
+    quant_forecast_horizon: Optional[int] = Field(
+        None,
+        description=(
+            "量化辅助信号预测期（交易日数），默认读取 QUANT_FORECAST_HORIZON"
+            "（默认 10 ≈ 2 周）。仅在 enable_quant_signal=True 时生效。"
+        ),
+        ge=1,
+        le=60,
+        example=10,
+    )
+    enable_structured_risk: bool = Field(
+        False,
+        description=(
+            "Sprint 4 opt-in：是否在常规分析报告之外附带一份独立的结构化"
+            "风险评估（severity / 推荐仓位 % / tail-risk 评分 / 5% VaR）。"
+            "默认关闭；启用后 response.risk_assessment 会带回这份评估，"
+            "失败时静默 no-op，绝不影响默认报告。即使不开投委会也能用。"
+        ),
+        example=False,
+    )
 
     class Config:
         json_schema_extra = {

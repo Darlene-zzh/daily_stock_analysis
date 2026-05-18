@@ -375,6 +375,14 @@ def _handle_async_analysis_batch(
         force_refresh=request.force_refresh,
         notify=notify,
         portfolio_account_id=getattr(request, "portfolio_account_id", None),
+        enable_investment_committee=getattr(request, "enable_investment_committee", False),
+        committee_debate_rounds=getattr(request, "committee_debate_rounds", 2),
+        enable_decision_journal_reflection=getattr(
+            request, "enable_decision_journal_reflection", False
+        ),
+        enable_quant_signal=getattr(request, "enable_quant_signal", False),
+        quant_forecast_horizon=getattr(request, "quant_forecast_horizon", None),
+        enable_structured_risk=getattr(request, "enable_structured_risk", False),
     )
 
     accepted_tasks, duplicate_errors = task_queue.submit_tasks_batch(**submit_kwargs)
@@ -463,6 +471,14 @@ def _handle_sync_analysis(
             send_notification=getattr(request, "notify", True),
             portfolio_context_block=portfolio_context_block,
             portfolio_match=portfolio_match,
+            enable_investment_committee=getattr(request, "enable_investment_committee", False),
+            committee_debate_rounds=getattr(request, "committee_debate_rounds", 2),
+            enable_decision_journal_reflection=getattr(
+                request, "enable_decision_journal_reflection", False
+            ),
+            enable_quant_signal=getattr(request, "enable_quant_signal", False),
+            quant_forecast_horizon=getattr(request, "quant_forecast_horizon", None),
+            enable_structured_risk=getattr(request, "enable_structured_risk", False),
         )
 
         if result is None:

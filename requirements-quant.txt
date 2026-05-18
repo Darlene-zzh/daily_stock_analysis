@@ -1,0 +1,18 @@
+# Sprint 3 — Quant Signal optional dependencies.
+#
+# These packages live OUTSIDE the main requirements.txt because qlib
+# has heavy C dependencies (TA-Lib, mpi compilation paths) and lightgbm
+# wheels can be slow on certain platforms.  The default app boot must
+# stay clean — install this file separately when you want to enable
+# the qlib Alpha158 + LightGBM auxiliary signal:
+#
+#     pip install -r requirements-quant.txt
+#     bash scripts/setup_qlib_data.sh
+#     python scripts/train_alpha158_lightgbm.py
+#
+# The runtime QuantSignalService gracefully no-ops when these aren't
+# installed; you do NOT need to install this file unless you actually
+# want the quant context block to appear in reports.
+
+pyqlib>=0.9.0
+lightgbm>=4.0

@@ -224,6 +224,250 @@ def _render_position_outcome(outcome: dict, labels: dict) -> list:
     ]
 
 
+def _render_structured_risk(
+    risk_assessment: Optional[dict], report_language: str = "zh"
+) -> list:
+    """Render the standalone Risk Manager callout (Sprint 4).
+
+    Section ``## 🛡️ 风险评估 / Risk Assessment`` only appears when the
+    backend attached a ``risk_assessment`` payload via the Sprint 4
+    opt-in.  Mirror of :func:`src.notification._render_structured_risk`;
+    the two MUST produce byte-identical output (Sprint 4 invariant).
+    """
+    if not isinstance(risk_assessment, dict) or not risk_assessment:
+        return []
+    lang = "en" if str(report_language).lower().startswith("en") else "zh"
+    heading = "🛡️ Risk Assessment" if lang == "en" else "🛡️ 风险评估"
+    out: List[str] = [f"## {heading}", ""]
+
+    severity = risk_assessment.get("severity") or "—"
+    pos_pct = risk_assessment.get("suggested_position_pct")
+    tail_risk = risk_assessment.get("tail_risk_score")
+    var_5pct = risk_assessment.get("var_estimate_5pct")
+    vol = risk_assessment.get("volatility_annualised")
+    veto = risk_assessment.get("veto")
+    flags = risk_assessment.get("red_flags") or []
+    rationale = risk_assessment.get("rationale")
+
+    if lang == "en":
+        head = f"**Severity:** `{severity}`"
+    else:
+        head = f"**严重级别 / Severity**：`{severity}`"
+    if pos_pct is not None:
+        try:
+            head += (
+                f" · suggested position {float(pos_pct) * 100:.1f}%"
+                if lang == "en"
+                else f" · 建议仓位 {float(pos_pct) * 100:.1f}%"
+            )
+        except (TypeError, ValueError):
+            pass
+    if veto:
+        head += " · veto=true"
+    out.append(head)
+
+    metrics: list = []
+    if tail_risk is not None:
+        try:
+            tail_lbl = "Tail-risk score" if lang == "en" else "尾部风险评分"
+            metrics.append(f"{tail_lbl}: {float(tail_risk):.2f} / 10")
+        except (TypeError, ValueError):
+            pass
+    if var_5pct is not None:
+        try:
+            var_lbl = "1-day 5% VaR" if lang == "en" else "1 日 5% VaR"
+            metrics.append(f"{var_lbl}: {float(var_5pct) * 100:.2f}%")
+        except (TypeError, ValueError):
+            pass
+    if vol is not None:
+        try:
+            vol_lbl = "Ann. volatility" if lang == "en" else "年化波动率"
+            metrics.append(f"{vol_lbl}: {float(vol) * 100:.1f}%")
+        except (TypeError, ValueError):
+            pass
+    if metrics:
+        out.append("")
+        for m in metrics:
+            out.append(f"- {m}")
+
+    if flags:
+        out.append("")
+        flag_heading = "Red flags" if lang == "en" else "风险信号"
+        out.append(f"**{flag_heading}**")
+        for f in flags[:6]:
+            out.append(f"- {f}")
+
+    if rationale:
+        out.append("")
+        out.append(f"> {rationale}")
+
+    out.append("")
+    return out
+
+
+def _render_committee_minutes(
+    committee: Optional[dict], labels: dict, report_language: str = "zh"
+) -> list:
+    """Render the Investment Committee Minutes section as markdown lines.
+
+    Mirror of :func:`src.notification._render_committee_minutes` — both
+    renderers must produce structurally identical output so the history
+    Markdown matches the push notification.  Per repo memory rule, this
+    pair must be kept in sync; structural drift between them is a known
+    footgun.
+
+    Returns ``[]`` when ``committee`` is missing / empty.
+    """
+    if not isinstance(committee, dict) or not committee:
+        return []
+
+    try:
+        from src.agent.agents.master_personas import PERSONA_DISPLAY
+    except Exception:  # pragma: no cover
+        PERSONA_DISPLAY = {}
+
+    lang = "en" if str(report_language).lower().startswith("en") else "zh"
+    heading_zh = "📋 投委会会议纪要"
+    heading_en = "📋 Investment Committee Minutes"
+    section_heading = heading_en if lang == "en" else heading_zh
+
+    lines: List[str] = [f"### {section_heading}", ""]
+
+    status = (committee.get("status") or "ok").lower()
+    missing_agents = committee.get("missing_agents") or []
+    budget_used = committee.get("budget_used")
+    budget_cap = committee.get("budget_cap")
+
+    if status == "partial":
+        if lang == "en":
+            lines.append(
+                f"> Status: partial — {len(missing_agents)} agent(s) absent "
+                "(committee verdict still issued)."
+            )
+        else:
+            lines.append(
+                f"> 状态：部分完成 — 缺席 {len(missing_agents)} 个 agent，"
+                "PM 仍出具了结论。"
+            )
+        lines.append("")
+    elif status == "failed":
+        if lang == "en":
+            lines.append(
+                "> Status: inconclusive — treat the committee output as advisory only."
+            )
+        else:
+            lines.append(
+                "> 状态：未达成结论 — 仅作辅助参考。"
+            )
+        lines.append("")
+
+    pm_verdict = committee.get("pm_verdict")
+    pm_score = committee.get("pm_score")
+    pm_rationale = committee.get("pm_rationale")
+    pm_dissents = committee.get("pm_dissents") or []
+    if status != "failed" and pm_verdict:
+        if lang == "en":
+            lines.append(f"**PM verdict:** `{pm_verdict}` (score {pm_score})")
+        else:
+            lines.append(f"**PM 决议**：`{pm_verdict}`（评分 {pm_score}）")
+        if pm_rationale:
+            lines.append("")
+            lines.append(f"> {pm_rationale}")
+        if pm_dissents:
+            label = "PM dissents" if lang == "en" else "PM 异议"
+            lines.append("")
+            lines.append(f"_{label}: {', '.join(pm_dissents)}_")
+        lines.append("")
+
+    risk = committee.get("risk")
+    if isinstance(risk, dict) and (risk.get("severity") or risk.get("red_flags")):
+        severity = risk.get("severity") or "—"
+        pos_pct = risk.get("suggested_position_pct")
+        veto = risk.get("veto")
+        red_flags = risk.get("red_flags") or []
+        if lang == "en":
+            head = f"**Risk:** severity={severity}"
+        else:
+            head = f"**风险**：severity={severity}"
+        if pos_pct is not None:
+            try:
+                head += f" · suggested position {float(pos_pct) * 100:.1f}%"
+            except (TypeError, ValueError):
+                pass
+        if veto:
+            head += " · veto=true"
+        lines.append(head)
+        if red_flags:
+            for flag in red_flags[:6]:
+                lines.append(f"- {flag}")
+        lines.append("")
+
+    debate = committee.get("debate") or []
+    if debate:
+        timeline_heading = "Debate timeline" if lang == "en" else "辩论时间线"
+        lines.append(f"**{timeline_heading}**")
+        lines.append("")
+        rounds = sorted(
+            {int(e.get("round_index") or 0) for e in debate if isinstance(e, dict)}
+        )
+        for r in rounds:
+            bull = next(
+                (e for e in debate if e.get("round_index") == r and e.get("side") == "bull"),
+                None,
+            )
+            bear = next(
+                (e for e in debate if e.get("round_index") == r and e.get("side") == "bear"),
+                None,
+            )
+            bull_claim = (bull or {}).get("claim") or "—"
+            bear_claim = (bear or {}).get("claim") or "—"
+            lines.append(
+                f"- Round {r} — Bull: {bull_claim}; Bear: {bear_claim}"
+            )
+        lines.append("")
+
+    masters = committee.get("masters") or []
+    if masters:
+        grid_heading = "Lens views" if lang == "en" else "大师视角"
+        lines.append(f"**{grid_heading}**")
+        lines.append("")
+        for m in masters:
+            persona_id = m.get("persona") or "<unknown>"
+            display = PERSONA_DISPLAY.get(persona_id, {})
+            display_name = display.get("display_en") or persona_id
+            verdict = m.get("verdict") or "—"
+            score = m.get("score")
+            headline = m.get("headline") or ""
+            m_status = (m.get("status") or "ok").lower()
+            badge = ""
+            if m_status != "ok":
+                if lang == "en":
+                    badge = " _(absent)_"
+                else:
+                    badge = " _(缺席)_"
+            zh_subtitle = ""
+            if lang != "en" and display.get("display_zh"):
+                zh_subtitle = f"（{display['display_zh']}）"
+            lines.append(
+                f"- **{display_name}{zh_subtitle}** — `{verdict}` "
+                f"(score {score if score is not None else '—'}){badge}"
+            )
+            if headline and m_status == "ok":
+                lines.append(f"  - {headline}")
+        lines.append("")
+
+    if budget_used is not None and budget_cap is not None:
+        footnote = (
+            f"_LLM call budget: {budget_used}/{budget_cap}_"
+            if lang == "en"
+            else f"_LLM 调用预算：{budget_used}/{budget_cap}_"
+        )
+        lines.append(footnote)
+        lines.append("")
+
+    return lines
+
+
 class MarkdownReportGenerationError(Exception):
     """Exception raised when Markdown report generation fails due to internal errors."""
 
@@ -705,7 +949,7 @@ class HistoryService:
             dashboard = raw_result.get("dashboard", {})
 
             # Build AnalysisResult with available data
-            return AnalysisResult(
+            result = AnalysisResult(
                 code=raw_result.get("code", record.code),
                 name=raw_result.get("name", record.name),
                 sentiment_score=raw_result.get("sentiment_score", record.sentiment_score or 50),
@@ -742,6 +986,13 @@ class HistoryService:
                 model_used=raw_result.get("model_used"),
                 portfolio_match=raw_result.get("portfolio_match"),
             )
+            # portfolio_match is not a declared field on AnalysisResult; it is
+            # attached dynamically by the analysis pipeline at runtime. Mirror
+            # that behaviour here so downstream consumers (notification,
+            # markdown renderer) can still read it via getattr.
+            if "portfolio_match" in raw_result:
+                setattr(result, "portfolio_match", raw_result.get("portfolio_match"))
+            return result
         except Exception as e:
             logger.error(f"Failed to rebuild AnalysisResult: {e}", exc_info=True)
             return None
@@ -1082,6 +1333,29 @@ class HistoryService:
                     f"{result.news_summary}",
                     "",
                 ])
+
+        # ========== Sprint 1A: Investment Committee Minutes ==========
+        committee_data = dashboard.get("committee") if dashboard else None
+        if committee_data:
+            try:
+                report_lines.extend(
+                    _render_committee_minutes(committee_data, labels, report_language)
+                )
+            except Exception as exc:
+                logger.warning("[committee] render failed in history report: %s", exc)
+
+        # ========== Sprint 4: standalone structured Risk Assessment ==========
+        # Lives at ``result.dashboard["risk_assessment"]`` and is independent
+        # of the committee path.  Renders only when the opt-in flag attached
+        # a payload to the dashboard.
+        risk_assessment_data = dashboard.get("risk_assessment") if dashboard else None
+        if risk_assessment_data:
+            try:
+                report_lines.extend(
+                    _render_structured_risk(risk_assessment_data, report_language)
+                )
+            except Exception as exc:
+                logger.warning("[risk_assessment] render failed in history report: %s", exc)
 
         # ========== 底部 ==========
         report_lines.extend([

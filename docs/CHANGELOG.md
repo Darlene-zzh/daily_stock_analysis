@@ -11,6 +11,25 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 <!-- 新条目格式：- [类型] 描述（类型取值：新功能/改进/修复/文档/测试/chore）-->
 <!-- 每条独立一行追加到本段末尾，无需分类标题，合并时冲突最小 -->
+- [新功能] Sprint 4 投委会 checkpoint resume：新增 `src/agent/committee_checkpointer.py`，opt-in 环境变量 `TASK_QUEUE_CHECKPOINT_ENABLED=true` 启用后，`InvestmentCommitteeOrchestrator` 每完成一个节点都会把 state 快照写到 `data/committee_checkpoints/<query_id>.db`；同 query_id 再次触发会自动跳过已完成的 bull/bear/master/risk 节点、只重跑失败/缺失的节点。默认关闭，对默认链路零副作用。
+- [新功能] Sprint 4 结构化风险评估（standalone）：将 `RiskAssessment` 从 `committee_schema` 提升到 `src/schemas/risk_schema.py` 单独模块，扩展 `tail_risk_score` / `var_estimate_5pct` / `volatility_annualised` / `rationale` 字段；新增 `RiskAgent.build_structured_assessment` 静态方法用于在不开投委会的前提下生成结构化结论；API 新增 `enable_structured_risk: bool = False` 单次请求开关，启用后 `response.risk_assessment` 会回传一份结构化判断，且通知 + 历史两个渲染器都以 `🛡️ 风险评估 / Risk Assessment` 段落呈现。
+- [改进] `AnalysisService.analyze_stock`、`AnalysisTaskQueue.submit_tasks_batch / _execute_task`、API schema、批量与单次分析端点新增 `enable_structured_risk: bool = False`（默认关闭）；orchestrator 接受新增的 `query_id` / `checkpoint_enabled` 构造参数；新增 `_invoke_structured_risk` 私有方法（best-effort，失败静默不影响默认报告）。
+- [改进] Web 端：`apps/dsa-web/src/components/risk/StructuredRiskCallout.tsx` 新增；`apps/dsa-web/src/components/report/ReportSummary.tsx` 与 `AnalysisReport` 类型扩展 `riskAssessment` 字段；`AnalysisRequest` 新增 `enableStructuredRisk` 透传。
+- [文档] `requirements.txt` 增补 `langgraph-checkpoint-sqlite>=3.0.1`（已被 SqliteSaver 软导入，缺失时整个 checkpoint 模块降级 no-op）；`.env.example` 增补 `TASK_QUEUE_CHECKPOINT_ENABLED` / `COMMITTEE_CHECKPOINT_DIR` / `STRUCTURED_RISK_ENABLED` 三项 Sprint 4 配置示例；`docs/full-guide.md` 补充 "Checkpoint Resume" 与 "Structured Risk Assessment" 小节。
+- [测试] 新增 `tests/test_committee_checkpoint_resume.py`（崩溃—续跑—budget 不重复计费 / 环境关闭时不写 DB / 损坏 DB 静默回退）、`tests/test_risk_agent_structured.py`（VaR / 波动率 / 尾部风险 / hard severity veto / 向后兼容）、`tests/test_risk_renderer_independent.py`（notification 与 history 字节级一致 + ZH/EN 双语 + 稀疏 payload 不渲染可选指标）；新增 Web `StructuredRiskCallout.test.tsx`。
+- [新功能] Sprint 3 量化辅助信号（框架先行）：接入 qlib Alpha158 因子库 + 滚动周训 LightGBM 模型，把因子快照与短期预测作为 `Quant Context (auxiliary)` 拼入 LLM prompt，并在 Web 报告页新增 `QuantContextPanel`；明确"辅助、非买卖建议"的护栏文案，4 周 Rank IC 低于 0.02 时自动隐藏预测。
+- [新功能] 新增 `GET /api/v1/quant-signal/{stock_code}` 接口：返回因子分位 + 预测得分；无 qlib / 无模型权重 / 股票不在 CSI 300 与 S&P 500 锁定池 / IC 低于门限时返回 204 No Content，Web 面板静默 no-op。
+- [改进] `AnalysisService.analyze_stock`、`AnalysisTaskQueue.submit_tasks_batch / _execute_task`、API schema、批量与单次分析端点新增 `enable_quant_signal: bool = False`（默认关闭）与 `quant_forecast_horizon: Optional[int]` 参数；analyzer prompt 在三段可选 block（持仓 / 反思 / 量化）之间稳定有序拼接，未启用时完全无副作用。
+- [新功能] 新增 `scripts/setup_qlib_data.sh`（手动下载 cn/us 数据）与 `scripts/train_alpha158_lightgbm.py`（按 ISO 周训练 + 写入 `data/quant_models/<region>/<YYYY-Wxx>/{model.pkl,predictions.json,ic.json}` 三件套），qlib / lightgbm 未安装时打 warning 后干净退出。
+- [新功能] 新增 `.github/workflows/qlib-retrain.yml`：仅 `workflow_dispatch` 手动触发（schedule cron 默认注释掉），训练后将整周 artifact 打成 tar.gz 上传到 Action artifact 与 GitHub Release（pre-release）。
+- [文档] 新增 `requirements-quant.txt`（pyqlib + lightgbm，与主 `requirements.txt` 解耦）；`.env.example` 增补 `QUANT_SIGNAL_ENABLED` / `QUANT_MODEL_DIR` / `QUANT_FORECAST_HORIZON` / `QUANT_IC_GATING_THRESHOLD` / `QLIB_DATA_DIR` / `QLIB_PROVIDER_URI_*`；新增 `docs/quant-signal-setup.md` runbook 与 `docs/full-guide.md` "量化辅助信号 (Quant Context)" 小节。
+- [chore] `.gitignore` 增补 `data/qlib/**` 与 `data/quant_models/**`（仅保留 `.gitkeep` 占位），避免 GB 级二进制数据被误提交。
+- [测试] 新增 `tests/test_quant_signal_service.py`、`tests/test_qlib_fetcher.py`、`tests/test_quant_prompt_injection.py`、`tests/test_analysis_service_quant.py`，覆盖无 qlib / 无 artifact / 池外 / 低 IC 门控 / HK 静默 no-op / 预算异常吞咽 / prompt 包含"辅助、非建议"护栏文案；Web 端新增 `QuantContextPanel.test.tsx`。
+- [新功能] Sprint 2 决策日志与反思闭环：每次成功分析写入 `data/decision_journals/<market>/<code>.md`；可选 `enable_decision_journal_reflection=true` 让下一次同标的分析把历史 verdict / 已实现原始收益 / 基准 Alpha 拼回 prompt，Web 端新增 `复盘 / Decision Tracking` 面板。
+- [新功能] 新增 `GET /api/v1/decision-journal/{stock_code}` 接口，返回最近 N 条日志条目和已实现 Alpha 概要，供 Web 复盘面板渲染。
+- [改进] `AnalysisService.analyze_stock` 与异步任务队列、API schema 新增 `enable_decision_journal_reflection: bool = False` 透传字段；日志写入始终发生（数据先积累），反思读路径按需开启。
+- [文档] `.env.example` 增补 `DECISION_JOURNAL_REFLECTION_ENABLED` / `DECISION_JOURNAL_RETENTION_DAYS` / `DECISION_JOURNAL_REFLECTION_TOKEN_BUDGET` 三项 Sprint 2 配置示例，`docs/full-guide.md` 补充"决策日志 / 反思机制"小节。
+- [测试] 新增 `tests/test_decision_journal_service.py` 与 `tests/test_analysis_service_journal.py`，覆盖并发写、半写条目读取容错、含/缺基准 Alpha、token 预算与端到端 reflection 注入。
 - [新功能] 通知网关新增 ntfy 一等渠道，支持通过 `NTFY_URL` / `NTFY_TOKEN` 推送并接入 Web 测试、路由、Actions 与诊断。
 - [新功能] 通知网关新增 Gotify 一等渠道，支持通过 `GOTIFY_URL` / `GOTIFY_TOKEN` 推送 Markdown 文本并接入 Web 测试、路由、Actions 与诊断。
 - [修复] 收紧 ntfy 结构化校验，避免 URL 编码空白 topic 被误判为有效通知端点。
@@ -69,6 +88,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 - [修复] StockTwits service 实际写入后再没有被 `get_social_context` 调用，导致 `sentiment_dimensions.stocktwits` 始终为空；补 lazy import + fetch + `_build_sentiment_dimensions` 5 维输出。
 - [修复] `_try_inject_action_plan_items` 解析后新增 `_sanitize_strategy_choices` post-process：LLM 漏填 `id` 时按位置恢复（4 entry 模板下映射 0→long_term_hold..3→wait_and_see）、漏填 `label_zh`/`emoji` 时从 canonical map 回填、推荐策略强制 `applicable=True`、按 id 去重、完全空的 entry 丢弃。
 - [修复] 前端 `StrategySelector` 用 `key={c.id}` 在 LLM 漏填 id 时多张卡共享 `key=undefined`，切换股票时旧卡片累积——改为 `key={c.id || \`__strategy_${idx}__\`}` + 先 `.filter()` 过滤完全空 entry。label 缺失时整张卡片标题行隐藏，避免显示「📌 null」。
+- [新功能] 后端投委会 multi-agent pipeline（Bull/Bear 辩论 + 4 大师视角 + Risk/PM）API opt-in，默认关闭。
+- [新功能] 报告新增「投委会会议纪要」段落，opt-in 时通过 `enable_investment_committee=true` 触发；同步进 history DB raw_result 便于 Sprint 2 复盘。
+- [改进] 异步任务参数链路新增 `enable_investment_committee` / `committee_debate_rounds` 透传（API → task_queue → analysis_service）。
+- [chore] 新增依赖 `langgraph==0.4.8`（最小集，未引入 langchain-openai / -anthropic 等 provider 适配，复用既有 `LLMToolAdapter`）。
+- [新功能] Web 端「召开投委会」opt-in 开关 + 辩论轮次选择器（个股页表单内 Disclosure，默认折叠；适用单股 / 批量分析两条链路，共用同一 `submitAnalysis`）。
+- [新功能] 报告页新增「投委会会议纪要 / Investment Committee Minutes」面板（status 横幅 / PM 决议卡 / 多空辩论时间线 / 4 张 inspired-lens 卡片 / 风险条），`report.committee` 缺失时静默不渲染。
+- [改进] `AnalysisRequest` 透传 `enableInvestmentCommittee` / `committeeDebateRounds`；store + types 两处同步默认值（off / 2 轮）。
+- [测试] 新增 13 个 Vitest 用例覆盖 OptIn 折叠 / 成本提示公式 / 三种 status（ok / partial / failed）渲染分支 / lens rationale 展开折叠 / 中英文小标题切换。
+- [文档] `docs/full-guide.md` 扩写「投委会模式」段落，加入 Web UI 操作步骤与成本提示；`apps/dsa-web/src/utils/personaDisplay.ts` 镜像 Python `PERSONA_DISPLAY`，作为前端单一真源。
 
 ## [3.16.0] - 2026-05-10
 

@@ -352,6 +352,12 @@ class AnalysisTaskQueue:
         force_refresh: bool = False,
         notify: bool = True,
         portfolio_account_id: Optional[int] = None,
+        enable_investment_committee: bool = False,
+        committee_debate_rounds: int = 2,
+        enable_decision_journal_reflection: bool = False,
+        enable_quant_signal: bool = False,
+        quant_forecast_horizon: Optional[int] = None,
+        enable_structured_risk: bool = False,
     ) -> Tuple[List[TaskInfo], List[DuplicateTaskError]]:
         """
         Submit analysis tasks in batch.
@@ -401,6 +407,12 @@ class AnalysisTaskQueue:
                         force_refresh,
                         notify,
                         portfolio_account_id,
+                        enable_investment_committee,
+                        committee_debate_rounds,
+                        enable_decision_journal_reflection,
+                        enable_quant_signal,
+                        quant_forecast_horizon,
+                        enable_structured_risk,
                     )
                 except Exception:
                     # Roll back the current batch to avoid partial submission.
@@ -581,6 +593,12 @@ class AnalysisTaskQueue:
         force_refresh: bool,
         notify: bool = True,
         portfolio_account_id: Optional[int] = None,
+        enable_investment_committee: bool = False,
+        committee_debate_rounds: int = 2,
+        enable_decision_journal_reflection: bool = False,
+        enable_quant_signal: bool = False,
+        quant_forecast_horizon: Optional[int] = None,
+        enable_structured_risk: bool = False,
     ) -> Optional[Dict[str, Any]]:
         """
         执行分析任务（在线程池中运行）
@@ -624,6 +642,12 @@ class AnalysisTaskQueue:
                 send_notification=notify,
                 progress_callback=_on_progress,
                 portfolio_account_id=portfolio_account_id,
+                enable_investment_committee=enable_investment_committee,
+                committee_debate_rounds=committee_debate_rounds,
+                enable_decision_journal_reflection=enable_decision_journal_reflection,
+                enable_quant_signal=enable_quant_signal,
+                quant_forecast_horizon=quant_forecast_horizon,
+                enable_structured_risk=enable_structured_risk,
             )
             
             if result:

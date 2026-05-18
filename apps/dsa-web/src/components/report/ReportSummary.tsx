@@ -1,5 +1,9 @@
 import React from 'react';
 import type { AnalysisResult, AnalysisReport } from '../../types/analysis';
+import { CommitteeMinutesPanel } from '../committee/CommitteeMinutesPanel';
+import { DecisionTrackingTab } from '../decisionTracking/DecisionTrackingTab';
+import { QuantContextPanel } from '../quant/QuantContextPanel';
+import { StructuredRiskCallout } from '../risk/StructuredRiskCallout';
 import { ReportOverview } from './ReportOverview';
 import { ActionPlanTable } from './ActionPlanTable';
 import { StrategySelector } from './StrategySelector';
@@ -47,7 +51,7 @@ export const ReportSummary: React.FC<ReportSummaryProps> = ({
   // 使用 report id，因为 queryId 在批量分析时可能重复，且历史报告详情接口需要 recordId 来获取关联资讯和详情数据
   const recordId = report.meta.id;
 
-  const { meta, summary, strategy, details } = report;
+  const { meta, summary, strategy, details, committee, riskAssessment } = report;
   const reportLanguage = normalizeReportLanguage(meta.reportLanguage);
   const text = getReportText(reportLanguage);
   const modelUsed = (meta.modelUsed || '').trim();
@@ -143,6 +147,22 @@ export const ReportSummary: React.FC<ReportSummaryProps> = ({
         language={reportLanguage}
         recommendedStrategy={report.dashboard?.coreConclusion?.recommendedStrategy}
       />
+
+      {/* 投委会会议纪要 (Sprint 1B opt-in — renders null when committee is undefined) */}
+      <CommitteeMinutesPanel committee={committee} language={reportLanguage} />
+
+      {/* 结构化风险评估 (Sprint 4 opt-in — renders null when riskAssessment is undefined) */}
+      <StructuredRiskCallout riskAssessment={riskAssessment} language={reportLanguage} />
+
+      {/* 量化辅助信号 (Sprint 3) — silently renders null when no qlib data / no model */}
+      {meta.stockCode && (
+        <QuantContextPanel stockCode={meta.stockCode} language={reportLanguage} />
+      )}
+
+      {/* 复盘 / Decision Tracking — renders empty state when no journal entries exist */}
+      {meta.stockCode && (
+        <DecisionTrackingTab stockCode={meta.stockCode} language={reportLanguage} />
+      )}
 
       {/* 资讯区 */}
       <ReportNews recordId={recordId} limit={8} language={reportLanguage} />

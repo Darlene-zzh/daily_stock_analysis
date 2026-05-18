@@ -53,9 +53,36 @@ env/
 .cursorrules
 
 # 数据和日志
-/data/
+# Use /data/* (not /data/) so Sprint 2 can whitelist a single placeholder
+# inside this directory; per-stock journal logs stay ignored explicitly.
+/data/*
 logs/
 reports/
+
+# Sprint 2 — decision journal entries are user-private; never commit them.
+# Track only the placeholder so first-time users have a slot; the per-stock
+# markdown logs stay local.
+!/data/decision_journals/
+/data/decision_journals/*
+!/data/decision_journals/.gitkeep
+
+# Sprint 3 — qlib bulk data is GB-scale and downloaded via
+# scripts/setup_qlib_data.sh; never commit the binary payload.  We keep
+# the dir slot via a .gitkeep so the first run finds the path.
+!/data/qlib/
+/data/qlib/*
+!/data/qlib/.gitkeep
+# Sprint 3 — LightGBM artifacts are per-user, weekly, uploaded to a
+# GitHub Release by the qlib-retrain workflow instead of git history.
+!/data/quant_models/
+/data/quant_models/*
+!/data/quant_models/.gitkeep
+# Sprint 4 — committee checkpoint SQLite snapshots are per-task / per-user
+# and only meaningful for that user's machine; keep the dir slot, ignore
+# the .db files (already covered by the global *.db rule below).
+!/data/committee_checkpoints/
+/data/committee_checkpoints/*
+!/data/committee_checkpoints/.gitkeep
 *.db
 *.sqlite
 *.sqlite3
@@ -87,3 +114,13 @@ static/
 
 # server runtime log written by 'python main.py --webui-only'
 webui.log
+
+# Matt Pocock skills, local-only, not part of the governed single source
+.agents/skills/
+
+# Sprint 3 quant signal — training byproducts that should never be committed
+mlruns/
+.qlib_staging/
+.qlib_tools/
+data/qlib/*_data/
+data/quant_models/

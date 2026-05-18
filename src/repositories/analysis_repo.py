@@ -88,14 +88,14 @@ class AnalysisRepository:
     ) -> int:
         """
         保存分析结果
-        
+
         Args:
             result: 分析结果对象
             query_id: 查询 ID
             report_type: 报告类型
             news_content: 新闻内容
             context_snapshot: 上下文快照
-            
+
         Returns:
             保存的记录数
         """
@@ -110,6 +110,62 @@ class AnalysisRepository:
         except Exception as e:
             logger.error(f"保存分析结果失败: {e}")
             return 0
+
+    def update_committee_minutes(
+        self,
+        query_id: str,
+        committee: Dict[str, Any],
+    ) -> bool:
+        """Patch ``raw_result.dashboard.committee`` on an existing history row.
+
+        Sprint 1A locked decision #4 — committee minutes must persist
+        alongside the report so the history page and Sprint 2 reflection
+        can read them back.  We patch the most-recent row matching
+        ``query_id`` (the pipeline writes one INSERT per analysis run).
+
+        Returns True on a successful patch, False otherwise (silent failure
+        keeps the live report intact — committee persistence is best-effort
+        per spec §11 graceful-degradation rule).
+        """
+        import json
+        try:
+            records = self.db.get_analysis_history(query_id=query_id, limit=1)
+        except Exception as exc:
+            logger.warning("update_committee_minutes lookup failed: %s", exc)
+            return False
+        if not records:
+            return False
+        record = records[0]
+        raw = getattr(record, "raw_result", None)
+        if isinstance(raw, str):
+            try:
+                payload = json.loads(raw)
+            except Exception:
+                return False
+        elif isinstance(raw, dict):
+            payload = dict(raw)
+        else:
+            payload = {}
+        dashboard = payload.get("dashboard")
+        if not isinstance(dashboard, dict):
+            dashboard = {}
+        dashboard["committee"] = committee
+        payload["dashboard"] = dashboard
+        try:
+            with self.db.get_session() as session:
+                row = (
+                    session.query(AnalysisHistory)
+                    .filter(AnalysisHistory.id == record.id)
+                    .one_or_none()
+                )
+                if row is None:
+                    return False
+                row.raw_result = json.dumps(payload, ensure_ascii=False, default=str)
+                session.flush()
+                return True
+        except Exception as exc:
+            logger.warning("update_committee_minutes persist failed: %s", exc)
+            return False
     
     def count_by_code(self, code: str, days: int = 30) -> int:
         """

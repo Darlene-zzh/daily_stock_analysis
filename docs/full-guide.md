@@ -1366,3 +1366,277 @@ AGENT_EVENT_ALERT_RULES_JSON=[{"stock_code":"600519","alert_type":"price_cross",
 - Agent 可通过 `get_portfolio_snapshot` 获取面向账户的紧凑持仓摘要，默认包含精简风险块，适合控制 Token 开销。
 - 可选参数包括 `account_id`、`cost_method`、`as_of`、`include_positions`、`include_risk`。
 - 若风险块生成失败，快照仍会返回；若当前环境未启用持仓模块，工具会返回结构化 `not_supported`。
+
+## 投委会模式
+
+Sprint 1A 起，后端新增多智能体「投资委员会」流程：在常规 LLM 报告之后，可选触发 Bull/Bear 辩论 + 4 大师视角（Buffett / Burry / Cathie Wood / Taleb）+ Risk Manager + Portfolio Manager 综合决策，并将「投委会会议纪要」段落追加进报告。Sprint 1B 配套上线 Web UI opt-in 入口与「投委会会议纪要」面板。
+
+**默认关闭**，对默认链路与现有响应零影响；不勾选 Web UI 中的 Advanced disclosure 时，所有 API / 报告契约保持向后兼容。
+
+### Web UI 操作（Sprint 1B）
+
+1. 打开首页（HomePage），在股票输入框下方找到折叠区 **Advanced — Investment Committee (preview)**（默认折叠，状态指示灯灰色）。
+2. 点击折叠区展开，勾选 **Convene the committee for this analysis**，并选择辩论轮数（1 / 2 / 3，默认 2）。指示灯切换为主色高亮。
+3. 折叠区底部实时显示成本提示 `~N extra LLM calls per stock`，遵循后端公式 `cap = base + 2 * (rounds - 1)`，1/2/3 轮分别为 10/12/14 次调用。
+4. 输入股票代码或名称后点 **分析**（或重新分析现有报告），调用会自动透传 `enable_investment_committee=true` 与 `committee_debate_rounds=N`。
+5. 分析完成后报告区在「策略点位」与「资讯」之间新增 **投委会会议纪要 / Investment Committee Minutes** 面板，逻辑分四块：
+   - 顶部 status 横幅：`ok` 不显示；`partial` 显示琥珀色「N 位成员缺席」；`failed` 显示红色「未达成结论」并自动隐藏 PM 决议卡。
+   - **PM 决议卡**：verdict chip（strong_buy / buy / hold / avoid / short）+ 评分 + rationale + PM 否决的 lens 名单 + 预算与耗时脚注。
+   - **风险条**：severity 色（none/soft/hard）+ red flags 列表 + 建议仓位 % + VETO chip（若有）。
+   - **辩论时间线**：按轮聚合的 Bull / Bear 立场摘要，多空配色一目了然。
+   - **4 张 inspired-lens 卡片**（2×2 网格）：avatar 字母 + 颜色（WB 琥珀 / MB 红 / CW 靛蓝 / NT 灰蓝；与后端 `PERSONA_DISPLAY` 完全一致）+ 中文模式下第一张卡显示括注（如 `巴菲特式价值视角`）+ verdict chip + 评分 + 一句话 headline + 可展开 rationale / key evidence / counter-view。
+6. 缺席 lens 渲染为灰底 + `absent` badge，永远不会出现「真人拒绝评论」之类的暗示文案（spec §13 #7 product safety rule）。
+
+> Tip：开启投委会会显著增加 LLM 配额消耗，建议在重要持仓 / 关键时点使用，并优先验证你的 LLM provider 在峰值并发下的 RPM 限制（参见 Gemini 免费档 20 RPM 共享桶的踩坑）。
+
+### API 触发
+
+`POST /api/v1/analysis/analyze` 请求体新增两个字段：
+
+```jsonc
+{
+  "stock_code": "600519",
+  "report_type": "detailed",
+  "async_mode": false,
+  "enable_investment_committee": true,   // 默认 false，opt-in 启用投委会
+  "committee_debate_rounds": 2            // 1 / 2 / 3，默认 2
+}
+```
+
+返回的 `report.committee` 字段含 PM 决议（`pm_verdict` / `pm_score` / `pm_rationale` / `pm_dissents`）、`debate` 时间线、4 个 `masters` 的视角条目、`risk` 评估、`missing_agents` 与 `budget_used / budget_cap` 等元数据。
+
+### 调用成本与预算
+
+- LLM 调用上限按辩论轮数自动计算：`cap = base + 2 * (rounds - 1)`，以默认 `INVESTMENT_COMMITTEE_BUDGET_BASE=12` 为例：1/2/3 轮分别为 10/12/14 次调用。
+- 单次运行 wall-clock 超时由 `INVESTMENT_COMMITTEE_TIMEOUT_S`（默认 90 秒）控制；超时会跳过未完成节点并降级为 `status="partial"`。
+- 任一大师 LLM JSON 失败 → 严格解析失败后自动一次重试（带 schema 示例），若仍失败则记为 `status="failed"`，PM 仍可以基于剩余节点出结论。
+- 任一节点 wall-clock 卡住 → 后续节点跳过，缺席节点登记进 `missing_agents`，PM 在 `pm_rationale` 中明确说明缺口。
+
+### 段落语义
+
+报告渲染层的「📋 投委会会议纪要」section（中文 / English 由 `report_language` 决定）顺序：
+
+1. **状态横幅**：`status='ok'` 时省略；`partial` 显示「缺席 N 个 agent」；`failed` 显示「未达成结论」并隐藏决议卡片。
+2. **PM 决议卡片**：含 `pm_verdict` / `pm_score` / `pm_rationale` / `pm_dissents`。
+3. **风险条**：severity（none/soft/hard）+ red_flags + suggested_position_pct + veto。
+4. **辩论时间线**：每轮一行 `Round N — Bull: ...; Bear: ...`。
+5. **大师视角网格**：每条 lens 一行（`Buffett-inspired value lens（巴菲特式价值视角）` 等），含 verdict / score / 一句话 headline / `_(缺席)_` badge。
+6. **LLM 调用预算脚注**：`budget_used / budget_cap`。
+
+`history` 渲染器与 push 通知渲染器输出相同结构（共享同一份 `_render_committee_minutes` 实现），并把会议纪要回写进 `raw_result.dashboard.committee` 以便 Sprint 2 复盘。
+
+### 风险与回滚
+
+- 投委会失败 / 异常 NEVER 中断默认分析；hook 用 try/except 包住整段流程，记录 warning 后照常返回原报告。
+- 关闭方式：调用方传 `enable_investment_committee=false`（默认值），或不传该字段。永久关闭可移除 `langgraph` 依赖；Sprint 1A 改动均为 additive，`git revert` 安全。
+- 显式说明 prompt 风格：所有大师视角均使用「分析师以 X-inspired lens 分析」措辞（spec §7），**禁止**第一人称冒充真实人物。
+
+## 决策日志 / 反思机制（Sprint 2）
+
+> 每次分析都会留下一行 markdown 日志；下一次分析同一只票时，可以把过去的判断 + 已实现收益 + 相对基准 Alpha 注入到 LLM prompt，让模型从「快照分析」逐步演化为「持续校准」。日志写入始终发生，反思读取按需开启。
+
+### 文件结构
+
+```
+data/decision_journals/
+├── cn/
+│   ├── 600519.md
+│   └── ...
+├── hk/
+│   └── 00700.md
+└── us/
+    └── AAPL.md
+```
+
+- 路径按市场分目录：`cn`（A 股）/ `hk`（港股）/ `us`（美股）。
+- 单股一个 markdown 文件，append-only；每个 entry 以 `## YYYY-MM-DD HH:MM:SS UTC` 头部起始。
+- 单条 entry 整体一次性 `write()`，借助 POSIX `PIPE_BUF` 原子性保证并发安全；超过 3.5 KB 自动截断 `key_catalysts` / `key_risks` 子项。
+- 这些文件视为用户私有数据，统一在 `.gitignore` 内忽略；只保留 `data/decision_journals/.gitkeep` 占位以便首次启动目录存在。
+- 数据保留默认 2 年（`DECISION_JOURNAL_RETENTION_DAYS=730`），归档脚本/动作未实现，先做语义占位。
+
+### 反思块如何被注入到 prompt
+
+1. `AnalysisService.analyze_stock(stock_code=..., enable_decision_journal_reflection=True)` 在调用流水线前先用 `DecisionJournalService.build_reflection_block(...)` 构造英文反思段落（LLM 自己会按 `report_language` 输出中文）。
+2. 该段落经 `StockAnalysisPipeline.reflection_context_block` → `GeminiAnalyzer._format_prompt(... reflection_context_block=...)` 拼接在「持仓上下文」之后、「技术面数据」之前。
+3. 段落结构：
+
+   ```text
+   ## Reflection — your prior analyses of this security
+   - 2026-05-12: prior verdict **逢低买入**, score 72; realised raw return +8.40%, alpha vs benchmark +2.10%. Prior thesis: ...
+   - 2026-05-05: prior verdict **持有**; realised raw return -1.20%, alpha vs benchmark -3.00%.
+   Use this track record to calibrate your current analysis. If your prior calls have under-performed the benchmark for this name, increase scepticism toward your default thesis.
+   ```
+4. Token 预算受 `DECISION_JOURNAL_REFLECTION_TOKEN_BUDGET`（默认 1500，按 ~4 字符 / token 估算）约束；超出时按从旧到新顺序丢弃 bullet。
+5. 反思块构建或拼接失败 NEVER 中断分析——日志记录 warning 后照原 prompt 继续。
+
+### Alpha 计算
+
+- 使用复权后收盘价（akshare `qfq` / yfinance Close 默认已复权）。`compute_realised_alpha(...)` 仅读取数据源给到的 Close 列，不再二次复权——拆股 / 分红信息由 fetcher 维护。
+- 基准映射：`cn → 000300`（沪深 300，akshare）；`hk → ^HSI`（yfinance）；`us → SPY`（yfinance）。
+- 基准取价失败时只置 `alpha=None`，`raw_return` 仍保留——Web 复盘面板会显示「basis unavailable」。
+
+### Web 端「复盘 / Decision Tracking」面板
+
+- 入口：单股分析详情页（`ReportSummary` 中），默认渲染最近 20 条 entry。
+- 表格列：日期 / verdict / score / 原始收益 / 相对基准 Alpha / 一句话观点。
+- 下方有内联 SVG sparkline 显示历史 Alpha 走势（旧 → 新方向），无外部图表依赖。
+- 数据来源：`GET /api/v1/decision-journal/{stock_code}?limit=20`，后端按时间倒序返回；查询失败时面板自动降级为错误态而非 404。
+
+### 风险与回滚
+
+- 写入失败、读路径异常、基准拉取失败都不会中断默认分析；所有路径都被 try/except 包住并打 warning。
+- 关闭方式：调用方默认 `enable_decision_journal_reflection=false`（默认值），不传该字段即可保留写入但不读出。
+- 永久回滚：删除新增文件 / `git revert` 即可，主流程 prompt 与默认分析路径均为 additive。
+
+## 量化辅助信号 / Quant Context（Sprint 3）
+
+Sprint 3 引入 qlib Alpha158 + LightGBM 的**辅助统计信号**。它把因子快照与短期超额收益预测拼进 LLM prompt 作为 `Quant Context (auxiliary)`，并在 Web 报告页新增 `QuantContextPanel`。**严格作为辅助观察**，prompt 与 Web 双侧都明确告诉用户与 LLM「不要把它当成买卖建议」。
+
+### 七项锁定决策（P9）
+
+| # | 决策 | 实现 |
+|---|------|------|
+| Q1 | 覆盖范围 | CSI 300（A 股）+ S&P 500（美股）；HK 与池外标的静默 no-op |
+| Q2 | 训练窗口 | 滚动 3 年，每周六自动周训（GitHub Action） |
+| Q3 | 预测期 | 10 个交易日（默认；`QUANT_FORECAST_HORIZON` 可改） |
+| Q4 | IC 指标 | 滚动 20 日 Rank IC + 60 日均线 |
+| Q5 | 低 IC 门控 | 4 周 IC 均线低于 `QUANT_IC_GATING_THRESHOLD`（默认 0.02）时，隐藏预测、保留因子快照并打 "model uncertain" tag |
+| Q6 | 无 artifact | 静默 no-op：prompt、Web 面板、API 均不出现量化分区 |
+| Q7 | 角色 | 仅辅助观察；不能把 PM verdict 提到基本面/技术面不支持的位置（但持续看空可以下调 verdict） |
+
+### 启用步骤
+
+```bash
+# 1. 安装可选量化依赖（不会污染默认 requirements.txt）
+pip install -r requirements-quant.txt
+
+# 2. 一次性下载 qlib 数据到 data/qlib/（GB 级，按 region 拉取）
+bash scripts/setup_qlib_data.sh        # 默认 cn + us
+# bash scripts/setup_qlib_data.sh cn   # 只下载 A 股
+# bash scripts/setup_qlib_data.sh us   # 只下载美股
+
+# 3. 训练首个 LightGBM Alpha158 周训模型
+python scripts/train_alpha158_lightgbm.py
+# 输出到 data/quant_models/<region>/<YYYY-Wxx>/
+#   - model.pkl
+#   - predictions.json
+#   - ic.json
+
+# 4. 在 API 请求里启用 opt-in 字段
+#    POST /api/v1/analysis/analyze
+#    body: { "stock_code": "600519", "enable_quant_signal": true, ... }
+```
+
+> ⚠️ 数据下载是 GB 级，首次跑会比较慢；之后 `setup_qlib_data.sh` 会走 qlib 的增量更新。LightGBM 训练单 region 大概 20 分钟，cn + us 全跑预算 ~30-40 分钟。
+
+### GitHub Actions（每周自动周训）
+
+`.github/workflows/qlib-retrain.yml` 提供 `workflow_dispatch` 手动触发入口，并把 cron schedule 默认注释掉。建议先用 `workflow_dispatch` 手动跑一遍验证后，再去取消注释 `schedule: - cron: "0 2 * * 6"`（周六 02:00 UTC）。Artifact 会以 GitHub Release（prerelease）形式发出，并保留 60 天 Action artifact 副本。
+
+### 失效路径（全部静默 no-op，不影响默认分析）
+
+| 触发条件 | 行为 |
+|---------|------|
+| 未安装 `pyqlib` / `lightgbm` | `QuantSignalService.*` 返回 `None`，prompt 与 Web 都无 Quant Context |
+| 未执行 `setup_qlib_data.sh` | `ensure_initialized` 返回 False，同上 |
+| 未执行训练脚本 → 无 artifact | factor 仍可显示（live fetcher），forecast 缺失 |
+| 股票不在 CSI 300 / S&P 500 | `is_in_universe` 返回 False，整段 Quant Context 不出现 |
+| HK 标的 | 直接判断 market=hk，silent no-op |
+| 4 周 IC 均线 < 0.02 | factor 显示 + uncertain tag，forecast 隐藏 |
+| `QuantSignalService` 内部抛错 | 上层 `try/except` 吞咽，主分析继续 |
+
+### Web 面板
+
+- 入口：`apps/dsa-web/src/components/quant/QuantContextPanel.tsx`，挂在 `ReportSummary` 投委会面板与复盘面板之间。
+- 数据：`GET /api/v1/quant-signal/{stock_code}?market=&horizon=`，状态码 204 时面板返回 `null`，连容器都不渲染。
+- 视觉：顶部 `Auxiliary` 标签 + 警示文案（双语），因子快照按 −1 / +1 双向条形展示，预测块给出 horizon / 排名 / IC / 模型版本。
+
+### 风险与回滚
+
+- 主 `requirements.txt` 不引入 qlib / lightgbm，CI 与默认 Docker 镜像不受影响。
+- `enable_quant_signal=False` 是默认值；不传该字段即可完全旁路。
+- 永久回滚：`git revert` Sprint 3 提交，或删除 `data/qlib`、`data/quant_models`、`requirements-quant.txt`、`.github/workflows/qlib-retrain.yml` 即可。
+
+## Checkpoint Resume（Sprint 4 · 投委会）
+
+投委会运行中如果半路被 LLM 限流、网络抖动或临时不可用打断，再次触发同一 `query_id` 时希望从崩溃前的状态继续，而不是把已经完成的 `bull / bear / 4 大师 / risk` 节点重跑一遍。Sprint 4 在 LangGraph 现有骨架上加了一个 **opt-in** 的 SQLite 快照层来支持这种续跑。
+
+### 启用方式
+
+```bash
+# 全局开关（默认 false）
+TASK_QUEUE_CHECKPOINT_ENABLED=true
+
+# 可选：自定义快照根目录
+COMMITTEE_CHECKPOINT_DIR=data/committee_checkpoints
+```
+
+启用后，每次投委会的 task_id 都会成为 checkpoint 的 `query_id`，`AnalysisService._invoke_committee` 把它传到 `InvestmentCommitteeOrchestrator(query_id=...)`；orchestrator 在以下时刻写一份快照：
+
+- bull / bear 每一轮节点完成
+- 每个大师视角节点完成
+- Risk 节点完成
+- PM 节点完成
+
+快照内容包括 `debate / masters / risk / missing_agents / budget_used / current_round`。下一次同 `query_id` 触发时，orchestrator 通过 `load_state(query_id)` 把这些状态回灌进 `CommitteeState`，对每一类节点用 `_has_completed_*` 判断"该 slot 是否已经有 `status='ok'` 的产物"，命中的节点直接跳过。
+
+run 成功（minutes.status ∈ {ok, partial}）后会清理对应 `<query_id>.db`，避免 stale row 影响下次同 query_id 的全新调用。
+
+### 依赖
+
+`requirements.txt` 增补 `langgraph-checkpoint-sqlite>=3.0.1`。该依赖是 **soft import**：缺失时 `committee_checkpointer.py` 只是把 `SQLITE_SAVER_AVAILABLE = False`，自身基于内置 `sqlite3` 存取，整套功能仍可工作。
+
+### 失败路径与回滚
+
+| 触发条件 | 行为 |
+|---------|------|
+| `TASK_QUEUE_CHECKPOINT_ENABLED` 未设 / false | 不写 DB，行为与 Sprint 1A-3 byte-identical |
+| 快照写盘失败（磁盘满、权限） | 仅打 WARNING，run 不被打断 |
+| 快照文件损坏（`sqlite3.DatabaseError` / `json.JSONDecodeError`） | `load_state` 返回 None，自动 fall back 到 "start fresh" |
+| orchestrator 收到 `query_id=None` | checkpoint 自动关闭，等价于未启用 |
+
+如需永久回滚：把 `TASK_QUEUE_CHECKPOINT_ENABLED=false`（或不设），快照目录可以人工 `rm -rf data/committee_checkpoints/*.db` 清空。
+
+## Structured Risk Assessment（Sprint 4 · 独立路径）
+
+Sprint 1A 的 `RiskAssessment` 只在 **投委会模式** 下生成。Sprint 4 把它提升为 `src/schemas/risk_schema.py` 单独模块，并扩展了量化字段，让默认分析（无投委会）也能拿到一份结构化风险结论。
+
+### 启用方式
+
+API 单次请求 opt-in：
+
+```jsonc
+POST /api/v1/analysis/analyze
+{
+  "stock_code": "600519",
+  "report_type": "detailed",
+  "enable_structured_risk": true   // Sprint 4 新增，默认 false
+}
+```
+
+或在 Web 端（待 UI 加入开关后）通过 `enableStructuredRisk: true` 触发。
+
+### 输出结构
+
+启用后 `response.risk_assessment` 会带回如下字段（全部可选，未计算到的字段为 null）：
+
+| 字段 | 含义 |
+|------|------|
+| `severity` | `none / soft / hard` — 与 Sprint 1A 投委会版本同义 |
+| `red_flags` | 风险信号列表（最多 6 条） |
+| `suggested_position_pct` | 0..0.30 区间的建议仓位上限 |
+| `veto` | 是否触发"禁买" |
+| `tail_risk_score` | 0..10 的尾部风险评分（LLM risk_score / 高严重度 flag 数 / 年化波动率三项综合） |
+| `var_estimate_5pct` | 1 日 5% 参数化 VaR（z=1.645 × 日波动率） |
+| `volatility_annualised` | 年化波动率（sqrt(252) × 日 stdev），透明披露 |
+| `rationale` | 1-2 句中文/英文叙述 |
+
+Notification + History 两份渲染器都新增了 `🛡️ 风险评估 / Risk Assessment` 段落，且 `tests/test_risk_renderer_independent.py` 强制要求两者字节级一致。
+
+### 失败路径
+
+| 触发条件 | 行为 |
+|---------|------|
+| `enable_structured_risk=false` | 不调用，`response.risk_assessment` 不存在 |
+| 分析未产生 risk_warning + 无价格历史 | `_invoke_structured_risk` 返回 None，section 不渲染 |
+| Risk Agent 内部抛错 | 外层 `try/except` 吞咽，仅打 WARNING，主报告不受影响 |

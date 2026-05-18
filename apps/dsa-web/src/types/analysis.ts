@@ -5,6 +5,8 @@
 
 // ============ Request Types ============
 
+export type CommitteeDebateRounds = 1 | 2 | 3;
+
 export interface AnalysisRequest {
   stockCode?: string;
   stockCodes?: string[];
@@ -16,6 +18,20 @@ export interface AnalysisRequest {
   selectionSource?: 'manual' | 'autocomplete' | 'import' | 'image';
   notify?: boolean;
   portfolioAccountId?: number | null;
+  /**
+   * Sprint 1B opt-in toggle for the Investment Committee multi-agent pipeline.
+   * Defaults to `false`; when set to `true`, the backend appends a Bull/Bear
+   * debate + 4 master "inspired lens" personas + Risk/PM verdict to the report.
+   */
+  enableInvestmentCommittee?: boolean;
+  /** Bull/Bear debate rounds when committee is enabled. Default 2. */
+  committeeDebateRounds?: CommitteeDebateRounds;
+  /**
+   * Sprint 4 opt-in: attach a standalone structured Risk Assessment to the
+   * response (severity / suggested position % / tail-risk / VaR). Works
+   * independently of the committee and defaults off.
+   */
+  enableStructuredRisk?: boolean;
 }
 
 export interface MarketReviewRequest {
@@ -209,6 +225,104 @@ export interface DashboardSection {
   };
 }
 
+// ============ Investment Committee Types (Sprint 1B) ============
+
+export type CommitteeStatus = 'ok' | 'partial' | 'failed';
+export type MasterStatus = 'ok' | 'failed' | 'budget_exhausted';
+export type CommitteeVerdict = 'strong_buy' | 'buy' | 'hold' | 'avoid' | 'short';
+export type CommitteeRiskSeverity = 'none' | 'soft' | 'hard';
+export type CommitteePersonaId =
+  | 'warren_buffett'
+  | 'michael_burry'
+  | 'cathie_wood'
+  | 'nassim_taleb';
+
+/**
+ * One Bull/Bear utterance in the debate timeline.
+ * Mirrors `DebateExchange` in `src/schemas/committee_schema.py` (camel-cased).
+ */
+export interface CommitteeDebateExchange {
+  side: 'bull' | 'bear';
+  roundIndex: number;
+  claim?: string;
+  evidence?: string[];
+  rebuttalTo?: string;
+  confidence?: number;
+}
+
+/**
+ * A single master persona's verdict.
+ * Mirrors `MasterOpinion` in `src/schemas/committee_schema.py` (camel-cased).
+ */
+export interface CommitteeMasterOpinion {
+  persona: CommitteePersonaId;
+  verdict?: CommitteeVerdict;
+  score?: number;
+  headline?: string;
+  rationale?: string;
+  keyEvidence?: string[];
+  counterView?: string;
+  toolsUsed?: string[];
+  status?: MasterStatus;
+  errorSummary?: string;
+}
+
+/**
+ * Risk manager output.
+ * Mirrors `RiskAssessment` in `src/schemas/committee_schema.py` (camel-cased).
+ */
+export interface CommitteeRiskAssessment {
+  severity?: CommitteeRiskSeverity;
+  redFlags?: string[];
+  suggestedPositionPct?: number;
+  veto?: boolean;
+  status?: 'ok' | 'failed';
+  errorSummary?: string;
+}
+
+/**
+ * Top-level committee output attached to `report.committee` when the user
+ * opts in. Mirrors `CommitteeMinutes` in `src/schemas/committee_schema.py`.
+ */
+export interface CommitteeMinutes {
+  version?: string;
+  status?: CommitteeStatus;
+  debateRounds?: number;
+  debate?: CommitteeDebateExchange[];
+  masters?: CommitteeMasterOpinion[];
+  risk?: CommitteeRiskAssessment | null;
+  pmVerdict?: CommitteeVerdict;
+  pmScore?: number;
+  pmRationale?: string;
+  pmDissents?: string[];
+  budgetUsed?: number;
+  budgetCap?: number;
+  missingAgents?: string[];
+  latencyMs?: number;
+}
+
+/**
+ * Sprint 4 — Structured Risk Assessment standalone payload.
+ *
+ * Backend mirrors :class:`src.schemas.risk_schema.RiskAssessment`.
+ * Surfaced at `response.risk_assessment` and `report.riskAssessment` when
+ * the API caller opts in via `enable_structured_risk=true`, regardless of
+ * whether the committee is enabled.  All fields default to undefined so
+ * callers can safely render nothing when the payload is absent.
+ */
+export interface StructuredRiskAssessment {
+  severity?: 'none' | 'soft' | 'hard' | null;
+  redFlags?: string[];
+  suggestedPositionPct?: number | null;
+  veto?: boolean;
+  status?: 'ok' | 'failed';
+  errorSummary?: string | null;
+  tailRiskScore?: number | null;
+  varEstimate5pct?: number | null;
+  volatilityAnnualised?: number | null;
+  rationale?: string | null;
+}
+
 /** Full analysis report */
 export interface AnalysisReport {
   meta: ReportMeta;
@@ -216,6 +330,10 @@ export interface AnalysisReport {
   strategy?: ReportStrategy;
   details?: ReportDetails;
   dashboard?: DashboardSection;
+  /** Present only when `enableInvestmentCommittee` was true on the request. */
+  committee?: CommitteeMinutes;
+  /** Sprint 4 — present when `enable_structured_risk` was true. */
+  riskAssessment?: StructuredRiskAssessment;
 }
 
 // ============ Analysis Result Types ============

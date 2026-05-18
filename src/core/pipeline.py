@@ -86,6 +86,8 @@ class StockAnalysisPipeline:
         progress_callback: Optional[Callable[[int, str], None]] = None,
         portfolio_context_block: Optional[str] = None,
         portfolio_match: Optional[str] = None,
+        reflection_context_block: Optional[str] = None,
+        quant_context_block: Optional[str] = None,
     ):
         """
         初始化调度器
@@ -104,8 +106,29 @@ class StockAnalysisPipeline:
         )
         self.progress_callback = progress_callback
         self.portfolio_context_block = portfolio_context_block
+        # Portfolio-aware position-advice filter: callers thread
+        # ``"held"`` / ``"not_held"`` / None here.  The value is copied
+        # onto ``AnalysisResult.portfolio_match`` via
+        # :func:`_apply_portfolio_match` at the end of each analysis
+        # path (standard pipeline + ``_analyze_with_agent`` bypass) so
+        # the renderers (``src/notification.py``,
+        # ``src/services/history_service.py``) can filter the
+        # position-advice table.  None disables the filter — renderers
+        # fall back to the two-row default for backward compatibility.
         self.portfolio_match = portfolio_match
+        # Adaptive strategy classification (feat/action-plan-items): cached
+        # SentimentDimensions from the most recent get_social_context() call,
+        # surfaced into dashboard.intelligence so the renderer can populate
+        # the per-platform sentiment panel.
         self._latest_sentiment_dims = None
+        # Sprint 2: optional reflection block built from the per-stock
+        # decision journal.  None disables injection — analyzer just sees
+        # the standard prompt.  Forwarded to analyzer.analyze() below.
+        self.reflection_context_block = reflection_context_block
+        # Sprint 3: optional quant context block (qlib Alpha158 + LightGBM
+        # auxiliary signal).  None when qlib/model artifact missing or
+        # stock outside the locked universe — analyzer omits the section.
+        self.quant_context_block = quant_context_block
 
         # 初始化各模块
         self.db = get_db()
@@ -492,6 +515,8 @@ class StockAnalysisPipeline:
                 progress_callback=self._emit_progress,
                 stream_progress_callback=_on_llm_stream,
                 portfolio_context_block=self.portfolio_context_block,
+                reflection_context_block=self.reflection_context_block,
+                quant_context_block=self.quant_context_block,
             )
 
             # Step 7.5: 填充分析时的价格信息到 result
@@ -924,7 +949,8 @@ class StockAnalysisPipeline:
                 except Exception as e:
                     logger.warning(f"[{code}] Agent 模式保存新闻情报失败: {e}")
 
-            # 持仓感知 + 翻译后处理（与非 agent 路径保持一致，必须在保存 DB 前执行）
+            # 持仓感知 + 翻译后处理（与非 agent 路径保持一致，必须在保存 DB 前执行，
+            # 这样 history_service 重新渲染时也能拿到 portfolio_match）
             if result:
                 _inject_sentiment_dimensions(result, getattr(self, "_latest_sentiment_dims", None))
                 _apply_portfolio_match(result, self)
@@ -2309,6 +2335,13 @@ def _apply_portfolio_match(result: "AnalysisResult", pipeline: "StockAnalysisPip
 
     Kept module-level (rather than as a private method) so unit tests can
     drive it without faking the full pipeline lifecycle.
+
+    The renderers in ``src/notification.py`` and
+    ``src/services/history_service.py`` consume ``result.portfolio_match``
+    via ``getattr(result, "portfolio_match", None) == "held"`` to choose
+    between the held-only and the default two-row position-advice table.
+    None leaves the attribute untouched so non-portfolio analyses keep
+    rendering the default two-row layout.
     """
     match = getattr(pipeline, "portfolio_match", None)
     if match is not None:

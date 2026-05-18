@@ -46,6 +46,7 @@
 | 多市場數據聚合 | A股、港股、美股、ETF；行情、K 線、技術指標、資金流、籌碼、新聞、公告和基本面 |
 | Web / 桌面工作台 | 手動分析、任務進度、歷史報告、完整 Markdown、回測、持倉、配置管理、淺色 / 深色主題 |
 | Agent 策略問股 | 多輪追問，支援均線、纏論、波浪、趨勢等 11 種內建策略，覆蓋 Web/Bot/API |
+| 投委會模式（opt-in） | Bull/Bear 辯論 + 4 大師 inspired-lens（Buffett/Burry/Cathie Wood/Taleb）+ Risk/PM 綜合決策，Web 入口可調辯論輪數 |
 | 智能匯入與補全 | 圖片、CSV/Excel、剪貼簿匯入；股票代碼/名稱/拼音/別名補全 |
 | 自動化與推送 | GitHub Actions、Docker、本地定時任務、FastAPI 服務和企業微信/飛書/Telegram/Discord/Slack/郵件推送 |
 

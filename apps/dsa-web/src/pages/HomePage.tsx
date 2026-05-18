@@ -7,7 +7,8 @@ import { analysisApi } from '../api/analysis';
 import { portfolioApi } from '../api/portfolio';
 import { systemConfigApi } from '../api/systemConfig';
 import type { PortfolioAccountItem } from '../types/portfolio';
-import { ApiErrorAlert, ConfirmDialog, Button, InlineAlert } from '../components/common';
+import { ApiErrorAlert, ConfirmDialog, Button, EmptyState, InlineAlert } from '../components/common';
+import { CommitteeOptIn } from '../components/committee/CommitteeOptIn';
 import { DashboardStateBlock } from '../components/dashboard';
 import { StockAutocomplete } from '../components/StockAutocomplete';
 import { HistoryList } from '../components/history';
@@ -109,6 +110,10 @@ const HomePage: React.FC = () => {
     setNotify,
     portfolioAccountId,
     setPortfolioAccountId,
+    enableInvestmentCommittee,
+    committeeDebateRounds,
+    setEnableInvestmentCommittee,
+    setCommitteeDebateRounds,
     syncTaskCreated,
     syncTaskUpdated,
     syncTaskCompleted,
@@ -500,6 +505,16 @@ const HomePage: React.FC = () => {
             </div>
           </div>
         </header>
+
+        <div className="px-3 pb-2 md:px-4">
+          <CommitteeOptIn
+            enabled={enableInvestmentCommittee}
+            rounds={committeeDebateRounds}
+            onEnabledChange={setEnableInvestmentCommittee}
+            onRoundsChange={setCommitteeDebateRounds}
+            disabled={isAnalyzing}
+          />
+        </div>
 
         {inputError || duplicateError ? (
           <div className="px-3 pb-2 md:px-4">
