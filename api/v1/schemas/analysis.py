@@ -103,6 +103,27 @@ class AnalyzeRequest(BaseModel):
         ),
         example=False,
     )
+    enable_quant_signal: bool = Field(
+        False,
+        description=(
+            "Sprint 3 opt-in：是否在 prompt 中拼入 qlib Alpha158 + LightGBM"
+            "的量化辅助信号（因子快照 + 短期预测）；默认关闭。该信号仅作为"
+            "辅助观察，不会取代基本面/技术面/情绪面分析。需要先运行"
+            "scripts/setup_qlib_data.sh 下载数据并训练模型；未安装 qlib 或"
+            "缺少模型权重时静默 no-op，不影响默认链路。"
+        ),
+        example=False,
+    )
+    quant_forecast_horizon: Optional[int] = Field(
+        None,
+        description=(
+            "量化辅助信号预测期（交易日数），默认读取 QUANT_FORECAST_HORIZON"
+            "（默认 10 ≈ 2 周）。仅在 enable_quant_signal=True 时生效。"
+        ),
+        ge=1,
+        le=60,
+        example=10,
+    )
 
     class Config:
         json_schema_extra = {
