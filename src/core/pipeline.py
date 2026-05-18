@@ -107,15 +107,14 @@ class StockAnalysisPipeline:
         self.progress_callback = progress_callback
         self.portfolio_context_block = portfolio_context_block
         # Portfolio-aware position-advice filter: callers thread
-        # ``"held"`` / ``"not_held"`` / None here.  Sprint 2-2 dropped
-        # both the call sites and the ``_apply_portfolio_match`` helper
-        # that copied this value onto ``AnalysisResult.portfolio_match``
-        # for the renderers (``src/notification.py``,
-        # ``src/services/history_service.py``).  We restore the proper
-        # ``__init__`` contract here so callers (``AnalysisService``)
-        # don't fail with ``TypeError``; the downstream propagation
-        # regression is tracked separately and is out of scope for the
-        # constructor-contract fix.
+        # ``"held"`` / ``"not_held"`` / None here.  The value is copied
+        # onto ``AnalysisResult.portfolio_match`` via
+        # :func:`_apply_portfolio_match` at the end of each analysis
+        # path (standard pipeline + ``_analyze_with_agent`` bypass) so
+        # the renderers (``src/notification.py``,
+        # ``src/services/history_service.py``) can filter the
+        # position-advice table.  None disables the filter — renderers
+        # fall back to the two-row default for backward compatibility.
         self.portfolio_match = portfolio_match
         # Sprint 2: optional reflection block built from the per-stock
         # decision journal.  None disables injection — analyzer just sees
@@ -520,6 +519,8 @@ class StockAnalysisPipeline:
                 realtime_data = enhanced_context.get('realtime', {})
                 result.current_price = realtime_data.get('price')
                 result.change_pct = realtime_data.get('change_pct')
+                # 持仓感知字段（PR portfolio-filter）：用于 renderer 过滤 position_advice 表格
+                _apply_portfolio_match(result, self)
 
             # Step 7.6: chip_structure fallback (Issue #589)
             if result and chip_data:
@@ -917,6 +918,11 @@ class StockAnalysisPipeline:
                         logger.info(f"[{code}] Agent 模式: 新闻情报已保存 {len(news_response.results)} 条")
                 except Exception as e:
                     logger.warning(f"[{code}] Agent 模式保存新闻情报失败: {e}")
+
+            # 持仓感知字段（与非 agent 路径保持一致，必须在保存 DB 前执行，
+            # 这样 history_service 重新渲染时也能拿到 portfolio_match）
+            if result:
+                _apply_portfolio_match(result, self)
 
             # 保存分析历史记录
             if result and result.success:
@@ -2259,3 +2265,21 @@ class StockAnalysisPipeline:
         if report_type == ReportType.BRIEF and hasattr(self.notifier, "generate_brief_report"):
             return self.notifier.generate_brief_report(results)
         return self.notifier.generate_dashboard_report(results)
+
+
+def _apply_portfolio_match(result: "AnalysisResult", pipeline: "StockAnalysisPipeline") -> None:
+    """Copy ``pipeline.portfolio_match`` onto the result, only if set.
+
+    Kept module-level (rather than as a private method) so unit tests can
+    drive it without faking the full pipeline lifecycle.
+
+    The renderers in ``src/notification.py`` and
+    ``src/services/history_service.py`` consume ``result.portfolio_match``
+    via ``getattr(result, "portfolio_match", None) == "held"`` to choose
+    between the held-only and the default two-row position-advice table.
+    None leaves the attribute untouched so non-portfolio analyses keep
+    rendering the default two-row layout.
+    """
+    match = getattr(pipeline, "portfolio_match", None)
+    if match is not None:
+        result.portfolio_match = match
