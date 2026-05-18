@@ -26,6 +26,12 @@ export interface AnalysisRequest {
   enableInvestmentCommittee?: boolean;
   /** Bull/Bear debate rounds when committee is enabled. Default 2. */
   committeeDebateRounds?: CommitteeDebateRounds;
+  /**
+   * Sprint 4 opt-in: attach a standalone structured Risk Assessment to the
+   * response (severity / suggested position % / tail-risk / VaR). Works
+   * independently of the committee and defaults off.
+   */
+  enableStructuredRisk?: boolean;
 }
 
 export interface MarketReviewRequest {
@@ -190,6 +196,28 @@ export interface CommitteeMinutes {
   latencyMs?: number;
 }
 
+/**
+ * Sprint 4 — Structured Risk Assessment standalone payload.
+ *
+ * Backend mirrors :class:`src.schemas.risk_schema.RiskAssessment`.
+ * Surfaced at `response.risk_assessment` and `report.riskAssessment` when
+ * the API caller opts in via `enable_structured_risk=true`, regardless of
+ * whether the committee is enabled.  All fields default to undefined so
+ * callers can safely render nothing when the payload is absent.
+ */
+export interface StructuredRiskAssessment {
+  severity?: 'none' | 'soft' | 'hard' | null;
+  redFlags?: string[];
+  suggestedPositionPct?: number | null;
+  veto?: boolean;
+  status?: 'ok' | 'failed';
+  errorSummary?: string | null;
+  tailRiskScore?: number | null;
+  varEstimate5pct?: number | null;
+  volatilityAnnualised?: number | null;
+  rationale?: string | null;
+}
+
 /** Full analysis report */
 export interface AnalysisReport {
   meta: ReportMeta;
@@ -198,6 +226,8 @@ export interface AnalysisReport {
   details?: ReportDetails;
   /** Present only when `enableInvestmentCommittee` was true on the request. */
   committee?: CommitteeMinutes;
+  /** Sprint 4 — present when `enable_structured_risk` was true. */
+  riskAssessment?: StructuredRiskAssessment;
 }
 
 // ============ Analysis Result Types ============

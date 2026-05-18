@@ -38,6 +38,7 @@ export const analysisApi = {
             committee_debate_rounds: data.committeeDebateRounds ?? 2,
           }
         : {}),
+      ...(data.enableStructuredRisk ? { enable_structured_risk: true } : {}),
     };
 
     const response = await apiClient.post<Record<string, unknown>>(
@@ -78,6 +79,7 @@ export const analysisApi = {
             committee_debate_rounds: data.committeeDebateRounds ?? 2,
           }
         : {}),
+      ...(data.enableStructuredRisk ? { enable_structured_risk: true } : {}),
     };
 
     const response = await apiClient.post<Record<string, unknown>>(

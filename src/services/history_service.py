@@ -224,6 +224,87 @@ def _render_position_outcome(outcome: dict, labels: dict) -> list:
     ]
 
 
+def _render_structured_risk(
+    risk_assessment: Optional[dict], report_language: str = "zh"
+) -> list:
+    """Render the standalone Risk Manager callout (Sprint 4).
+
+    Section ``## 🛡️ 风险评估 / Risk Assessment`` only appears when the
+    backend attached a ``risk_assessment`` payload via the Sprint 4
+    opt-in.  Mirror of :func:`src.notification._render_structured_risk`;
+    the two MUST produce byte-identical output (Sprint 4 invariant).
+    """
+    if not isinstance(risk_assessment, dict) or not risk_assessment:
+        return []
+    lang = "en" if str(report_language).lower().startswith("en") else "zh"
+    heading = "🛡️ Risk Assessment" if lang == "en" else "🛡️ 风险评估"
+    out: List[str] = [f"## {heading}", ""]
+
+    severity = risk_assessment.get("severity") or "—"
+    pos_pct = risk_assessment.get("suggested_position_pct")
+    tail_risk = risk_assessment.get("tail_risk_score")
+    var_5pct = risk_assessment.get("var_estimate_5pct")
+    vol = risk_assessment.get("volatility_annualised")
+    veto = risk_assessment.get("veto")
+    flags = risk_assessment.get("red_flags") or []
+    rationale = risk_assessment.get("rationale")
+
+    if lang == "en":
+        head = f"**Severity:** `{severity}`"
+    else:
+        head = f"**严重级别 / Severity**：`{severity}`"
+    if pos_pct is not None:
+        try:
+            head += (
+                f" · suggested position {float(pos_pct) * 100:.1f}%"
+                if lang == "en"
+                else f" · 建议仓位 {float(pos_pct) * 100:.1f}%"
+            )
+        except (TypeError, ValueError):
+            pass
+    if veto:
+        head += " · veto=true"
+    out.append(head)
+
+    metrics: list = []
+    if tail_risk is not None:
+        try:
+            tail_lbl = "Tail-risk score" if lang == "en" else "尾部风险评分"
+            metrics.append(f"{tail_lbl}: {float(tail_risk):.2f} / 10")
+        except (TypeError, ValueError):
+            pass
+    if var_5pct is not None:
+        try:
+            var_lbl = "1-day 5% VaR" if lang == "en" else "1 日 5% VaR"
+            metrics.append(f"{var_lbl}: {float(var_5pct) * 100:.2f}%")
+        except (TypeError, ValueError):
+            pass
+    if vol is not None:
+        try:
+            vol_lbl = "Ann. volatility" if lang == "en" else "年化波动率"
+            metrics.append(f"{vol_lbl}: {float(vol) * 100:.1f}%")
+        except (TypeError, ValueError):
+            pass
+    if metrics:
+        out.append("")
+        for m in metrics:
+            out.append(f"- {m}")
+
+    if flags:
+        out.append("")
+        flag_heading = "Red flags" if lang == "en" else "风险信号"
+        out.append(f"**{flag_heading}**")
+        for f in flags[:6]:
+            out.append(f"- {f}")
+
+    if rationale:
+        out.append("")
+        out.append(f"> {rationale}")
+
+    out.append("")
+    return out
+
+
 def _render_committee_minutes(
     committee: Optional[dict], labels: dict, report_language: str = "zh"
 ) -> list:
@@ -1255,6 +1336,19 @@ class HistoryService:
                 )
             except Exception as exc:
                 logger.warning("[committee] render failed in history report: %s", exc)
+
+        # ========== Sprint 4: standalone structured Risk Assessment ==========
+        # Lives at ``result.dashboard["risk_assessment"]`` and is independent
+        # of the committee path.  Renders only when the opt-in flag attached
+        # a payload to the dashboard.
+        risk_assessment_data = dashboard.get("risk_assessment") if dashboard else None
+        if risk_assessment_data:
+            try:
+                report_lines.extend(
+                    _render_structured_risk(risk_assessment_data, report_language)
+                )
+            except Exception as exc:
+                logger.warning("[risk_assessment] render failed in history report: %s", exc)
 
         # ========== 底部 ==========
         report_lines.extend([
