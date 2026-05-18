@@ -354,6 +354,7 @@ class AnalysisTaskQueue:
         portfolio_account_id: Optional[int] = None,
         enable_investment_committee: bool = False,
         committee_debate_rounds: int = 2,
+        enable_decision_journal_reflection: bool = False,
     ) -> Tuple[List[TaskInfo], List[DuplicateTaskError]]:
         """
         Submit analysis tasks in batch.
@@ -405,6 +406,7 @@ class AnalysisTaskQueue:
                         portfolio_account_id,
                         enable_investment_committee,
                         committee_debate_rounds,
+                        enable_decision_journal_reflection,
                     )
                 except Exception:
                     # Roll back the current batch to avoid partial submission.
@@ -587,6 +589,7 @@ class AnalysisTaskQueue:
         portfolio_account_id: Optional[int] = None,
         enable_investment_committee: bool = False,
         committee_debate_rounds: int = 2,
+        enable_decision_journal_reflection: bool = False,
     ) -> Optional[Dict[str, Any]]:
         """
         执行分析任务（在线程池中运行）
@@ -632,6 +635,7 @@ class AnalysisTaskQueue:
                 portfolio_account_id=portfolio_account_id,
                 enable_investment_committee=enable_investment_committee,
                 committee_debate_rounds=committee_debate_rounds,
+                enable_decision_journal_reflection=enable_decision_journal_reflection,
             )
             
             if result:

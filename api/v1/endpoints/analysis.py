@@ -377,6 +377,9 @@ def _handle_async_analysis_batch(
         portfolio_account_id=getattr(request, "portfolio_account_id", None),
         enable_investment_committee=getattr(request, "enable_investment_committee", False),
         committee_debate_rounds=getattr(request, "committee_debate_rounds", 2),
+        enable_decision_journal_reflection=getattr(
+            request, "enable_decision_journal_reflection", False
+        ),
     )
 
     accepted_tasks, duplicate_errors = task_queue.submit_tasks_batch(**submit_kwargs)
@@ -467,6 +470,9 @@ def _handle_sync_analysis(
             portfolio_match=portfolio_match,
             enable_investment_committee=getattr(request, "enable_investment_committee", False),
             committee_debate_rounds=getattr(request, "committee_debate_rounds", 2),
+            enable_decision_journal_reflection=getattr(
+                request, "enable_decision_journal_reflection", False
+            ),
         )
 
         if result is None:

@@ -13,7 +13,7 @@
 import json
 import logging
 import uuid
-from typing import Optional, Dict, Any, Callable
+from typing import Optional, Dict, Any, Callable, List
 
 from src.repositories.analysis_repo import AnalysisRepository
 from src.report_language import (
@@ -52,6 +52,7 @@ class AnalysisService:
         portfolio_account_id: Optional[int] = None,
         enable_investment_committee: bool = False,
         committee_debate_rounds: int = 2,
+        enable_decision_journal_reflection: bool = False,
     ) -> Optional[Dict[str, Any]]:
         """
         执行股票分析
@@ -65,6 +66,9 @@ class AnalysisService:
             enable_investment_committee: 是否启用投委会多智能体补全流程
                 （Sprint 1A opt-in；默认关闭，对默认链路零影响）
             committee_debate_rounds: 投委会 Bull/Bear 辩论轮数，1~3，默认 2
+            enable_decision_journal_reflection: 是否将历史决策日志作为
+                反思上下文注入到本次 prompt（Sprint 2 opt-in；默认关闭，
+                journal 写入始终发生但只有显式开启才会读出来）。
 
         Returns:
             分析结果字典，包含:
@@ -114,6 +118,29 @@ class AnalysisService:
             # 获取配置
             config = get_config()
 
+            # Sprint 2: build the reflection block BEFORE the pipeline runs
+            # so the analyzer can splice it into the prompt.  Default-off —
+            # caller must opt-in.  Failure here MUST NOT kill the request.
+            reflection_context_block: Optional[str] = None
+            if enable_decision_journal_reflection:
+                try:
+                    from src.services.decision_journal_service import (
+                        DecisionJournalService,
+                        default_token_budget,
+                        infer_market_from_code,
+                    )
+                    _journal = DecisionJournalService()
+                    reflection_context_block = _journal.build_reflection_block(
+                        stock_code=stock_code,
+                        market=infer_market_from_code(stock_code),
+                        token_budget=default_token_budget(),
+                    )
+                except Exception as _exc:
+                    logger.warning(
+                        "[analyze_stock] reflection block build failed for %s: %s",
+                        stock_code, _exc,
+                    )
+
             # 创建分析流水线
             pipeline = StockAnalysisPipeline(
                 config=config,
@@ -122,6 +149,7 @@ class AnalysisService:
                 progress_callback=progress_callback,
                 portfolio_context_block=portfolio_context_block,
                 portfolio_match=portfolio_match,
+                reflection_context_block=reflection_context_block,
             )
             
             # 确定报告类型 (API: simple/detailed/full/brief -> ReportType)
@@ -147,6 +175,19 @@ class AnalysisService:
 
             # 构建响应
             response = self._build_analysis_response(result, query_id, report_type=rt.value)
+
+            # Sprint 2: write a journal entry for this analysis.  Runs for
+            # BOTH the standard pipeline and the agent-mode bypass path
+            # because both converge here on the response object.  This is
+            # always-on (the read side is opt-in) so the user accumulates
+            # data immediately and can switch reflection on later without
+            # a cold start.  Failure MUST NEVER kill the response.
+            self._write_journal_entry_safe(
+                stock_code=stock_code,
+                result=result,
+                response=response,
+                query_id=query_id,
+            )
 
             # Sprint 1A: Investment Committee hook.
             # We attach committee minutes to ``response["report"]["committee"]``
@@ -194,6 +235,99 @@ class AnalysisService:
             logger.error(f"分析股票 {stock_code} 失败: {e}", exc_info=True)
             return None
     
+    def _write_journal_entry_safe(
+        self,
+        *,
+        stock_code: str,
+        result: Any,
+        response: Dict[str, Any],
+        query_id: Optional[str],
+    ) -> None:
+        """Append a Sprint 2 decision-journal entry.
+
+        Wraps every step in try/except — a misconfigured journal directory,
+        a disk-full event, or a fetch failure for ``price_at_decision`` MUST
+        NOT propagate.  Log + swallow.
+        """
+        try:
+            from src.services.decision_journal_service import (
+                DecisionJournalService,
+                infer_market_from_code,
+            )
+
+            # Extract action-plan fields from the response in a forgiving way.
+            report = (response or {}).get("report") or {}
+            summary = report.get("summary") or {}
+            details = report.get("details") or {}
+
+            verdict = (
+                summary.get("operation_advice")
+                or getattr(result, "operation_advice", None)
+                or None
+            )
+            score = summary.get("sentiment_score")
+            if score is None:
+                score = getattr(result, "sentiment_score", None)
+            one_sentence = (
+                summary.get("analysis_summary")
+                or getattr(result, "analysis_summary", None)
+                or ""
+            )
+
+            # Committee verdict — only present when committee opt-in fired
+            committee = report.get("committee") or {}
+            pm = (committee.get("pm") or {}) if isinstance(committee, dict) else {}
+            committee_pm_verdict = pm.get("verdict") if isinstance(pm, dict) else None
+
+            # Risks → use the analyser's risk_warning list if available
+            risk_warning = details.get("risk_warning") or getattr(result, "risk_warning", "")
+            key_risks: List[str] = self._coerce_to_list(risk_warning)
+
+            # Catalysts → fallback to key_points / buy_reason (the analyser
+            # populates these for the "why I think this" narrative).
+            catalysts_seed = getattr(result, "key_points", "") or getattr(
+                result, "buy_reason", ""
+            )
+            key_catalysts: List[str] = self._coerce_to_list(catalysts_seed)
+
+            price_at_decision = getattr(result, "current_price", None)
+
+            journal = DecisionJournalService()
+            journal.write_entry(
+                stock_code=stock_code,
+                market=infer_market_from_code(stock_code),
+                verdict=verdict,
+                score=int(score) if isinstance(score, (int, float)) else None,
+                one_sentence=one_sentence,
+                price_at_decision=price_at_decision,
+                report_language=getattr(result, "report_language", None),
+                committee_pm_verdict=committee_pm_verdict,
+                key_catalysts=key_catalysts,
+                key_risks=key_risks,
+                analysis_query_id=query_id,
+            )
+        except Exception as exc:
+            logger.warning(
+                "[analyze_stock] decision-journal write failed for %s: %s",
+                stock_code,
+                exc,
+            )
+
+    @staticmethod
+    def _coerce_to_list(value: Any) -> list:
+        """Best-effort string/list normalisation for journal bullets."""
+        if value is None:
+            return []
+        if isinstance(value, list):
+            return [str(v).strip() for v in value if v is not None and str(v).strip()]
+        if isinstance(value, str):
+            # Split on Chinese bullet ・/ newline / semicolon — keeps short
+            # entries while breaking up "risk1; risk2; risk3" style strings.
+            import re
+            parts = re.split(r"[\n;；]+", value)
+            return [p.strip(" -·•\t") for p in parts if p and p.strip(" -·•\t")]
+        return [str(value)]
+
     def _invoke_committee(
         self,
         *,

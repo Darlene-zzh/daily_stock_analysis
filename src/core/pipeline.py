@@ -85,6 +85,8 @@ class StockAnalysisPipeline:
         save_context_snapshot: Optional[bool] = None,
         progress_callback: Optional[Callable[[int, str], None]] = None,
         portfolio_context_block: Optional[str] = None,
+        reflection_context_block: Optional[str] = None,
+        **_extra: Any,
     ):
         """
         初始化调度器
@@ -103,6 +105,10 @@ class StockAnalysisPipeline:
         )
         self.progress_callback = progress_callback
         self.portfolio_context_block = portfolio_context_block
+        # Sprint 2: optional reflection block built from the per-stock
+        # decision journal.  None disables injection — analyzer just sees
+        # the standard prompt.  Forwarded to analyzer.analyze() below.
+        self.reflection_context_block = reflection_context_block
 
         # 初始化各模块
         self.db = get_db()
@@ -487,6 +493,7 @@ class StockAnalysisPipeline:
                 progress_callback=self._emit_progress,
                 stream_progress_callback=_on_llm_stream,
                 portfolio_context_block=self.portfolio_context_block,
+                reflection_context_block=self.reflection_context_block,
             )
 
             # Step 7.5: 填充分析时的价格信息到 result

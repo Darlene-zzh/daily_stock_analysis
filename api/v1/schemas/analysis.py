@@ -94,6 +94,15 @@ class AnalyzeRequest(BaseModel):
         le=3,
         example=2,
     )
+    enable_decision_journal_reflection: bool = Field(
+        False,
+        description=(
+            "Sprint 2 opt-in：是否在 prompt 中拼入历史决策日志（含已实现"
+            "原始收益与基准 alpha）作为反思上下文；默认关闭。日志写入始终"
+            "发生，所以可以先积累再开启读路径。"
+        ),
+        example=False,
+    )
 
     class Config:
         json_schema_extra = {
