@@ -1556,3 +1556,87 @@ python scripts/train_alpha158_lightgbm.py
 - 主 `requirements.txt` 不引入 qlib / lightgbm，CI 与默认 Docker 镜像不受影响。
 - `enable_quant_signal=False` 是默认值；不传该字段即可完全旁路。
 - 永久回滚：`git revert` Sprint 3 提交，或删除 `data/qlib`、`data/quant_models`、`requirements-quant.txt`、`.github/workflows/qlib-retrain.yml` 即可。
+
+## Checkpoint Resume（Sprint 4 · 投委会）
+
+投委会运行中如果半路被 LLM 限流、网络抖动或临时不可用打断，再次触发同一 `query_id` 时希望从崩溃前的状态继续，而不是把已经完成的 `bull / bear / 4 大师 / risk` 节点重跑一遍。Sprint 4 在 LangGraph 现有骨架上加了一个 **opt-in** 的 SQLite 快照层来支持这种续跑。
+
+### 启用方式
+
+```bash
+# 全局开关（默认 false）
+TASK_QUEUE_CHECKPOINT_ENABLED=true
+
+# 可选：自定义快照根目录
+COMMITTEE_CHECKPOINT_DIR=data/committee_checkpoints
+```
+
+启用后，每次投委会的 task_id 都会成为 checkpoint 的 `query_id`，`AnalysisService._invoke_committee` 把它传到 `InvestmentCommitteeOrchestrator(query_id=...)`；orchestrator 在以下时刻写一份快照：
+
+- bull / bear 每一轮节点完成
+- 每个大师视角节点完成
+- Risk 节点完成
+- PM 节点完成
+
+快照内容包括 `debate / masters / risk / missing_agents / budget_used / current_round`。下一次同 `query_id` 触发时，orchestrator 通过 `load_state(query_id)` 把这些状态回灌进 `CommitteeState`，对每一类节点用 `_has_completed_*` 判断"该 slot 是否已经有 `status='ok'` 的产物"，命中的节点直接跳过。
+
+run 成功（minutes.status ∈ {ok, partial}）后会清理对应 `<query_id>.db`，避免 stale row 影响下次同 query_id 的全新调用。
+
+### 依赖
+
+`requirements.txt` 增补 `langgraph-checkpoint-sqlite>=3.0.1`。该依赖是 **soft import**：缺失时 `committee_checkpointer.py` 只是把 `SQLITE_SAVER_AVAILABLE = False`，自身基于内置 `sqlite3` 存取，整套功能仍可工作。
+
+### 失败路径与回滚
+
+| 触发条件 | 行为 |
+|---------|------|
+| `TASK_QUEUE_CHECKPOINT_ENABLED` 未设 / false | 不写 DB，行为与 Sprint 1A-3 byte-identical |
+| 快照写盘失败（磁盘满、权限） | 仅打 WARNING，run 不被打断 |
+| 快照文件损坏（`sqlite3.DatabaseError` / `json.JSONDecodeError`） | `load_state` 返回 None，自动 fall back 到 "start fresh" |
+| orchestrator 收到 `query_id=None` | checkpoint 自动关闭，等价于未启用 |
+
+如需永久回滚：把 `TASK_QUEUE_CHECKPOINT_ENABLED=false`（或不设），快照目录可以人工 `rm -rf data/committee_checkpoints/*.db` 清空。
+
+## Structured Risk Assessment（Sprint 4 · 独立路径）
+
+Sprint 1A 的 `RiskAssessment` 只在 **投委会模式** 下生成。Sprint 4 把它提升为 `src/schemas/risk_schema.py` 单独模块，并扩展了量化字段，让默认分析（无投委会）也能拿到一份结构化风险结论。
+
+### 启用方式
+
+API 单次请求 opt-in：
+
+```jsonc
+POST /api/v1/analysis/analyze
+{
+  "stock_code": "600519",
+  "report_type": "detailed",
+  "enable_structured_risk": true   // Sprint 4 新增，默认 false
+}
+```
+
+或在 Web 端（待 UI 加入开关后）通过 `enableStructuredRisk: true` 触发。
+
+### 输出结构
+
+启用后 `response.risk_assessment` 会带回如下字段（全部可选，未计算到的字段为 null）：
+
+| 字段 | 含义 |
+|------|------|
+| `severity` | `none / soft / hard` — 与 Sprint 1A 投委会版本同义 |
+| `red_flags` | 风险信号列表（最多 6 条） |
+| `suggested_position_pct` | 0..0.30 区间的建议仓位上限 |
+| `veto` | 是否触发"禁买" |
+| `tail_risk_score` | 0..10 的尾部风险评分（LLM risk_score / 高严重度 flag 数 / 年化波动率三项综合） |
+| `var_estimate_5pct` | 1 日 5% 参数化 VaR（z=1.645 × 日波动率） |
+| `volatility_annualised` | 年化波动率（sqrt(252) × 日 stdev），透明披露 |
+| `rationale` | 1-2 句中文/英文叙述 |
+
+Notification + History 两份渲染器都新增了 `🛡️ 风险评估 / Risk Assessment` 段落，且 `tests/test_risk_renderer_independent.py` 强制要求两者字节级一致。
+
+### 失败路径
+
+| 触发条件 | 行为 |
+|---------|------|
+| `enable_structured_risk=false` | 不调用，`response.risk_assessment` 不存在 |
+| 分析未产生 risk_warning + 无价格历史 | `_invoke_structured_risk` 返回 None，section 不渲染 |
+| Risk Agent 内部抛错 | 外层 `try/except` 吞咽，仅打 WARNING，主报告不受影响 |
