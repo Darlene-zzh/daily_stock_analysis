@@ -65,3 +65,8 @@ jinja2>=3.1.0               # Jinja2 template engine for report rendering
 fastapi>=0.109.0            # 现代 Python Web 框架
 uvicorn[standard]>=0.27.0   # ASGI 服务器
 python-multipart>=0.0.6     # FastAPI File/Form upload support
+
+# Sprint 1A: Investment Committee state machine (TradingAgents-tested pin)
+# Note: we deliberately do NOT add langchain-openai / langchain-anthropic — our
+# existing src/agent/llm_adapter.py already abstracts every provider via litellm.
+langgraph==0.4.8            # LangGraph state machine for the Bull/Bear + masters + Risk/PM committee

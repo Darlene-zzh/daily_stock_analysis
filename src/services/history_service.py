@@ -36,6 +36,357 @@ if TYPE_CHECKING:
 logger = logging.getLogger(__name__)
 
 
+def _render_action_plan_items(items: list) -> list:
+    """Render action_plan_items as markdown lines replacing the position-advice table.
+
+    Returns a list of markdown strings ending with a trailing empty string.
+    Direction emojis: buy=⬆️ sell=⬇️ stop_loss=🛑 take_profit=🎯
+    """
+    _DIRECTION_EMOJI = {
+        "buy": "⬆️",
+        "sell": "⬇️",
+        "stop_loss": "🛑",
+        "take_profit": "🎯",
+    }
+    _DIRECTION_ZH = {
+        "buy": "买入/加仓",
+        "sell": "减仓",
+        "stop_loss": "止损清仓",
+        "take_profit": "止盈",
+    }
+    _ORDINALS = ["①", "②", "③", "④", "⑤"]
+
+    lines = ["### 📋 持仓操作计划", ""]
+    for idx, item in enumerate(items[:4]):
+        direction = item.get("direction", "buy")
+        emoji = _DIRECTION_EMOJI.get(direction, "📌")
+        direction_zh = _DIRECTION_ZH.get(direction, direction)
+        ordinal = _ORDINALS[idx] if idx < len(_ORDINALS) else f"({idx+1})"
+        priority = item.get("priority", idx + 1)
+        trigger_price = item.get("trigger_price")
+        trigger_cond = item.get("trigger_condition", "")
+        shares = item.get("shares", 0)
+        pct_pos = item.get("pct_of_position")
+        pct_eq = item.get("pct_of_equity")
+        tech = item.get("technical_basis", "")
+        fund = item.get("fundamental_basis", "")
+        quant = item.get("quant_signal", "")
+        inv_rule = item.get("invalidation_rule", "")
+
+        if not shares or not trigger_price:
+            continue
+
+        # position sizing string
+        pos_str = ""
+        if pct_pos is not None:
+            pos_str = f"持仓 {pct_pos:.1f}%"
+        if pct_eq:
+            pos_str = f"{pos_str} / 权益 {pct_eq:.1f}%" if pos_str else f"权益 {pct_eq:.1f}%"
+        ops_str = f"{direction_zh} {shares} 股"
+        if pos_str:
+            ops_str += f"（{pos_str}）"
+
+        lines.append(f"**{ordinal} {emoji} {direction_zh}**（优先级 {priority}）— 触发价：${trigger_price:.2f}")
+        lines.append(f"- **触发**：{trigger_cond}")
+        lines.append(f"- **操作**：{ops_str}")
+        if tech:
+            lines.append(f"- **技术面**：{tech}")
+        if fund:
+            lines.append(f"- **基本面**：{fund}")
+        if quant:
+            lines.append(f"- **量化**：{quant}")
+        if inv_rule:
+            lines.append(f"- **失效**：{inv_rule}")
+        lines.append("")
+    return lines
+
+
+_STRATEGY_EMOJI = {
+    "long_term_hold": "🌳",
+    "swing_trade": "⚡",
+    "stepped_profit_taking": "🪜",
+    "wait_and_see": "🚪",
+}
+_STRATEGY_LABEL_ZH = {
+    "long_term_hold": "长线持有",
+    "swing_trade": "短线波段",
+    "stepped_profit_taking": "阶梯式止盈",
+    "wait_and_see": "暂不操作",
+}
+
+
+def _render_strategy_section(
+    core: dict, labels: dict, report_language: str
+) -> list:
+    """Render 📌 策略选择 section as markdown lines."""
+    choices = core.get("strategy_choices") or []
+    recommended = core.get("recommended_strategy")
+    thesis = core.get("strategy_thesis")
+    if not choices and not recommended and not thesis:
+        return []
+
+    lines = [f"### 📌 {labels.get('strategy_section_heading', '策略选择')}", ""]
+
+    if choices:
+        lines.extend([
+            "| 策略 | 适用条件 | 关键参数 | 时间维度 |",
+            "|---|---|---|---|",
+        ])
+        for c in choices:
+            sid = c.get("id") or ""
+            emoji = c.get("emoji") or _STRATEGY_EMOJI.get(sid, "📌")
+            label = c.get("label_zh") or _STRATEGY_LABEL_ZH.get(sid, sid)
+            if not c.get("applicable", True):
+                reason = c.get("inapplicable_reason") or "不适用"
+                lines.append(f"| {emoji} {label} | ⚪ 不适用（{reason}） |  |  |")
+            else:
+                fit = c.get("fit_condition") or "—"
+                params = c.get("key_params") or "—"
+                horizon = c.get("time_horizon") or "—"
+                lines.append(f"| {emoji} {label} | {fit} | {params} | {horizon} |")
+        lines.append("")
+
+    if recommended:
+        emoji = _STRATEGY_EMOJI.get(recommended, "🎯")
+        label = _STRATEGY_LABEL_ZH.get(recommended, recommended)
+        heading = labels.get("recommended_strategy_heading", "AI 推荐策略")
+        lines.append(f"**🎯 {heading}**: {emoji} {label}")
+        lines.append("")
+
+    if thesis:
+        thesis_heading = labels.get("strategy_thesis_heading", "策略论述")
+        lines.append(f"**{thesis_heading}**：")
+        lines.append(f"> {thesis}")
+        lines.append("")
+
+    return lines
+
+
+def _render_sentiment_panel(intel: dict, labels: dict) -> list:
+    """Render 📱 市场情绪 section as markdown lines."""
+    dims = (intel or {}).get("sentiment_dimensions")
+    if not isinstance(dims, dict) or not dims:
+        return []
+
+    heading = labels.get("sentiment_section_heading", "市场情绪")
+    lines = [f"### 📱 {heading}", ""]
+    lines.extend(["| 来源 | Buzz | Sentiment | Trend | Mentions |", "|---|---|---|---|---|"])
+
+    source_order = ["news", "reddit", "x_twitter", "polymarket", "stocktwits"]
+    source_labels = {
+        "news": "📰 News",
+        "reddit": "🔴 Reddit",
+        "x_twitter": "🐦 X",
+        "polymarket": "🔮 Polymarket",
+        "stocktwits": "💬 StockTwits",
+    }
+    for key in source_order:
+        d = dims.get(key)
+        if not isinstance(d, dict):
+            continue
+        buzz = d.get("buzz_score")
+        sent = d.get("sentiment_score")
+        trend = d.get("buzz_trend") or "—"
+        mentions = d.get("mentions_7d") or d.get("messages_sampled") or "—"
+        if key == "stocktwits":
+            bull = d.get("bullish_ratio")
+            bear = d.get("bearish_ratio")
+            sent = f"Bull {round(bull*100)}% / Bear {round(bear*100)}%" if bull is not None else "—"
+            buzz = "—"
+            trend = "—"
+        lines.append(
+            f"| {source_labels[key]} | {buzz if buzz is not None else '—'} "
+            f"| {sent if sent is not None else '—'} | {trend} | {mentions} |"
+        )
+    lines.append("")
+    return lines
+
+
+def _render_position_outcome(outcome: dict, labels: dict) -> list:
+    """Render 仓位流水汇总 block."""
+    if not isinstance(outcome, dict) or not outcome:
+        return []
+    heading = labels.get("position_outcome_heading", "仓位流水汇总")
+    rr_label = labels.get("rr_ratio_label", "风险回报比")
+    remain = outcome.get("remaining_shares_after_all_triggers")
+    wl = outcome.get("worst_case_loss_amount")
+    wc = outcome.get("worst_case_currency") or ""
+    bg = outcome.get("best_case_gain_amount")
+    rr = outcome.get("risk_reward_ratio") or "N/A"
+    return [
+        f"**📊 {heading}**",
+        "",
+        f"- 执行所有触发后剩余仓位：{remain if remain is not None else '—'} 股",
+        f"- 最差止损：{wl if wl is not None else '—'} {wc}",
+        f"- 最好止盈：{bg if bg is not None else '—'} {wc}",
+        f"- {rr_label}：{rr}",
+        "",
+    ]
+
+
+def _render_committee_minutes(
+    committee: Optional[dict], labels: dict, report_language: str = "zh"
+) -> list:
+    """Render the Investment Committee Minutes section as markdown lines.
+
+    Mirror of :func:`src.notification._render_committee_minutes` — both
+    renderers must produce structurally identical output so the history
+    Markdown matches the push notification.  Per repo memory rule, this
+    pair must be kept in sync; structural drift between them is a known
+    footgun.
+
+    Returns ``[]`` when ``committee`` is missing / empty.
+    """
+    if not isinstance(committee, dict) or not committee:
+        return []
+
+    try:
+        from src.agent.agents.master_personas import PERSONA_DISPLAY
+    except Exception:  # pragma: no cover
+        PERSONA_DISPLAY = {}
+
+    lang = "en" if str(report_language).lower().startswith("en") else "zh"
+    heading_zh = "📋 投委会会议纪要"
+    heading_en = "📋 Investment Committee Minutes"
+    section_heading = heading_en if lang == "en" else heading_zh
+
+    lines: List[str] = [f"### {section_heading}", ""]
+
+    status = (committee.get("status") or "ok").lower()
+    missing_agents = committee.get("missing_agents") or []
+    budget_used = committee.get("budget_used")
+    budget_cap = committee.get("budget_cap")
+
+    if status == "partial":
+        if lang == "en":
+            lines.append(
+                f"> Status: partial — {len(missing_agents)} agent(s) absent "
+                "(committee verdict still issued)."
+            )
+        else:
+            lines.append(
+                f"> 状态：部分完成 — 缺席 {len(missing_agents)} 个 agent，"
+                "PM 仍出具了结论。"
+            )
+        lines.append("")
+    elif status == "failed":
+        if lang == "en":
+            lines.append(
+                "> Status: inconclusive — treat the committee output as advisory only."
+            )
+        else:
+            lines.append(
+                "> 状态：未达成结论 — 仅作辅助参考。"
+            )
+        lines.append("")
+
+    pm_verdict = committee.get("pm_verdict")
+    pm_score = committee.get("pm_score")
+    pm_rationale = committee.get("pm_rationale")
+    pm_dissents = committee.get("pm_dissents") or []
+    if status != "failed" and pm_verdict:
+        if lang == "en":
+            lines.append(f"**PM verdict:** `{pm_verdict}` (score {pm_score})")
+        else:
+            lines.append(f"**PM 决议**：`{pm_verdict}`（评分 {pm_score}）")
+        if pm_rationale:
+            lines.append("")
+            lines.append(f"> {pm_rationale}")
+        if pm_dissents:
+            label = "PM dissents" if lang == "en" else "PM 异议"
+            lines.append("")
+            lines.append(f"_{label}: {', '.join(pm_dissents)}_")
+        lines.append("")
+
+    risk = committee.get("risk")
+    if isinstance(risk, dict) and (risk.get("severity") or risk.get("red_flags")):
+        severity = risk.get("severity") or "—"
+        pos_pct = risk.get("suggested_position_pct")
+        veto = risk.get("veto")
+        red_flags = risk.get("red_flags") or []
+        if lang == "en":
+            head = f"**Risk:** severity={severity}"
+        else:
+            head = f"**风险**：severity={severity}"
+        if pos_pct is not None:
+            try:
+                head += f" · suggested position {float(pos_pct) * 100:.1f}%"
+            except (TypeError, ValueError):
+                pass
+        if veto:
+            head += " · veto=true"
+        lines.append(head)
+        if red_flags:
+            for flag in red_flags[:6]:
+                lines.append(f"- {flag}")
+        lines.append("")
+
+    debate = committee.get("debate") or []
+    if debate:
+        timeline_heading = "Debate timeline" if lang == "en" else "辩论时间线"
+        lines.append(f"**{timeline_heading}**")
+        lines.append("")
+        rounds = sorted(
+            {int(e.get("round_index") or 0) for e in debate if isinstance(e, dict)}
+        )
+        for r in rounds:
+            bull = next(
+                (e for e in debate if e.get("round_index") == r and e.get("side") == "bull"),
+                None,
+            )
+            bear = next(
+                (e for e in debate if e.get("round_index") == r and e.get("side") == "bear"),
+                None,
+            )
+            bull_claim = (bull or {}).get("claim") or "—"
+            bear_claim = (bear or {}).get("claim") or "—"
+            lines.append(
+                f"- Round {r} — Bull: {bull_claim}; Bear: {bear_claim}"
+            )
+        lines.append("")
+
+    masters = committee.get("masters") or []
+    if masters:
+        grid_heading = "Lens views" if lang == "en" else "大师视角"
+        lines.append(f"**{grid_heading}**")
+        lines.append("")
+        for m in masters:
+            persona_id = m.get("persona") or "<unknown>"
+            display = PERSONA_DISPLAY.get(persona_id, {})
+            display_name = display.get("display_en") or persona_id
+            verdict = m.get("verdict") or "—"
+            score = m.get("score")
+            headline = m.get("headline") or ""
+            m_status = (m.get("status") or "ok").lower()
+            badge = ""
+            if m_status != "ok":
+                if lang == "en":
+                    badge = " _(absent)_"
+                else:
+                    badge = " _(缺席)_"
+            zh_subtitle = ""
+            if lang != "en" and display.get("display_zh"):
+                zh_subtitle = f"（{display['display_zh']}）"
+            lines.append(
+                f"- **{display_name}{zh_subtitle}** — `{verdict}` "
+                f"(score {score if score is not None else '—'}){badge}"
+            )
+            if headline and m_status == "ok":
+                lines.append(f"  - {headline}")
+        lines.append("")
+
+    if budget_used is not None and budget_cap is not None:
+        footnote = (
+            f"_LLM call budget: {budget_used}/{budget_cap}_"
+            if lang == "en"
+            else f"_LLM 调用预算：{budget_used}/{budget_cap}_"
+        )
+        lines.append(footnote)
+        lines.append("")
+
+    return lines
+
+
 class MarkdownReportGenerationError(Exception):
     """Exception raised when Markdown report generation fails due to internal errors."""
 
@@ -552,6 +903,7 @@ class HistoryService:
                 current_price=raw_result.get("current_price"),
                 change_pct=raw_result.get("change_pct"),
                 model_used=raw_result.get("model_used"),
+                portfolio_match=raw_result.get("portfolio_match"),
             )
         except Exception as e:
             logger.error(f"Failed to rebuild AnalysisResult: {e}", exc_info=True)
@@ -613,31 +965,61 @@ class HistoryService:
                 f"### 📰 {labels['info_heading']}",
                 "",
             ])
+
+            def _zh_for(idx, zh_list):
+                if not isinstance(zh_list, list) or idx >= len(zh_list):
+                    return ""
+                val = zh_list[idx]
+                return val.strip() if isinstance(val, str) else ""
+
+            def _zh_scalar(value):
+                return value.strip() if isinstance(value, str) else ""
+
             # 舆情情绪总结
             if intel.get('sentiment_summary'):
                 report_lines.append(f"**💭 {labels['sentiment_summary_label']}**: {intel['sentiment_summary']}")
+                zh = _zh_scalar(intel.get('sentiment_summary_zh'))
+                if zh:
+                    report_lines.append(f"{zh}")
             # 业绩预期
             if intel.get('earnings_outlook'):
                 report_lines.append(f"**📊 {labels['earnings_outlook_label']}**: {intel['earnings_outlook']}")
+                zh = _zh_scalar(intel.get('earnings_outlook_zh'))
+                if zh:
+                    report_lines.append(f"{zh}")
             # 风险警报（醒目显示）
             risk_alerts = intel.get('risk_alerts', [])
+            risk_alerts_zh = intel.get('risk_alerts_zh', [])
             if risk_alerts:
                 report_lines.append("")
                 report_lines.append(f"**🚨 {labels['risk_alerts_label']}**:")
-                for alert in risk_alerts:
+                for i, alert in enumerate(risk_alerts):
                     report_lines.append(f"- {alert}")
+                    zh = _zh_for(i, risk_alerts_zh)
+                    if zh:
+                        report_lines.append(f"  {zh}")
             # 利好催化
             catalysts = intel.get('positive_catalysts', [])
+            catalysts_zh = intel.get('positive_catalysts_zh', [])
             if catalysts:
                 report_lines.append("")
                 report_lines.append(f"**✨ {labels['positive_catalysts_label']}**:")
-                for cat in catalysts:
+                for i, cat in enumerate(catalysts):
                     report_lines.append(f"- {cat}")
+                    zh = _zh_for(i, catalysts_zh)
+                    if zh:
+                        report_lines.append(f"  {zh}")
             # 最新消息
             if intel.get('latest_news'):
                 report_lines.append("")
                 report_lines.append(f"**📢 {labels['latest_news_label']}**: {intel['latest_news']}")
+                zh = _zh_scalar(intel.get('latest_news_zh'))
+                if zh:
+                    report_lines.append(f"{zh}")
             report_lines.append("")
+
+        # ========== 📱 市场情绪 ==========
+        report_lines.extend(_render_sentiment_panel(intel, labels))
 
         # ========== 核心结论 ==========
         core = dashboard.get('core_conclusion', {}) if dashboard else {}
@@ -655,15 +1037,45 @@ class HistoryService:
             f"⏰ **{labels['time_sensitivity_label']}**: {time_sense}",
             "",
         ])
-        # 持仓分类建议
-        if pos_advice:
-            report_lines.extend([
+        # 持仓操作计划（action_plan_items 优先；fallback 到 position_advice 表格）
+        action_plan_items = (
+            core.get("action_plan_items") if isinstance(core.get("action_plan_items"), list)
+            else None
+        )
+        if action_plan_items:
+            report_lines.extend(_render_action_plan_items(action_plan_items))
+        elif pos_advice:
+            match = getattr(result, "portfolio_match", None)
+            no_pos_text = pos_advice.get(
+                "no_position",
+                localize_operation_advice(result.operation_advice, report_language),
+            )
+            has_pos_text = pos_advice.get(
+                "has_position",
+                labels["continue_holding"],
+            )
+            header = [
                 f"| {labels['position_status_label']} | {labels['action_advice_label']} |",
                 "|---------|---------|",
-                f"| 🆕 **{labels['no_position_label']}** | {pos_advice.get('no_position', localize_operation_advice(result.operation_advice, report_language))} |",
-                f"| 💼 **{labels['has_position_label']}** | {pos_advice.get('has_position', labels['continue_holding'])} |",
-                "",
-            ])
+            ]
+            if match == "held":
+                body = [f"| 💼 **{labels['has_position_label']}** | {has_pos_text} |"]
+            elif match == "not_held":
+                body = [f"| 🆕 **{labels['no_position_label']}** | {no_pos_text} |"]
+            else:
+                body = [
+                    f"| 🆕 **{labels['no_position_label']}** | {no_pos_text} |",
+                    f"| 💼 **{labels['has_position_label']}** | {has_pos_text} |",
+                ]
+            report_lines.extend(header + body + [""])
+
+        # ========== 📌 策略选择 ==========
+        report_lines.extend(_render_strategy_section(core, labels, report_language))
+
+        # ========== 📊 仓位流水汇总 ==========
+        report_lines.extend(_render_position_outcome(
+            core.get("position_outcome_summary"), labels,
+        ))
 
         # ========== 行情快照 ==========
         self._append_market_snapshot_to_report(report_lines, result, labels)
@@ -742,13 +1154,29 @@ class HistoryService:
                 f"### 🎯 {labels['battle_plan_heading']}",
                 "",
             ])
+            # When a structured operation plan exists, signal to the reader that the
+            # battle plan below is the at-a-glance reference and the detailed playbook
+            # lives in the action_plan_items section above.
+            if action_plan_items and report_language != "en":
+                report_lines.extend([
+                    "_关键点位速查（多步骤执行计划见上方「📋 持仓操作计划」）_",
+                    "",
+                ])
+            elif action_plan_items:
+                report_lines.extend([
+                    "_Key levels at a glance (see the structured action plan above for the executable playbook)._",
+                    "",
+                ])
             # 狙击点位
             sniper = battle.get('sniper_points', {})
             if sniper:
+                report_lines.append(f"**📍 {labels['action_points_heading']}**")
+                report_lines.append("")
+                if core.get('recommended_strategy') == 'wait_and_see':
+                    report_lines.append(labels.get('action_points_wait_notice', ''))
+                    report_lines.append("")
                 report_lines.extend([
-                    f"**📍 {labels['action_points_heading']}**",
-                    "",
-                    f"| {labels['action_points_heading']} | {labels['current_price_label']} |",
+                    f"| {labels['action_points_heading']} | {labels['trigger_price_label']} |",
                     "|---------|------|",
                     f"| 🎯 {labels['ideal_buy_label']} | {self._clean_sniper_value(sniper.get('ideal_buy', 'N/A'))} |",
                     f"| 🔵 {labels['secondary_buy_label']} | {self._clean_sniper_value(sniper.get('secondary_buy', 'N/A'))} |",
@@ -759,9 +1187,18 @@ class HistoryService:
             # 仓位策略
             position = battle.get('position_strategy', {})
             if position:
+                # When the user is already a holder, "建仓策略" is awkward — rename to
+                # "调仓策略" so the entry-strategy text reads as position adjustment.
+                entry_label = labels['entry_plan_label']
+                if (
+                    getattr(result, "portfolio_match", None) == "held"
+                    and report_language != "en"
+                    and entry_label == "建仓策略"
+                ):
+                    entry_label = "调仓策略"
                 report_lines.extend([
                     f"**💰 {labels['suggested_position_label']}**: {position.get('suggested_position', 'N/A')}",
-                    f"- {labels['entry_plan_label']}: {position.get('entry_plan', 'N/A')}",
+                    f"- {entry_label}: {position.get('entry_plan', 'N/A')}",
                     f"- {labels['risk_control_label']}: {position.get('risk_control', 'N/A')}",
                     "",
                 ])
@@ -808,6 +1245,16 @@ class HistoryService:
                     f"{result.news_summary}",
                     "",
                 ])
+
+        # ========== Sprint 1A: Investment Committee Minutes ==========
+        committee_data = dashboard.get("committee") if dashboard else None
+        if committee_data:
+            try:
+                report_lines.extend(
+                    _render_committee_minutes(committee_data, labels, report_language)
+                )
+            except Exception as exc:
+                logger.warning("[committee] render failed in history report: %s", exc)
 
         # ========== 底部 ==========
         report_lines.extend([

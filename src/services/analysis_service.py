@@ -10,6 +10,7 @@
 3. 保存分析结果到数据库
 """
 
+import json
 import logging
 import uuid
 from typing import Optional, Dict, Any, Callable
@@ -47,22 +48,29 @@ class AnalysisService:
         send_notification: bool = True,
         progress_callback: Optional[Callable[[int, str], None]] = None,
         portfolio_context_block: Optional[str] = None,
+        portfolio_match: Optional[str] = None,
+        portfolio_account_id: Optional[int] = None,
+        enable_investment_committee: bool = False,
+        committee_debate_rounds: int = 2,
     ) -> Optional[Dict[str, Any]]:
         """
         执行股票分析
-        
+
         Args:
             stock_code: 股票代码
             report_type: 报告类型 (simple/detailed)
             force_refresh: 是否强制刷新
             query_id: 查询 ID（可选）
             send_notification: 是否发送通知（API 触发默认发送）
-            
+            enable_investment_committee: 是否启用投委会多智能体补全流程
+                （Sprint 1A opt-in；默认关闭，对默认链路零影响）
+            committee_debate_rounds: 投委会 Bull/Bear 辩论轮数，1~3，默认 2
+
         Returns:
             分析结果字典，包含:
             - stock_code: 股票代码
             - stock_name: 股票名称
-            - report: 分析报告
+            - report: 分析报告（opt-in 时含 ``report["committee"]`` 字段）
         """
         try:
             self.last_error = None
@@ -70,14 +78,42 @@ class AnalysisService:
             from src.config import get_config
             from src.core.pipeline import StockAnalysisPipeline
             from src.enums import ReportType
-            
+
+            # P0.3: 同日同股 24h 报告缓存。默认开启（ANALYSIS_CACHE_HOURS=24），
+            # 同一只股 24h 内重复点「分析」不再烧 LLM 配额，直接返回缓存报告。
+            # force_refresh=True 或 ANALYSIS_CACHE_HOURS=0 时绕过。
+            if not force_refresh:
+                cached = self._lookup_recent_cache_response(stock_code, report_type)
+                if cached is not None:
+                    return cached
+
+            # 如果通过 task_queue 异步路径传来 portfolio_account_id 而没有 block，自动构建
+            if portfolio_account_id is not None and portfolio_context_block is None:
+                try:
+                    from src.report_language import normalize_report_language
+                    from src.services.portfolio_context_service import (
+                        PortfolioContextService,
+                        render_portfolio_context_block,
+                    )
+                    _ctx = PortfolioContextService().get_context(
+                        account_id=portfolio_account_id, symbol=stock_code
+                    )
+                    if _ctx is not None:
+                        _lang = normalize_report_language(
+                            getattr(get_config(), "report_language", "zh")
+                        )
+                        portfolio_context_block = render_portfolio_context_block(_ctx, language=_lang)
+                        portfolio_match = "held" if _ctx.is_held else "not_held"
+                except Exception as _exc:
+                    logger.warning("portfolio_account_id 上下文构建失败: %s", _exc)
+
             # 生成 query_id
             if query_id is None:
                 query_id = uuid.uuid4().hex
-            
+
             # 获取配置
             config = get_config()
-            
+
             # 创建分析流水线
             pipeline = StockAnalysisPipeline(
                 config=config,
@@ -85,6 +121,7 @@ class AnalysisService:
                 query_source="api",
                 progress_callback=progress_callback,
                 portfolio_context_block=portfolio_context_block,
+                portfolio_match=portfolio_match,
             )
             
             # 确定报告类型 (API: simple/detailed/full/brief -> ReportType)
@@ -107,15 +144,145 @@ class AnalysisService:
                 self.last_error = getattr(result, "error_message", None) or f"分析股票 {stock_code} 失败"
                 logger.warning(f"分析股票 {stock_code} 未成功完成: {self.last_error}")
                 return None
-            
+
             # 构建响应
-            return self._build_analysis_response(result, query_id, report_type=rt.value)
+            response = self._build_analysis_response(result, query_id, report_type=rt.value)
+
+            # Sprint 1A: Investment Committee hook.
+            # We attach committee minutes to ``response["report"]["committee"]``
+            # AFTER the default analysis has succeeded.  This runs identically
+            # for both the standard pipeline path and the ``_analyze_with_agent``
+            # bypass path because both converge here.  Default analysis is
+            # untouched when ``enable_investment_committee=False``.
+            if enable_investment_committee and response is not None:
+                try:
+                    committee_payload = self._invoke_committee(
+                        stock_code=stock_code,
+                        result=result,
+                        response=response,
+                        debate_rounds=committee_debate_rounds,
+                    )
+                    if committee_payload is not None:
+                        response.setdefault("report", {})["committee"] = committee_payload
+                        # Also expose on the result.dashboard so the standard
+                        # renderers (notification + history) can pick it up
+                        # via the same path other dashboard sub-sections use.
+                        dash = getattr(result, "dashboard", None)
+                        if isinstance(dash, dict):
+                            dash["committee"] = committee_payload
+                        # Locked decision #4: persist minutes alongside the
+                        # full report so the history page + Sprint 2
+                        # reflection can read them back.  Best-effort —
+                        # persistence failure does NOT kill the response.
+                        try:
+                            self.repo.update_committee_minutes(query_id, committee_payload)
+                        except Exception as p_exc:
+                            logger.warning(
+                                "[analyze_stock] committee persist failed: %s", p_exc,
+                            )
+                except Exception as exc:
+                    # Committee failure must NEVER kill the default report.
+                    logger.warning(
+                        "[analyze_stock] investment committee hook failed for %s: %s",
+                        stock_code, exc, exc_info=True,
+                    )
+
+            return response
             
         except Exception as e:
             self.last_error = str(e)
             logger.error(f"分析股票 {stock_code} 失败: {e}", exc_info=True)
             return None
     
+    def _invoke_committee(
+        self,
+        *,
+        stock_code: str,
+        result: Any,
+        response: Dict[str, Any],
+        debate_rounds: int,
+    ) -> Optional[Dict[str, Any]]:
+        """Run the Investment Committee pipeline and return the minutes dict.
+
+        Returns ``None`` if the committee was skipped (e.g. LLM not configured).
+        Errors from the committee are NEVER allowed to propagate — callers
+        catch broad exceptions; this helper logs and returns None on hard
+        failure paths.
+        """
+        # Local import keeps the cold-start path cheap when the feature is
+        # not opted in.
+        from src.agent.budget import (
+            LLMCallBudget,
+            compute_effective_cap,
+            resolve_timeout_s,
+        )
+        from src.agent.llm_adapter import LLMToolAdapter
+        from src.agent.orchestrator_committee import InvestmentCommitteeOrchestrator
+        from src.agent.protocols import AgentContext
+        from src.config import get_config
+        from data_provider.akshare_fetcher import is_hk_stock_code
+        from data_provider.base import normalize_stock_code
+        from data_provider.us_index_mapping import is_us_stock_code
+
+        cap = compute_effective_cap(debate_rounds)
+        budget = LLMCallBudget(cap=cap)
+
+        config = get_config()
+        try:
+            adapter = LLMToolAdapter(config=config)
+        except Exception as exc:
+            logger.warning("[committee] LLMToolAdapter init failed: %s", exc)
+            return None
+        if not getattr(adapter, "_litellm_available", False):
+            logger.info("[committee] LLM unavailable — skipping committee for %s", stock_code)
+            return None
+
+        def _llm_call(system_prompt: str, user_message: str) -> str:
+            try:
+                resp = adapter.call_text(
+                    [
+                        {"role": "system", "content": system_prompt},
+                        {"role": "user", "content": user_message},
+                    ],
+                    timeout=resolve_timeout_s(),
+                )
+            except Exception as exc:
+                logger.warning("[committee] LLM call_text failed: %s", exc)
+                # Return a sentinel string so the orchestrator's strict parse
+                # treats it as a schema failure rather than a Python exception.
+                return f"<<llm_call_failed: {exc}>>"
+            content = resp.content if hasattr(resp, "content") else None
+            return content or "<<empty_llm_response>>"
+
+        normalised = normalize_stock_code(stock_code)
+        if is_hk_stock_code(normalised):
+            market = "HK"
+        elif is_us_stock_code(normalised):
+            market = "US"
+        else:
+            market = "A"
+        stock_name = response.get("stock_name") or getattr(result, "name", None) or ""
+        ctx = AgentContext(
+            stock_code=stock_code,
+            stock_name=stock_name,
+            meta={"market": market},
+        )
+
+        # The orchestrator sees the structured response report — keeps it
+        # focused on what the LLM needs and avoids pulling raw fetcher
+        # internals into the prompt.
+        report_for_committee = response.get("report") or {}
+
+        orchestrator = InvestmentCommitteeOrchestrator(
+            ctx,
+            report_json=report_for_committee,
+            budget=budget,
+            llm_callable=_llm_call,
+            debate_rounds=debate_rounds,
+        )
+        run_result = orchestrator.run()
+        return run_result.minutes.model_dump()
+
     def _build_analysis_response(
         self, 
         result: Any, 
@@ -175,9 +342,95 @@ class AnalysisService:
                 "risk_warning": result.risk_warning,
             }
         }
-        
+
+        # Expose dashboard for frontend structured rendering (action_plan_items, etc.)
+        dashboard_raw = getattr(result, "dashboard", None) or {}
+        report["dashboard"] = dashboard_raw
+
         return {
             "stock_code": result.code,
             "stock_name": stock_name,
             "report": report,
         }
+
+    def _lookup_recent_cache_response(
+        self, stock_code: str, report_type: str
+    ) -> Optional[Dict[str, Any]]:
+        """Return a cached `_build_analysis_response` payload for the same stock
+        analyzed within the last ``ANALYSIS_CACHE_HOURS`` window.
+
+        Returns None when caching is disabled, no recent record exists, or any
+        step fails — caller falls through to a fresh pipeline run in that case.
+        """
+        import os
+        from datetime import datetime
+
+        try:
+            cache_hours_raw = os.getenv("ANALYSIS_CACHE_HOURS", "24").strip()
+            cache_hours = float(cache_hours_raw) if cache_hours_raw else 0.0
+        except ValueError:
+            cache_hours = 0.0
+        if cache_hours <= 0:
+            return None
+
+        try:
+            recent_records = self.repo.get_list(code=stock_code, days=1, limit=1)
+        except Exception as exc:
+            logger.debug("[analyze_stock] cache lookup repo error: %s", exc)
+            return None
+        if not recent_records:
+            return None
+
+        rec = recent_records[0]
+        raw_payload = getattr(rec, "raw_result", None)
+        if not raw_payload:
+            return None
+        created_at = getattr(rec, "created_at", None)
+        if created_at is None:
+            return None
+        age_seconds = (datetime.now() - created_at).total_seconds()
+        if age_seconds < 0 or age_seconds > cache_hours * 3600.0:
+            return None
+
+        try:
+            from src.analyzer import AnalysisResult
+            from dataclasses import fields as dc_fields
+            payload: Dict[str, Any]
+            if isinstance(raw_payload, str):
+                payload = json.loads(raw_payload)
+            elif isinstance(raw_payload, dict):
+                payload = raw_payload
+            else:
+                return None
+            if not payload.get("success", True):
+                return None  # do not cache failed analyses
+            valid_keys = {f.name for f in dc_fields(AnalysisResult)}
+            ctor_kwargs = {k: v for k, v in payload.items() if k in valid_keys}
+            # `code` and `name` are required positional fields of the dataclass
+            if "code" not in ctor_kwargs:
+                ctor_kwargs["code"] = stock_code
+            if "name" not in ctor_kwargs:
+                ctor_kwargs["name"] = getattr(rec, "stock_name", None) or stock_code
+            # required-ish fields must be present even if upstream omitted
+            for required in ("sentiment_score", "trend_prediction", "operation_advice"):
+                ctor_kwargs.setdefault(required, payload.get(required, 0 if required == "sentiment_score" else ""))
+            result = AnalysisResult(**ctor_kwargs)
+        except Exception as exc:
+            logger.info(
+                "[analyze_stock] cache reconstruction failed for %s (%s); will run live",
+                stock_code, exc,
+            )
+            return None
+
+        response = self._build_analysis_response(
+            result, getattr(rec, "query_id", None) or stock_code, report_type=report_type
+        )
+        meta = response.setdefault("report", {}).setdefault("meta", {})
+        meta["cached"] = True
+        meta["cached_at"] = created_at.isoformat()
+        meta["cache_age_seconds"] = int(age_seconds)
+        logger.info(
+            "[analyze_stock] cache HIT for %s (age=%ds, limit=%.1fh) — skipping LLM call",
+            stock_code, int(age_seconds), cache_hours,
+        )
+        return response

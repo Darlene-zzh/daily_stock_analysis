@@ -1366,3 +1366,51 @@ AGENT_EVENT_ALERT_RULES_JSON=[{"stock_code":"600519","alert_type":"price_cross",
 - Agent 可通过 `get_portfolio_snapshot` 获取面向账户的紧凑持仓摘要，默认包含精简风险块，适合控制 Token 开销。
 - 可选参数包括 `account_id`、`cost_method`、`as_of`、`include_positions`、`include_risk`。
 - 若风险块生成失败，快照仍会返回；若当前环境未启用持仓模块，工具会返回结构化 `not_supported`。
+
+## 投委会模式（API 预览）
+
+Sprint 1A 起，后端新增多智能体「投资委员会」流程：在常规 LLM 报告之后，可选触发 Bull/Bear 辩论 + 4 大师视角（Buffett / Burry / Cathie Wood / Taleb）+ Risk Manager + Portfolio Manager 综合决策，并将「投委会会议纪要」段落追加进报告。
+
+**默认关闭**，对默认链路与现有响应零影响；Web UI 入口将在 Sprint 1B 落地。
+
+### API 触发
+
+`POST /api/v1/analysis/analyze` 请求体新增两个字段：
+
+```jsonc
+{
+  "stock_code": "600519",
+  "report_type": "detailed",
+  "async_mode": false,
+  "enable_investment_committee": true,   // 默认 false，opt-in 启用投委会
+  "committee_debate_rounds": 2            // 1 / 2 / 3，默认 2
+}
+```
+
+返回的 `report.committee` 字段含 PM 决议（`pm_verdict` / `pm_score` / `pm_rationale` / `pm_dissents`）、`debate` 时间线、4 个 `masters` 的视角条目、`risk` 评估、`missing_agents` 与 `budget_used / budget_cap` 等元数据。
+
+### 调用成本与预算
+
+- LLM 调用上限按辩论轮数自动计算：`cap = base + 2 * (rounds - 1)`，以默认 `INVESTMENT_COMMITTEE_BUDGET_BASE=12` 为例：1/2/3 轮分别为 10/12/14 次调用。
+- 单次运行 wall-clock 超时由 `INVESTMENT_COMMITTEE_TIMEOUT_S`（默认 90 秒）控制；超时会跳过未完成节点并降级为 `status="partial"`。
+- 任一大师 LLM JSON 失败 → 严格解析失败后自动一次重试（带 schema 示例），若仍失败则记为 `status="failed"`，PM 仍可以基于剩余节点出结论。
+- 任一节点 wall-clock 卡住 → 后续节点跳过，缺席节点登记进 `missing_agents`，PM 在 `pm_rationale` 中明确说明缺口。
+
+### 段落语义
+
+报告渲染层的「📋 投委会会议纪要」section（中文 / English 由 `report_language` 决定）顺序：
+
+1. **状态横幅**：`status='ok'` 时省略；`partial` 显示「缺席 N 个 agent」；`failed` 显示「未达成结论」并隐藏决议卡片。
+2. **PM 决议卡片**：含 `pm_verdict` / `pm_score` / `pm_rationale` / `pm_dissents`。
+3. **风险条**：severity（none/soft/hard）+ red_flags + suggested_position_pct + veto。
+4. **辩论时间线**：每轮一行 `Round N — Bull: ...; Bear: ...`。
+5. **大师视角网格**：每条 lens 一行（`Buffett-inspired value lens（巴菲特式价值视角）` 等），含 verdict / score / 一句话 headline / `_(缺席)_` badge。
+6. **LLM 调用预算脚注**：`budget_used / budget_cap`。
+
+`history` 渲染器与 push 通知渲染器输出相同结构（共享同一份 `_render_committee_minutes` 实现），并把会议纪要回写进 `raw_result.dashboard.committee` 以便 Sprint 2 复盘。
+
+### 风险与回滚
+
+- 投委会失败 / 异常 NEVER 中断默认分析；hook 用 try/except 包住整段流程，记录 warning 后照常返回原报告。
+- 关闭方式：调用方传 `enable_investment_committee=false`（默认值），或不传该字段。永久关闭可移除 `langgraph` 依赖；Sprint 1A 改动均为 additive，`git revert` 安全。
+- 显式说明 prompt 风格：所有大师视角均使用「分析师以 X-inspired lens 分析」措辞（spec §7），**禁止**第一人称冒充真实人物。

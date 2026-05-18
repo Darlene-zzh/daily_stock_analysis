@@ -22,7 +22,7 @@ import logging
 import re
 from datetime import datetime
 from pathlib import Path
-from typing import Optional, Union, Dict, Any
+from typing import Optional, Tuple, Union, Dict, Any
 
 from fastapi import APIRouter, HTTPException, Depends, Query, Body
 from fastapi.responses import JSONResponse, StreamingResponse
@@ -89,16 +89,19 @@ def _market_review_lock_path(config: Config) -> Path:
 
 def _build_portfolio_context_block(
     *, stock_code: str, account_id: Optional[int]
-) -> Optional[str]:
-    """Translate ``portfolio_account_id`` from the request into a prompt block.
+) -> Tuple[Optional[str], Optional[str]]:
+    """Translate ``portfolio_account_id`` from the request into a prompt block + match state.
 
-    Returns ``None`` when no account is requested or the requested account / symbol
+    Returns ``(None, None)`` when no account is requested or the requested account / symbol
     combination yields no context (unknown account, never-traded symbol). Errors
     while building the block are swallowed with a warning — the analysis must
     still succeed even if portfolio enrichment fails.
+
+    When successful, the second tuple element is "held" or "not_held" so the
+    renderer can filter the position-advice table to the relevant row.
     """
     if account_id is None:
-        return None
+        return None, None
     try:
         from src.report_language import normalize_report_language
         from src.services.portfolio_context_service import (
@@ -107,7 +110,7 @@ def _build_portfolio_context_block(
         )
     except Exception as exc:  # pragma: no cover - defensive import path
         logger.warning("Failed to load portfolio context service: %s", exc)
-        return None
+        return None, None
     try:
         result = PortfolioContextService().get_context(
             account_id=int(account_id), symbol=stock_code
@@ -117,15 +120,17 @@ def _build_portfolio_context_block(
             "Portfolio context lookup failed for account=%s symbol=%s: %s",
             account_id, stock_code, exc,
         )
-        return None
+        return None, None
     if result is None:
-        return None
+        return None, None
     try:
         runtime_config = get_config()
     except Exception:  # pragma: no cover - defensive
         runtime_config = None
     language = normalize_report_language(getattr(runtime_config, "report_language", "zh"))
-    return render_portfolio_context_block(result, language=language)
+    block = render_portfolio_context_block(result, language=language)
+    match = "held" if result.is_held else "not_held"
+    return block, match
 
 
 def _compute_market_review_override_region(config: Config) -> Optional[str]:
@@ -369,6 +374,9 @@ def _handle_async_analysis_batch(
         report_type=request.report_type,
         force_refresh=request.force_refresh,
         notify=notify,
+        portfolio_account_id=getattr(request, "portfolio_account_id", None),
+        enable_investment_committee=getattr(request, "enable_investment_committee", False),
+        committee_debate_rounds=getattr(request, "committee_debate_rounds", 2),
     )
 
     accepted_tasks, duplicate_errors = task_queue.submit_tasks_batch(**submit_kwargs)
@@ -445,7 +453,7 @@ def _handle_sync_analysis(
     
     try:
         service = AnalysisService()
-        portfolio_context_block = _build_portfolio_context_block(
+        portfolio_context_block, portfolio_match = _build_portfolio_context_block(
             stock_code=stock_code,
             account_id=getattr(request, "portfolio_account_id", None),
         )
@@ -456,6 +464,9 @@ def _handle_sync_analysis(
             query_id=query_id,
             send_notification=getattr(request, "notify", True),
             portfolio_context_block=portfolio_context_block,
+            portfolio_match=portfolio_match,
+            enable_investment_committee=getattr(request, "enable_investment_committee", False),
+            committee_debate_rounds=getattr(request, "committee_debate_rounds", 2),
         )
 
         if result is None:
@@ -822,7 +833,17 @@ def get_analysis_status(task_id: str) -> TaskStatus:
                 if change_pct is None:
                     change_pct = realtime_quote_raw.get('pct_chg')
 
-            # Build report from DB record so completed tasks return real data
+            # Build report from DB record so completed tasks return real data.
+            # Surface the raw dashboard dict so structured fields (action_plan_items,
+            # core_conclusion, etc.) survive the in-memory→DB fallback. Without this,
+            # any task polled after a server restart loses the 持仓操作计划 region
+            # on the frontend even though it's persisted in raw_result.
+            dashboard_data = None
+            if isinstance(raw_result, dict):
+                dash = raw_result.get("dashboard")
+                if isinstance(dash, dict):
+                    dashboard_data = dash
+
             report_dict = AnalysisReport(
                 meta=ReportMeta(
                     id=record.id,
@@ -848,6 +869,7 @@ def get_analysis_status(task_id: str) -> TaskStatus:
                     stop_loss=_stringify_report_strategy_value(getattr(record, 'stop_loss', None)),
                     take_profit=_stringify_report_strategy_value(getattr(record, 'take_profit', None)),
                 ),
+                dashboard=dashboard_data,
             ).model_dump()
             return TaskStatus(
                 task_id=task_id,
@@ -1013,9 +1035,17 @@ def _build_analysis_report(
             sector_rankings=extracted_boards.get("sector_rankings"),
         )
 
+    # Surface dashboard so action_plan_items and other structured fields flow through
+    # to the frontend. Without this, sync analyze responses lose 持仓操作计划 even
+    # though the data exists upstream.
+    dashboard_payload = report_data.get("dashboard")
+    if not isinstance(dashboard_payload, dict):
+        dashboard_payload = None
+
     return AnalysisReport(
         meta=meta,
         summary=summary,
         strategy=strategy,
-        details=details
+        details=details,
+        dashboard=dashboard_payload,
     )

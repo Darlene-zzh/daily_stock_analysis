@@ -74,7 +74,7 @@ class TaskInfo:
     
     def to_dict(self) -> Dict[str, Any]:
         """Convert task info into an API-friendly dictionary."""
-        return {
+        payload: Dict[str, Any] = {
             "task_id": self.task_id,
             "stock_code": self.stock_code,
             "stock_name": self.stock_name,
@@ -89,6 +89,14 @@ class TaskInfo:
             "original_query": self.original_query,
             "selection_source": self.selection_source,
         }
+        # Expose the analysis result on completed tasks so the SSE consumer can
+        # auto-navigate the report panel to the just-finished analysis — both
+        # for fresh runs AND for cache-hit short-circuits (the latter carry
+        # `report.meta.cached=true` for the "今日已分析过" banner).
+        # Skipping this for non-terminal states keeps SSE payloads small.
+        if self.status == TaskStatus.COMPLETED and isinstance(self.result, dict):
+            payload["result"] = self.result
+        return payload
     
     def copy(self) -> 'TaskInfo':
         """Create a shallow copy of the task information."""
@@ -343,6 +351,9 @@ class AnalysisTaskQueue:
         report_type: str = "detailed",
         force_refresh: bool = False,
         notify: bool = True,
+        portfolio_account_id: Optional[int] = None,
+        enable_investment_committee: bool = False,
+        committee_debate_rounds: int = 2,
     ) -> Tuple[List[TaskInfo], List[DuplicateTaskError]]:
         """
         Submit analysis tasks in batch.
@@ -391,6 +402,9 @@ class AnalysisTaskQueue:
                         report_type,
                         force_refresh,
                         notify,
+                        portfolio_account_id,
+                        enable_investment_committee,
+                        committee_debate_rounds,
                     )
                 except Exception:
                     # Roll back the current batch to avoid partial submission.
@@ -570,6 +584,9 @@ class AnalysisTaskQueue:
         report_type: str,
         force_refresh: bool,
         notify: bool = True,
+        portfolio_account_id: Optional[int] = None,
+        enable_investment_committee: bool = False,
+        committee_debate_rounds: int = 2,
     ) -> Optional[Dict[str, Any]]:
         """
         执行分析任务（在线程池中运行）
@@ -612,6 +629,9 @@ class AnalysisTaskQueue:
                 query_id=task_id,
                 send_notification=notify,
                 progress_callback=_on_progress,
+                portfolio_account_id=portfolio_account_id,
+                enable_investment_committee=enable_investment_committee,
+                committee_debate_rounds=committee_debate_rounds,
             )
             
             if result:

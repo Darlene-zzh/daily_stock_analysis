@@ -50,6 +50,29 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 - [新功能] 新增 macOS LaunchAgent 自动后台运行脚本（`scripts/launchd/install-webui.sh` / `uninstall-webui.sh` + `com.dsa.webui.plist.template`），把 `python main.py --webui-only` 注册为登录自启动、崩溃自动重启的常驻服务，日志写入 `~/Library/Logs/dsa-webui.{log,err.log}`；`docs/full-guide.md` 同步补 macOS 后台常驻使用说明。
 - [改进] Trading 212 `Card debit` 行改为现金账本流出事件（direction=out，取 `abs(Total)`），让账本与 Trading 212 自身现金口径一致；同时为 LSE 上市 UCITS ETF（如 EQGB / VUAG）补 `.L` 后缀的实时行情回退路径，遇到 pence 报价（>1000 GBP/股）自动按 ÷100 归一为 GBP。
 - [chore] 把 `webui.log` 加进 `.gitignore`，避免 `python main.py --webui-only` 的运行时日志被 git status 跟踪。
+- [新功能] 持仓上下文分析新增结构化 `action_plan_items` 操作计划区块，含触发价/股数/双仓位百分比/技术-基本面-量化三维依据/失效条件，前端新增 `ActionPlanTable` 卡片。
+- [新功能] Agent 路径同步打通持仓上下文注入，并新增 `_try_inject_action_plan_items` 聚焦 LLM 调用 + 基于成本价的兜底合成（持仓成本价上方才允许止盈），三层防御保证 mini 模型漏填时区块仍可见。
+- [改进] 报告 `一句话决策` 不再被多 agent 编排器二次截断；`作战计划` 在持仓者场景使用「调仓策略」label；操作点位表表头改为「触发价」。
+- [改进] 搜索后端 SearXNG 自建实例与公共池可同时注册（之前互斥），fallback chain 顺序 `Tavily → 自建 SearXNG → 公共 SearXNG`，Tavily 月度配额耗尽时无缝兜底。
+- [测试] 新增 60+ 用例覆盖 action_plan_items 渲染、prompt 注入、agent 路径打通、合成兜底、cost-basis 守门、LLM 解析及 SearXNG 双 provider 注册。
+- [修复] `ActionPlanItemSchema.shares` 由 `Optional[int]` 改为 `Optional[float]`，避免 Pydantic 将分数股（如 Trading 212 的 0.7597 股）静默 truncate 为 0 导致整张操作计划在 API 响应里消失。
+- [修复] `stop_loss` 触发价高于成本价 1.02× 时由 LLM 后处理和 synthesis 兜底统一改写为 `sell` 方向（防守性减仓而非止损），口诀「take_profit 必在成本上方，stop_loss 必在成本下方」同步进 LLM prompt。
+- [修复] action_plan_items 在 cost-basis 过滤后重新编号 `priority` 为连续 1..N，避免 UI 显示 `优先级 1 / 优先级 3` 中间出现跳号。
+- [修复] 异步任务轮询的 DB 兜底分支（服务重启后）和同步 analyze 响应均补传 `dashboard`，否则前端 `持仓操作计划` 区块在这两条路径下静默消失。
+- [改进] 前端 `ActionPlanTable` 增加 `triggerPrice` / `shares` 的 null-safety；`pctOfEquity` 渲染条件由 `?` 改为 `!= null` 以保留 0% 值；分数股自动按 4 位小数格式化。
+- [新功能] 每只股票分析新增「📌 策略选择」section：LLM 从 4 个固定策略（长线持有/短线波段/阶梯式止盈/暂不操作）中按当前持仓状态、技术结构、市场情绪选择推荐策略并写出 100-200 字论述，`action_plan_items` 严格遵循推荐策略的模板（如阶梯式止盈禁止 buy、长线持有强制含 cost × 0.9 真止损）。适用于所有股票（A/HK/US，带或不带持仓）。
+- [新功能] 报告底部新增「📊 仓位流水汇总」卡片：基于 action_plan_items 计算执行后剩余仓位、最差/最好情况金额、风险回报比 (R:R)。
+- [新功能] 市场情绪 5 源接入：修复 Adanos Reddit endpoint path bug (`/stock/{ticker}`，不再 404)；新增 Adanos `/news/stocks/v1/stock/{ticker}` 维度；新增 StockTwits 免费公开 API（无 key、5 分钟缓存）。dashboard 新增 `intelligence.sentiment_dimensions` 结构化字段 + 前端「📱 市场情绪」专用面板。
+- [改进] post-process 守门规则升级：strategy template 白/黑名单（stepped 禁 buy / wait_and_see ≤1 item）；long_term 缺真止损时自动追加 cost × 0.9；优先级 filter 后 1..N 连续编号。
+- [改进] `_try_inject_action_plan_items` 对所有股票分析触发（去掉 portfolio-context 门控），未持有场景下 cost-based 规则降级为现价相对规则。
+- [测试] 新增 6 个测试文件 / 30+ 用例覆盖 schema / prompt 构造 / strategy template 强制 / position outcome 计算 / sentiment 多源整合。
+- [修复] StockTwits service 实际写入后再没有被 `get_social_context` 调用，导致 `sentiment_dimensions.stocktwits` 始终为空；补 lazy import + fetch + `_build_sentiment_dimensions` 5 维输出。
+- [修复] `_try_inject_action_plan_items` 解析后新增 `_sanitize_strategy_choices` post-process：LLM 漏填 `id` 时按位置恢复（4 entry 模板下映射 0→long_term_hold..3→wait_and_see）、漏填 `label_zh`/`emoji` 时从 canonical map 回填、推荐策略强制 `applicable=True`、按 id 去重、完全空的 entry 丢弃。
+- [修复] 前端 `StrategySelector` 用 `key={c.id}` 在 LLM 漏填 id 时多张卡共享 `key=undefined`，切换股票时旧卡片累积——改为 `key={c.id || \`__strategy_${idx}__\`}` + 先 `.filter()` 过滤完全空 entry。label 缺失时整张卡片标题行隐藏，避免显示「📌 null」。
+- [新功能] 后端投委会 multi-agent pipeline（Bull/Bear 辩论 + 4 大师视角 + Risk/PM）API opt-in，默认关闭。
+- [新功能] 报告新增「投委会会议纪要」段落，opt-in 时通过 `enable_investment_committee=true` 触发；同步进 history DB raw_result 便于 Sprint 2 复盘。
+- [改进] 异步任务参数链路新增 `enable_investment_committee` / `committee_debate_rounds` 透传（API → task_queue → analysis_service）。
+- [chore] 新增依赖 `langgraph==0.4.8`（最小集，未引入 langchain-openai / -anthropic 等 provider 适配，复用既有 `LLMToolAdapter`）。
 
 ## [3.16.0] - 2026-05-10
 
@@ -166,6 +189,28 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [3.14.1] - 2026-04-26
 - [测试] 修正大盘复盘 prompt 测试对“明日交易计划”标题的断言，并同步桌面端版本号，恢复发布 gate。
+- [修复] `_try_inject_action_plan_items` 在 LLM 已填 `recommended_strategy` + `action_plan_items` 时不再直接 return，改为**总是**对 LLM 输出跑 sanitization + strategy_choices 整理；Gemini 2.5 Flash 等模型经常给出 `wait_and_see` + `stop_loss` 这类策略不一致的组合，老逻辑让脏数据直接落库。
+- [修复] `position_outcome_summary` 改由 `_compute_position_outcome_summary` 从 sanitized `action_plan_items` 重算，不再信任 LLM 自报；Gemini 2.5 Flash 之前在 MSFT 上回报过 -£2394 这种与真实持仓不符的 worst-case 数字。
+- [修复] `_STRATEGY_MAX_ITEMS["wait_and_see"]` 由 1 收紧到 0，使「暂不操作」推荐时 action_plan_items 真正为空（之前 1 表示允许保留一条，常导致 LLM 给出的 stop_loss 溜过去）。
+- [修复] `_compute_position_outcome_summary` 当 `shares=0` 但 `pct_of_position>0` 时按 `pct × holding_shares` 推导股数（并对超过 100% 的离谱比例做上限钳制），避免 LLM 漏填 shares 导致计算空跑；items 为空或全部被过滤时返回 None，UI 隐藏卡片。
+- [修复] 当 `recommended_strategy === "wait_and_see"` 时，前端「狙击点位」卡片和后端两套 Markdown 渲染（`src/notification.py` + `src/services/history_service.py`）追加「点位仅供参考，不建议据此入场」提示并把价位灰化，避免与「暂不操作」建议直接打架。
+- [测试] 新增 `tests/test_action_plan_enforcer_always_sanitize.py`：8 个用例覆盖 enforcer 始终 sanitize、bogus outcome 被重算、wait_and_see=0 上限、shares 从 pct 推导、超 100% 钳制、空 items 隐藏 outcome 卡。
+- [新功能] 同一只股 24h 内重复分析直接返回缓存报告，不再烧 LLM 配额；`ANALYSIS_CACHE_HOURS`（默认 24，设为 0 关闭）控制窗口，`force_refresh=true` 单次绕过。
+- [改进] `PortfolioContextService.get_context` 现在用进程内 TTL 缓存（key=account+date+cost_method，默认 600s）包住 `get_portfolio_snapshot`；连续分析多只股时第 2/3/... 只不再重复刷新整账户实时价，单次分析耗时从 ~16min 下降到 ~1min。`PORTFOLIO_SNAPSHOT_TTL_SECONDS=0` 关闭。
+- [改进] 前端错误提示新增 `upstream_rate_limit` 分类，Gemini/OpenAI 等的 429 响应不再以原始 `litellm.RateLimitError` 栈丢给用户，而是显示「今日免费额度已用完（gemini）」或「请求被上游限流，约 N 秒后可重试」；自动识别 daily quota / per-minute throttle 两种场景。
+- [新功能] 首页空状态区新增「持仓热点图 Treemap」：色块大小 = 仓位市值、颜色 = 浮盈百分比（红-灰-绿渐变），点击直接进入该股分析。复用 recharts，无新增依赖。
+- [测试] 新增 6 个 `_lookup_recent_cache_response` 用例 + 5 个 portfolio snapshot TTL 缓存用例（HIT / MISS / 跨账户 / TTL=0 / 手动清理 / 非法 env 值）。
+- [测试] `tests/test_portfolio_context_service.py` setUp 现在清理 snapshot TTL 缓存，避免跨测试缓存污染。
+- [修复] `recommended_strategy=stepped_profit_taking` 且 LLM 没产出具体止盈分级时，sanitizer 自动合成 3 档止盈阶梯（cost ×1.05 / ×1.12 / ×1.20，仓位分配 30/40/30），与现有的成本基础硬止损共存；Gemini 2.5 Flash 经常把策略论述写在 `strategy_thesis` 里却忘了写 `action_plan_items`，老逻辑就会让前端「AI 推荐分批止盈」下面什么具体价位都没有。
+- [文档] `.env.example` 新增 Cerebras 免费层渠道配置示例（60K TPM / ~1700 RPD，与 Gemini 完全独立桶），可作为撞日上限后的 zero-cost fallback。
+- [修复] Agent 模式 LiteLLM Router 现在带 fallback chain（之前只传了 `num_retries=2`，撞 429 时只重试同一个已限流的 deployment，导致 agent loop 跑满 max_steps 直接放弃；新逻辑把 `LITELLM_FALLBACK_MODELS` 拍平成 LiteLLM Router 的 `fallbacks=` 入参，撞限自动跳到下一家 provider）。
+- [修复] Agent loop 撞 `max_steps` 没产出 tool-free 终止消息时，从历史中捞最近一条带 content 的 assistant 消息作为 final answer（之前直接 success=False；新逻辑只在历史里完全没文本时才彻底失败）。这彻底修了非 Gemini fallback model（Cerebras Qwen / OpenRouter DeepSeek 等）走 OpenAI-compat 后 tool-call 收口形态跟 Gemini 不一致导致的 "Agent loop did not produce a final answer"。
+- [修复] `_try_inject_zh_translations` 现在按字段检查原始内容是否已是中文（CJK 字符占比 ≥30%），是的话直接镜像到 `_zh` 槽不再调 LLM——Gemini 撞配额后 fallback 到中文母语模型（Qwen3-235B / DeepSeek-V4）会让基础字段已经是中文，老逻辑会 Chinese→Chinese 再翻译一遍，产生两份措辞不一样的复读。
+- [测试] 新增 14 个用例：3 个 agent salvage 用例 + 11 个 Chinese 检测 / 翻译 gate 用例。
+- [新功能] 首页新增「持仓热点图 Treemap」（recharts，红绿渐变，色块大小=市值、颜色=浮盈%，点击进入分析），替代空状态。
+- [改进] 24h 同股缓存命中时前端**自动跳转**到那只股的报告，并在报告顶部显示 InlineAlert 提示「今日已分析过 X / 下面是 N 小时前 的分析结果 / 强制刷新」按钮——避免用户以为页面坏了。`task.to_dict()` 在 `status=completed` 时携带完整 `result` payload，SSE 一并下发 `report.meta.cached / cached_at / cache_age_seconds`，前端 store 新增 `syncTaskCompleted` 自动设 `selectedReport`。
+- [新功能] `.env` 多 provider fallback 链路（gemini → openrouter → cerebras → groq），LiteLLM Router 通过 api_base override 路由到对应家。预设链路：Gemini 2.5 Flash → DeepSeek-V4-Free → Cerebras Qwen3-235B → MiniMax-M2.5-Free → Groq Llama-3.3-70B，约 ~1900 RPD 总额。
+- [文档] `.env.example` 同步新增 Cerebras / Groq / OpenRouter channel 配置示例 + 2026-05 验证过的免费模型名（Qwen3-235B、DeepSeek-V4-Flash、MiniMax-M2.5 等）。
 
 ## [3.14.0] - 2026-04-26
 

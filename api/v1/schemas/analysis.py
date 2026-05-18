@@ -79,6 +79,21 @@ class AnalyzeRequest(BaseModel):
         ),
         example=1,
     )
+    enable_investment_committee: bool = Field(
+        False,
+        description=(
+            "Sprint 1A opt-in：是否在标准分析后追加 Bull/Bear 辩论 + 4 大师视角 + "
+            "Risk/PM 的「投委会」流程；默认关闭，对默认链路零影响。"
+        ),
+        example=False,
+    )
+    committee_debate_rounds: int = Field(
+        2,
+        description="投委会 Bull/Bear 辩论轮数，1~3，默认 2。",
+        ge=1,
+        le=3,
+        example=2,
+    )
 
     class Config:
         json_schema_extra = {
