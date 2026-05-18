@@ -1,5 +1,6 @@
 import React from 'react';
 import type { AnalysisResult, AnalysisReport } from '../../types/analysis';
+import { CommitteeMinutesPanel } from '../committee/CommitteeMinutesPanel';
 import { ReportOverview } from './ReportOverview';
 import { ReportStrategy } from './ReportStrategy';
 import { ReportNews } from './ReportNews';
@@ -24,7 +25,7 @@ export const ReportSummary: React.FC<ReportSummaryProps> = ({
   // 使用 report id，因为 queryId 在批量分析时可能重复，且历史报告详情接口需要 recordId 来获取关联资讯和详情数据
   const recordId = report.meta.id;
 
-  const { meta, summary, strategy, details } = report;
+  const { meta, summary, strategy, details, committee } = report;
   const reportLanguage = normalizeReportLanguage(meta.reportLanguage);
   const text = getReportText(reportLanguage);
   const modelUsed = (meta.modelUsed || '').trim();
@@ -44,6 +45,9 @@ export const ReportSummary: React.FC<ReportSummaryProps> = ({
 
       {/* 策略点位区 */}
       <ReportStrategy strategy={strategy} language={reportLanguage} />
+
+      {/* 投委会会议纪要 (Sprint 1B opt-in — renders null when committee is undefined) */}
+      <CommitteeMinutesPanel committee={committee} language={reportLanguage} />
 
       {/* 资讯区 */}
       <ReportNews recordId={recordId} limit={8} language={reportLanguage} />
