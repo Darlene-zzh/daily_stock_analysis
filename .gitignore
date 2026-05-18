@@ -117,3 +117,10 @@ webui.log
 
 # Matt Pocock skills, local-only, not part of the governed single source
 .agents/skills/
+
+# Sprint 3 quant signal — training byproducts that should never be committed
+mlruns/
+.qlib_staging/
+.qlib_tools/
+data/qlib/*_data/
+data/quant_models/

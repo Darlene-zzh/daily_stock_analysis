@@ -24,12 +24,11 @@
 name: qlib-retrain
 
 on:
-  # NOTE: schedule deliberately left commented out — uncomment AFTER
-  # you've run `workflow_dispatch` at least once and confirmed the
-  # artifact uploads correctly.  Otherwise the cron will burn quota
-  # without producing anything useful.
-  # schedule:
-  #   - cron: "0 2 * * 6"   # Saturday 02:00 UTC
+  # Weekly retrain. Run `workflow_dispatch` at least once after merging
+  # any script changes so the artifact bundle is verified end-to-end
+  # before relying on the scheduled cron.
+  schedule:
+    - cron: "0 2 * * 6"   # Saturday 02:00 UTC
   workflow_dispatch:
     inputs:
       regions:
@@ -62,15 +61,25 @@ jobs:
         run: |
           python -m pip install --upgrade pip
           pip install -r requirements-quant.txt
+          # US build helper needs these on top of requirements-quant.txt
+          pip install yfinance yahooquery beautifulsoup4 lxml setuptools_scm
 
       - name: Download qlib bulk data
         env:
           QLIB_DATA_DIR: data/qlib
+          PYTHON: python
+          REGIONS_CSV: ${{ github.event.inputs.regions || 'cn,us' }}
         run: |
-          bash scripts/setup_qlib_data.sh ${REGIONS//,/ }
-        # Note: ${REGIONS} is interpolated from inputs.regions below.
-        # When the schedule trigger fires there are no inputs, so we
-        # fall back to "cn us" via the script default.
+          set -euo pipefail
+          # ``scripts/build_us_qlib_data.py`` shallow-clones microsoft/qlib
+          # internally if needed, but doing it up-front keeps the build
+          # step deterministic and lets the cache surface it for re-runs.
+          if [ ! -d .qlib_tools/qlib ]; then
+              mkdir -p .qlib_tools
+              git clone --depth 1 https://github.com/microsoft/qlib.git .qlib_tools/qlib
+          fi
+          export QLIB_TOOLS_DIR="$PWD/.qlib_tools/qlib"
+          bash scripts/setup_qlib_data.sh ${REGIONS_CSV//,/ }
         shell: bash
 
       - name: Train LightGBM Alpha158
@@ -78,10 +87,11 @@ jobs:
           QLIB_DATA_DIR: data/qlib
           QUANT_MODEL_DIR: data/quant_models
           QUANT_FORECAST_HORIZON: ${{ github.event.inputs.horizon || '10' }}
+          REGIONS_CSV: ${{ github.event.inputs.regions || 'cn,us' }}
         run: |
-          REGIONS_CSV="${{ github.event.inputs.regions || 'cn,us' }}"
+          set -euo pipefail
           for REGION in ${REGIONS_CSV//,/ }; do
-              python3 scripts/train_alpha158_lightgbm.py --region "${REGION}"
+              python scripts/train_alpha158_lightgbm.py --region "${REGION}"
           done
 
       - name: Bundle artifacts

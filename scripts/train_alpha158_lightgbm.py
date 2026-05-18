@@ -121,12 +121,19 @@ def train_one_region(region: str, *, horizon: int = 10, training_years: int = 3)
     out_dir = _model_dir(region, week_tag)
     os.makedirs(out_dir, exist_ok=True)
 
-    train_end = today - timedelta(days=7)            # walk-forward gap
+    # The label ``Ref($close, -horizon)`` needs ``horizon`` future closes
+    # to materialize. Any date within ``horizon`` trading days of the
+    # data's latest date yields NaN labels (dropped by DropnaLabel),
+    # which can leave the validation segment empty and crash LGBModel.
+    # Pull endpoints back enough that valid/train still have labels.
+    label_buffer = timedelta(days=int(horizon * 1.6))           # ~16d for horizon=10
+    label_safe_end = today - label_buffer
+    train_end = label_safe_end - timedelta(days=14)             # 2-week valid window
     train_start = train_end - timedelta(days=int(training_years * 365.25))
 
     logger.info(
-        "[train] region=%s week=%s window=%s..%s horizon=%dd",
-        region, week_tag, train_start, train_end, horizon,
+        "[train] region=%s week=%s window=%s..%s horizon=%dd label_safe_end=%s",
+        region, week_tag, train_start, train_end, horizon, label_safe_end,
     )
 
     try:
@@ -150,12 +157,17 @@ def train_one_region(region: str, *, horizon: int = 10, training_years: int = 3)
             label=[f"Ref($close, -{horizon}) / $close - 1"],
         )
 
+        # Test window is the last week of available data — using a single
+        # ``today`` date breaks for markets where today's bar hasn't yet
+        # been ingested (US yfinance is typically ~1 day behind). Iterating
+        # by (dt, sym) below keeps only the latest score per symbol.
+        test_start = today - timedelta(days=7)
         dataset = DatasetH(
             handler=handler,
             segments={
                 "train": (train_start.isoformat(), train_end.isoformat()),
-                "valid": (train_end.isoformat(), today.isoformat()),
-                "test":  (today.isoformat(), today.isoformat()),
+                "valid": (train_end.isoformat(), label_safe_end.isoformat()),
+                "test":  (test_start.isoformat(), today.isoformat()),
             },
         )
 
