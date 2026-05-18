@@ -85,9 +85,9 @@ class StockAnalysisPipeline:
         save_context_snapshot: Optional[bool] = None,
         progress_callback: Optional[Callable[[int, str], None]] = None,
         portfolio_context_block: Optional[str] = None,
+        portfolio_match: Optional[str] = None,
         reflection_context_block: Optional[str] = None,
         quant_context_block: Optional[str] = None,
-        **_extra: Any,
     ):
         """
         初始化调度器
@@ -106,6 +106,17 @@ class StockAnalysisPipeline:
         )
         self.progress_callback = progress_callback
         self.portfolio_context_block = portfolio_context_block
+        # Portfolio-aware position-advice filter: callers thread
+        # ``"held"`` / ``"not_held"`` / None here.  Sprint 2-2 dropped
+        # both the call sites and the ``_apply_portfolio_match`` helper
+        # that copied this value onto ``AnalysisResult.portfolio_match``
+        # for the renderers (``src/notification.py``,
+        # ``src/services/history_service.py``).  We restore the proper
+        # ``__init__`` contract here so callers (``AnalysisService``)
+        # don't fail with ``TypeError``; the downstream propagation
+        # regression is tracked separately and is out of scope for the
+        # constructor-contract fix.
+        self.portfolio_match = portfolio_match
         # Sprint 2: optional reflection block built from the per-stock
         # decision journal.  None disables injection — analyzer just sees
         # the standard prompt.  Forwarded to analyzer.analyze() below.
