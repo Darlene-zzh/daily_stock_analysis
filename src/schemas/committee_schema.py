@@ -118,21 +118,17 @@ class MasterOpinion(BaseModel):
 
 
 # ============================================================
-# RiskAssessment
+# RiskAssessment — promoted to src/schemas/risk_schema.py (Sprint 4)
 # ============================================================
-
-
-class RiskAssessment(BaseModel):
-    """Risk Manager structured output (wraps existing :class:`RiskAgent`)."""
-
-    model_config = ConfigDict(extra="ignore")
-
-    severity: Optional[Literal["none", "soft", "hard"]] = None
-    red_flags: List[str] = Field(default_factory=list)
-    suggested_position_pct: Optional[float] = None  # 0..1
-    veto: bool = False
-    status: Literal["ok", "failed"] = "ok"
-    error_summary: Optional[str] = None
+#
+# The structured ``RiskAssessment`` model is now the single source of
+# truth in :mod:`src.schemas.risk_schema`.  It is re-exported here so
+# every caller doing ``from src.schemas.committee_schema import
+# RiskAssessment`` keeps working unchanged (Sprint 1A back-compat).
+# Sprint 4 also added the ``tail_risk_score`` / ``var_estimate_5pct`` /
+# ``volatility_annualised`` / ``rationale`` fields — backward compatible
+# because they all default to ``None``.
+from src.schemas.risk_schema import RiskAssessment  # noqa: F401  (re-export)
 
 
 # ============================================================

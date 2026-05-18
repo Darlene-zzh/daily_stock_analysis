@@ -55,6 +55,7 @@ class AnalysisService:
         enable_decision_journal_reflection: bool = False,
         enable_quant_signal: bool = False,
         quant_forecast_horizon: Optional[int] = None,
+        enable_structured_risk: bool = False,
     ) -> Optional[Dict[str, Any]]:
         """
         执行股票分析
@@ -236,12 +237,23 @@ class AnalysisService:
             # untouched when ``enable_investment_committee=False``.
             if enable_investment_committee and response is not None:
                 try:
-                    committee_payload = self._invoke_committee(
+                    # Backward-compat: existing tests may monkey-patch
+                    # ``_invoke_committee`` with the Sprint 1A signature
+                    # that pre-dates ``query_id``.  Detect & degrade.
+                    _committee_kwargs = dict(
                         stock_code=stock_code,
                         result=result,
                         response=response,
                         debate_rounds=committee_debate_rounds,
                     )
+                    try:
+                        committee_payload = self._invoke_committee(
+                            **_committee_kwargs, query_id=query_id,
+                        )
+                    except TypeError:
+                        # Test-only fallback path for stubs that pre-date
+                        # the Sprint 4 ``query_id`` kwarg.
+                        committee_payload = self._invoke_committee(**_committee_kwargs)
                     if committee_payload is not None:
                         response.setdefault("report", {})["committee"] = committee_payload
                         # Also expose on the result.dashboard so the standard
@@ -264,6 +276,34 @@ class AnalysisService:
                     # Committee failure must NEVER kill the default report.
                     logger.warning(
                         "[analyze_stock] investment committee hook failed for %s: %s",
+                        stock_code, exc, exc_info=True,
+                    )
+
+            # Sprint 4: structured Risk Manager hook.  Wraps the existing
+            # ``RiskAgent`` to emit a standalone ``risk_assessment`` payload
+            # (severity / suggested position % / tail-risk / VaR) on top of
+            # the regular report.  Independent of the committee path —
+            # works even when ``enable_investment_committee=False``.
+            # Default-off and best-effort: any failure leaves the response
+            # untouched.
+            if enable_structured_risk and response is not None:
+                try:
+                    risk_payload = self._invoke_structured_risk(
+                        stock_code=stock_code,
+                        result=result,
+                        response=response,
+                    )
+                    if risk_payload is not None:
+                        response["risk_assessment"] = risk_payload
+                        # Also expose on result.dashboard so the existing
+                        # notification + history renderers can surface it
+                        # via the same path the committee callout uses.
+                        dash = getattr(result, "dashboard", None)
+                        if isinstance(dash, dict):
+                            dash["risk_assessment"] = risk_payload
+                except Exception as exc:
+                    logger.warning(
+                        "[analyze_stock] structured risk hook failed for %s: %s",
                         stock_code, exc, exc_info=True,
                     )
 
@@ -374,6 +414,7 @@ class AnalysisService:
         result: Any,
         response: Dict[str, Any],
         debate_rounds: int,
+        **_kwargs: Any,
     ) -> Optional[Dict[str, Any]]:
         """Run the Investment Committee pipeline and return the minutes dict.
 
@@ -452,9 +493,100 @@ class AnalysisService:
             budget=budget,
             llm_callable=_llm_call,
             debate_rounds=debate_rounds,
+            query_id=_kwargs.get("query_id"),
         )
         run_result = orchestrator.run()
         return run_result.minutes.model_dump()
+
+    def _invoke_structured_risk(
+        self,
+        *,
+        stock_code: str,
+        result: Any,
+        response: Dict[str, Any],
+    ) -> Optional[Dict[str, Any]]:
+        """Compose a standalone ``risk_assessment`` payload (Sprint 4).
+
+        This is intentionally **NOT** a full LLM run — we reuse the
+        already-extracted risk signals (LLM-emitted risk flags + price
+        history) the analyser collected during the main analysis, then
+        feed them into :meth:`RiskAgent.build_structured_assessment`.
+
+        Returns ``None`` when no signal is available so the renderer can
+        skip the section cleanly. Callers ALREADY wrap us in try/except,
+        so we propagate parser failures intentionally to surface them in
+        logs without crashing the response.
+        """
+        from src.agent.agents.risk_agent import RiskAgent
+
+        # 1) Try the analyser-emitted risk_warning / risk flags first.
+        raw_llm: Dict[str, Any] = {}
+        report = (response or {}).get("report") or {}
+        details = report.get("details") or {}
+        risk_warning = (
+            details.get("risk_warning")
+            or getattr(result, "risk_warning", None)
+        )
+        flags: List[Dict[str, Any]] = []
+        if risk_warning:
+            # Split risk_warning into individual flag bullets so the
+            # severity heuristic can count "high" entries.
+            parts: List[str] = []
+            if isinstance(risk_warning, list):
+                parts = [str(p).strip() for p in risk_warning if p]
+            elif isinstance(risk_warning, str):
+                import re
+                parts = [
+                    p.strip(" -·•\t")
+                    for p in re.split(r"[\n;；]+", risk_warning)
+                    if p.strip(" -·•\t")
+                ]
+            for p in parts[:10]:
+                # Detect severity heuristically from keyword cues.
+                lowered = p.lower()
+                severity = "low"
+                if any(k in p for k in ("立案", "调查", "退市", "欺诈", "造假")) or any(
+                    k in lowered for k in ("delisting", "fraud", "investigation", "lawsuit")
+                ):
+                    severity = "high"
+                elif any(k in p for k in ("减持", "解禁", "业绩预亏", "业绩变脸")) or any(
+                    k in lowered for k in ("insider sell", "lock-up", "earnings miss")
+                ):
+                    severity = "medium"
+                flags.append({"category": "analyser", "severity": severity, "description": p})
+        if flags:
+            raw_llm["flags"] = flags
+            # Map highest flag severity into the LLM-style risk_level.
+            highest = max((f["severity"] for f in flags), key=lambda s: ("high", "medium", "low").index(s))
+            raw_llm["risk_level"] = {"high": "high", "medium": "medium", "low": "low"}[highest]
+            raw_llm["risk_score"] = {"high": 75, "medium": 50, "low": 25}[highest]
+
+        # 2) Recent closes — pulled from result.recent_closes when the analyser
+        # exposes it; otherwise fall back to None so VaR/vol stay null.
+        recent_closes: Optional[List[float]] = None
+        for candidate_attr in ("recent_closes", "price_history", "closes"):
+            candidate = getattr(result, candidate_attr, None)
+            if isinstance(candidate, (list, tuple)) and len(candidate) >= 2:
+                try:
+                    recent_closes = [float(p) for p in candidate if p is not None]
+                    break
+                except (TypeError, ValueError):
+                    continue
+
+        assessment = RiskAgent.build_structured_assessment(
+            raw_llm=raw_llm or None,
+            recent_closes=recent_closes,
+        )
+        # Skip when the assessment has nothing meaningful to say.
+        if (
+            assessment.severity is None
+            and not assessment.red_flags
+            and assessment.suggested_position_pct is None
+            and assessment.tail_risk_score is None
+            and assessment.var_estimate_5pct is None
+        ):
+            return None
+        return assessment.model_dump()
 
     def _build_analysis_response(
         self, 

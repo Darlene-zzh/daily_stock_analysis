@@ -124,6 +124,16 @@ class AnalyzeRequest(BaseModel):
         le=60,
         example=10,
     )
+    enable_structured_risk: bool = Field(
+        False,
+        description=(
+            "Sprint 4 opt-in：是否在常规分析报告之外附带一份独立的结构化"
+            "风险评估（severity / 推荐仓位 % / tail-risk 评分 / 5% VaR）。"
+            "默认关闭；启用后 response.risk_assessment 会带回这份评估，"
+            "失败时静默 no-op，绝不影响默认报告。即使不开投委会也能用。"
+        ),
+        example=False,
+    )
 
     class Config:
         json_schema_extra = {

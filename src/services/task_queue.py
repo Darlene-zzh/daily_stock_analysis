@@ -357,6 +357,7 @@ class AnalysisTaskQueue:
         enable_decision_journal_reflection: bool = False,
         enable_quant_signal: bool = False,
         quant_forecast_horizon: Optional[int] = None,
+        enable_structured_risk: bool = False,
     ) -> Tuple[List[TaskInfo], List[DuplicateTaskError]]:
         """
         Submit analysis tasks in batch.
@@ -411,6 +412,7 @@ class AnalysisTaskQueue:
                         enable_decision_journal_reflection,
                         enable_quant_signal,
                         quant_forecast_horizon,
+                        enable_structured_risk,
                     )
                 except Exception:
                     # Roll back the current batch to avoid partial submission.
@@ -596,6 +598,7 @@ class AnalysisTaskQueue:
         enable_decision_journal_reflection: bool = False,
         enable_quant_signal: bool = False,
         quant_forecast_horizon: Optional[int] = None,
+        enable_structured_risk: bool = False,
     ) -> Optional[Dict[str, Any]]:
         """
         执行分析任务（在线程池中运行）
@@ -644,6 +647,7 @@ class AnalysisTaskQueue:
                 enable_decision_journal_reflection=enable_decision_journal_reflection,
                 enable_quant_signal=enable_quant_signal,
                 quant_forecast_horizon=quant_forecast_horizon,
+                enable_structured_risk=enable_structured_risk,
             )
             
             if result:

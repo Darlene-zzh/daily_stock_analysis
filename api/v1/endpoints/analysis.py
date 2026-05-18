@@ -382,6 +382,7 @@ def _handle_async_analysis_batch(
         ),
         enable_quant_signal=getattr(request, "enable_quant_signal", False),
         quant_forecast_horizon=getattr(request, "quant_forecast_horizon", None),
+        enable_structured_risk=getattr(request, "enable_structured_risk", False),
     )
 
     accepted_tasks, duplicate_errors = task_queue.submit_tasks_batch(**submit_kwargs)
@@ -477,6 +478,7 @@ def _handle_sync_analysis(
             ),
             enable_quant_signal=getattr(request, "enable_quant_signal", False),
             quant_forecast_horizon=getattr(request, "quant_forecast_horizon", None),
+            enable_structured_risk=getattr(request, "enable_structured_risk", False),
         )
 
         if result is None:
