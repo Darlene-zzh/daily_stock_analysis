@@ -258,6 +258,11 @@ class AnalysisService:
                         response=response,
                         debate_rounds=committee_debate_rounds,
                     )
+                    logger.info(
+                        "[committee-hook] %s: invoking committee orchestrator "
+                        "(rounds=%s, query_id=%s)",
+                        stock_code, committee_debate_rounds, query_id,
+                    )
                     try:
                         committee_payload = self._invoke_committee(
                             **_committee_kwargs, query_id=query_id,
@@ -266,6 +271,14 @@ class AnalysisService:
                         # Test-only fallback path for stubs that pre-date
                         # the Sprint 4 ``query_id`` kwarg.
                         committee_payload = self._invoke_committee(**_committee_kwargs)
+                    logger.info(
+                        "[committee-hook] %s: _invoke_committee returned "
+                        "type=%s status=%s",
+                        stock_code,
+                        type(committee_payload).__name__,
+                        (committee_payload or {}).get("status")
+                            if isinstance(committee_payload, dict) else None,
+                    )
                     if committee_payload is not None:
                         response.setdefault("report", {})["committee"] = committee_payload
                         # Also expose on the result.dashboard so the standard
@@ -457,11 +470,12 @@ class AnalysisService:
         try:
             adapter = LLMToolAdapter(config=config)
         except Exception as exc:
-            logger.warning("[committee] LLMToolAdapter init failed: %s", exc)
+            logger.warning("[committee] LLMToolAdapter init failed for %s: %s", stock_code, exc)
             return None
         if not getattr(adapter, "_litellm_available", False):
             logger.info("[committee] LLM unavailable — skipping committee for %s", stock_code)
             return None
+        logger.info("[committee] %s: adapter OK, cap=%s, building orchestrator", stock_code, cap)
 
         def _llm_call(system_prompt: str, user_message: str) -> str:
             try:
@@ -507,7 +521,25 @@ class AnalysisService:
             debate_rounds=debate_rounds,
             query_id=_kwargs.get("query_id"),
         )
-        run_result = orchestrator.run()
+        try:
+            logger.info("[committee] %s: orchestrator.run() start", stock_code)
+            run_result = orchestrator.run()
+            logger.info(
+                "[committee] %s: orchestrator.run() done — status=%s "
+                "budget_used=%s missing=%s masters=%d debate=%d",
+                stock_code,
+                getattr(run_result.minutes, "status", "<no-status>"),
+                getattr(run_result.minutes, "budget_used", "?"),
+                getattr(run_result.minutes, "missing_agents", []),
+                len(getattr(run_result.minutes, "masters", []) or []),
+                len(getattr(run_result.minutes, "debate", []) or []),
+            )
+        except Exception as exc:
+            logger.warning(
+                "[committee] %s: orchestrator.run() raised %s: %s",
+                stock_code, type(exc).__name__, exc, exc_info=True,
+            )
+            return None
         return run_result.minutes.model_dump()
 
     def _invoke_structured_risk(
