@@ -53,9 +53,18 @@ env/
 .cursorrules
 
 # 数据和日志
-/data/
+# Use /data/* (not /data/) so Sprint 2 can whitelist a single placeholder
+# inside this directory; per-stock journal logs stay ignored explicitly.
+/data/*
 logs/
 reports/
+
+# Sprint 2 — decision journal entries are user-private; never commit them.
+# Track only the placeholder so first-time users have a slot; the per-stock
+# markdown logs stay local.
+!/data/decision_journals/
+/data/decision_journals/*
+!/data/decision_journals/.gitkeep
 *.db
 *.sqlite
 *.sqlite3

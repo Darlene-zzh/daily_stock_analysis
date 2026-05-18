@@ -1430,3 +1430,60 @@ Sprint 1A 起，后端新增多智能体「投资委员会」流程：在常规 
 - 投委会失败 / 异常 NEVER 中断默认分析；hook 用 try/except 包住整段流程，记录 warning 后照常返回原报告。
 - 关闭方式：调用方传 `enable_investment_committee=false`（默认值），或不传该字段。永久关闭可移除 `langgraph` 依赖；Sprint 1A 改动均为 additive，`git revert` 安全。
 - 显式说明 prompt 风格：所有大师视角均使用「分析师以 X-inspired lens 分析」措辞（spec §7），**禁止**第一人称冒充真实人物。
+
+## 决策日志 / 反思机制（Sprint 2）
+
+> 每次分析都会留下一行 markdown 日志；下一次分析同一只票时，可以把过去的判断 + 已实现收益 + 相对基准 Alpha 注入到 LLM prompt，让模型从「快照分析」逐步演化为「持续校准」。日志写入始终发生，反思读取按需开启。
+
+### 文件结构
+
+```
+data/decision_journals/
+├── cn/
+│   ├── 600519.md
+│   └── ...
+├── hk/
+│   └── 00700.md
+└── us/
+    └── AAPL.md
+```
+
+- 路径按市场分目录：`cn`（A 股）/ `hk`（港股）/ `us`（美股）。
+- 单股一个 markdown 文件，append-only；每个 entry 以 `## YYYY-MM-DD HH:MM:SS UTC` 头部起始。
+- 单条 entry 整体一次性 `write()`，借助 POSIX `PIPE_BUF` 原子性保证并发安全；超过 3.5 KB 自动截断 `key_catalysts` / `key_risks` 子项。
+- 这些文件视为用户私有数据，统一在 `.gitignore` 内忽略；只保留 `data/decision_journals/.gitkeep` 占位以便首次启动目录存在。
+- 数据保留默认 2 年（`DECISION_JOURNAL_RETENTION_DAYS=730`），归档脚本/动作未实现，先做语义占位。
+
+### 反思块如何被注入到 prompt
+
+1. `AnalysisService.analyze_stock(stock_code=..., enable_decision_journal_reflection=True)` 在调用流水线前先用 `DecisionJournalService.build_reflection_block(...)` 构造英文反思段落（LLM 自己会按 `report_language` 输出中文）。
+2. 该段落经 `StockAnalysisPipeline.reflection_context_block` → `GeminiAnalyzer._format_prompt(... reflection_context_block=...)` 拼接在「持仓上下文」之后、「技术面数据」之前。
+3. 段落结构：
+
+   ```text
+   ## Reflection — your prior analyses of this security
+   - 2026-05-12: prior verdict **逢低买入**, score 72; realised raw return +8.40%, alpha vs benchmark +2.10%. Prior thesis: ...
+   - 2026-05-05: prior verdict **持有**; realised raw return -1.20%, alpha vs benchmark -3.00%.
+   Use this track record to calibrate your current analysis. If your prior calls have under-performed the benchmark for this name, increase scepticism toward your default thesis.
+   ```
+4. Token 预算受 `DECISION_JOURNAL_REFLECTION_TOKEN_BUDGET`（默认 1500，按 ~4 字符 / token 估算）约束；超出时按从旧到新顺序丢弃 bullet。
+5. 反思块构建或拼接失败 NEVER 中断分析——日志记录 warning 后照原 prompt 继续。
+
+### Alpha 计算
+
+- 使用复权后收盘价（akshare `qfq` / yfinance Close 默认已复权）。`compute_realised_alpha(...)` 仅读取数据源给到的 Close 列，不再二次复权——拆股 / 分红信息由 fetcher 维护。
+- 基准映射：`cn → 000300`（沪深 300，akshare）；`hk → ^HSI`（yfinance）；`us → SPY`（yfinance）。
+- 基准取价失败时只置 `alpha=None`，`raw_return` 仍保留——Web 复盘面板会显示「basis unavailable」。
+
+### Web 端「复盘 / Decision Tracking」面板
+
+- 入口：单股分析详情页（`ReportSummary` 中），默认渲染最近 20 条 entry。
+- 表格列：日期 / verdict / score / 原始收益 / 相对基准 Alpha / 一句话观点。
+- 下方有内联 SVG sparkline 显示历史 Alpha 走势（旧 → 新方向），无外部图表依赖。
+- 数据来源：`GET /api/v1/decision-journal/{stock_code}?limit=20`，后端按时间倒序返回；查询失败时面板自动降级为错误态而非 404。
+
+### 风险与回滚
+
+- 写入失败、读路径异常、基准拉取失败都不会中断默认分析；所有路径都被 try/except 包住并打 warning。
+- 关闭方式：调用方默认 `enable_decision_journal_reflection=false`（默认值），不传该字段即可保留写入但不读出。
+- 永久回滚：删除新增文件 / `git revert` 即可，主流程 prompt 与默认分析路径均为 additive。

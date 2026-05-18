@@ -11,6 +11,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 <!-- 新条目格式：- [类型] 描述（类型取值：新功能/改进/修复/文档/测试/chore）-->
 <!-- 每条独立一行追加到本段末尾，无需分类标题，合并时冲突最小 -->
+- [新功能] Sprint 2 决策日志与反思闭环：每次成功分析写入 `data/decision_journals/<market>/<code>.md`；可选 `enable_decision_journal_reflection=true` 让下一次同标的分析把历史 verdict / 已实现原始收益 / 基准 Alpha 拼回 prompt，Web 端新增 `复盘 / Decision Tracking` 面板。
+- [新功能] 新增 `GET /api/v1/decision-journal/{stock_code}` 接口，返回最近 N 条日志条目和已实现 Alpha 概要，供 Web 复盘面板渲染。
+- [改进] `AnalysisService.analyze_stock` 与异步任务队列、API schema 新增 `enable_decision_journal_reflection: bool = False` 透传字段；日志写入始终发生（数据先积累），反思读路径按需开启。
+- [文档] `.env.example` 增补 `DECISION_JOURNAL_REFLECTION_ENABLED` / `DECISION_JOURNAL_RETENTION_DAYS` / `DECISION_JOURNAL_REFLECTION_TOKEN_BUDGET` 三项 Sprint 2 配置示例，`docs/full-guide.md` 补充"决策日志 / 反思机制"小节。
+- [测试] 新增 `tests/test_decision_journal_service.py` 与 `tests/test_analysis_service_journal.py`，覆盖并发写、半写条目读取容错、含/缺基准 Alpha、token 预算与端到端 reflection 注入。
 - [新功能] 通知网关新增 ntfy 一等渠道，支持通过 `NTFY_URL` / `NTFY_TOKEN` 推送并接入 Web 测试、路由、Actions 与诊断。
 - [新功能] 通知网关新增 Gotify 一等渠道，支持通过 `GOTIFY_URL` / `GOTIFY_TOKEN` 推送 Markdown 文本并接入 Web 测试、路由、Actions 与诊断。
 - [修复] 收紧 ntfy 结构化校验，避免 URL 编码空白 topic 被误判为有效通知端点。
