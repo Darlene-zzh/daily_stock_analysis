@@ -2502,13 +2502,18 @@ class SearchService:
 
     @classmethod
     def _normalize_news_publish_date(cls, value: Any) -> Optional[date]:
-        """Normalize provider date value into a date object."""
+        """Normalize provider date value into a date object.
+
+        For tz-aware values, convert to the platform local timezone using
+        :py:meth:`datetime.astimezone` without arguments so DST is applied
+        correctly at the timestamp's instant (e.g. a March UTC timestamp is
+        interpreted as GMT on a UK box, not as BST extracted from "now").
+        """
         if value is None:
             return None
         if isinstance(value, datetime):
             if value.tzinfo is not None:
-                local_tz = datetime.now().astimezone().tzinfo or timezone.utc
-                return value.astimezone(local_tz).date()
+                return value.astimezone().date()
             return value.date()
         if isinstance(value, date):
             return value
@@ -2517,7 +2522,6 @@ class SearchService:
         if not text:
             return None
         now = datetime.now()
-        local_tz = now.astimezone().tzinfo or timezone.utc
 
         relative_date = cls._parse_relative_news_date(text, now)
         if relative_date:
@@ -2529,7 +2533,7 @@ class SearchService:
                 ts = int(text[:10]) if len(text) == 13 else int(text)
                 # Provider timestamps are typically UTC epoch seconds.
                 # Normalize to local date to keep window checks aligned with local "today".
-                return datetime.fromtimestamp(ts, tz=timezone.utc).astimezone(local_tz).date()
+                return datetime.fromtimestamp(ts, tz=timezone.utc).astimezone().date()
             except (OSError, OverflowError, ValueError):
                 pass
 
@@ -2537,7 +2541,7 @@ class SearchService:
         try:
             parsed_iso = datetime.fromisoformat(iso_candidate)
             if parsed_iso.tzinfo is not None:
-                return parsed_iso.astimezone(local_tz).date()
+                return parsed_iso.astimezone().date()
             return parsed_iso.date()
         except ValueError:
             pass
@@ -2548,7 +2552,7 @@ class SearchService:
             parsed_rfc = parsedate_to_datetime(normalized)
             if parsed_rfc:
                 if parsed_rfc.tzinfo is not None:
-                    return parsed_rfc.astimezone(local_tz).date()
+                    return parsed_rfc.astimezone().date()
                 return parsed_rfc.date()
         except (TypeError, ValueError):
             pass
@@ -2580,7 +2584,7 @@ class SearchService:
             try:
                 parsed_dt = datetime.strptime(normalized, fmt)
                 if parsed_dt.tzinfo is not None:
-                    return parsed_dt.astimezone(local_tz).date()
+                    return parsed_dt.astimezone().date()
                 return parsed_dt.date()
             except ValueError:
                 continue
