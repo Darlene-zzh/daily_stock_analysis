@@ -354,7 +354,24 @@ def _handle_async_analysis_batch(
     Handle asynchronous analysis requests, including batch submission.
     """
     task_queue = get_task_queue()
-    
+
+    # API entry diagnostic: capture what the browser actually sent so we
+    # can tell "front-end never sent the toggle" from "back-end dropped it
+    # in threading". Reads attributes via getattr so missing fields print
+    # explicitly as None instead of crashing the request.
+    logger.info(
+        "[analysis-api] async-batch entry stocks=%s | "
+        "committee=%s rounds=%s journal=%s quant=%s structured_risk=%s "
+        "portfolio_acct=%s",
+        stock_codes,
+        getattr(request, "enable_investment_committee", None),
+        getattr(request, "committee_debate_rounds", None),
+        getattr(request, "enable_decision_journal_reflection", None),
+        getattr(request, "enable_quant_signal", None),
+        getattr(request, "enable_structured_risk", None),
+        getattr(request, "portfolio_account_id", None),
+    )
+
     # Preserve metadata for single-stock requests. For batch requests,
     # only carry through metadata that semantically applies to the whole
     # batch, such as import/image source tracking.
