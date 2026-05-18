@@ -2,6 +2,7 @@ import React from 'react';
 import type { AnalysisResult, AnalysisReport } from '../../types/analysis';
 import { CommitteeMinutesPanel } from '../committee/CommitteeMinutesPanel';
 import { DecisionTrackingTab } from '../decisionTracking/DecisionTrackingTab';
+import { QuantContextPanel } from '../quant/QuantContextPanel';
 import { ReportOverview } from './ReportOverview';
 import { ReportStrategy } from './ReportStrategy';
 import { ReportNews } from './ReportNews';
@@ -49,6 +50,11 @@ export const ReportSummary: React.FC<ReportSummaryProps> = ({
 
       {/* 投委会会议纪要 (Sprint 1B opt-in — renders null when committee is undefined) */}
       <CommitteeMinutesPanel committee={committee} language={reportLanguage} />
+
+      {/* 量化辅助信号 (Sprint 3) — silently renders null when no qlib data / no model */}
+      {meta.stockCode && (
+        <QuantContextPanel stockCode={meta.stockCode} language={reportLanguage} />
+      )}
 
       {/* 复盘 / Decision Tracking — renders empty state when no journal entries exist */}
       {meta.stockCode && (
