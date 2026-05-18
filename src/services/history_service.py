@@ -949,7 +949,7 @@ class HistoryService:
             dashboard = raw_result.get("dashboard", {})
 
             # Build AnalysisResult with available data
-            return AnalysisResult(
+            result = AnalysisResult(
                 code=raw_result.get("code", record.code),
                 name=raw_result.get("name", record.name),
                 sentiment_score=raw_result.get("sentiment_score", record.sentiment_score or 50),
@@ -984,8 +984,14 @@ class HistoryService:
                 current_price=raw_result.get("current_price"),
                 change_pct=raw_result.get("change_pct"),
                 model_used=raw_result.get("model_used"),
-                portfolio_match=raw_result.get("portfolio_match"),
             )
+            # portfolio_match is not a declared field on AnalysisResult; it is
+            # attached dynamically by the analysis pipeline at runtime. Mirror
+            # that behaviour here so downstream consumers (notification,
+            # markdown renderer) can still read it via getattr.
+            if "portfolio_match" in raw_result:
+                setattr(result, "portfolio_match", raw_result.get("portfolio_match"))
+            return result
         except Exception as e:
             logger.error(f"Failed to rebuild AnalysisResult: {e}", exc_info=True)
             return None
