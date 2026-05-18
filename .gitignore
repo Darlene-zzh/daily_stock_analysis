@@ -77,6 +77,12 @@ reports/
 !/data/quant_models/
 /data/quant_models/*
 !/data/quant_models/.gitkeep
+# Sprint 4 — committee checkpoint SQLite snapshots are per-task / per-user
+# and only meaningful for that user's machine; keep the dir slot, ignore
+# the .db files (already covered by the global *.db rule below).
+!/data/committee_checkpoints/
+/data/committee_checkpoints/*
+!/data/committee_checkpoints/.gitkeep
 *.db
 *.sqlite
 *.sqlite3

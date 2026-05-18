@@ -42,6 +42,12 @@ from typing import Any, Callable, Dict, List, Optional, TypedDict
 from src.agent.agents.bull_researcher import BearResearcher, BullResearcher
 from src.agent.agents.master_personas import DEFAULT_PERSONA_ORDER, get_persona_class
 from src.agent.budget import LLMCallBudget, compute_effective_cap, resolve_timeout_s
+from src.agent.committee_checkpointer import (
+    checkpoint_enabled as _checkpoint_enabled,
+    clear_checkpoint as _clear_checkpoint,
+    load_state as _load_checkpoint_state,
+    save_state as _save_checkpoint_state,
+)
 from src.agent.protocols import AgentContext
 from src.schemas.committee_schema import (
     COMMITTEE_MINUTES_PM_SCHEMA_EXAMPLE,
@@ -154,6 +160,8 @@ class InvestmentCommitteeOrchestrator:
         llm_callable: LLMCallable,
         debate_rounds: int = 2,
         timeout_s: Optional[int] = None,
+        query_id: Optional[str] = None,
+        checkpoint_enabled: Optional[bool] = None,
     ) -> None:
         self.ctx = ctx
         self.report_json = report_json or {}
@@ -161,6 +169,15 @@ class InvestmentCommitteeOrchestrator:
         self.llm = llm_callable
         self.debate_rounds = max(1, min(3, int(debate_rounds or 2)))
         self.timeout_s = int(timeout_s) if timeout_s is not None else resolve_timeout_s()
+        # Sprint 4: per-run checkpointing. Off unless caller passes
+        # ``checkpoint_enabled=True`` OR ``TASK_QUEUE_CHECKPOINT_ENABLED=true``
+        # is set in the env. Both gates default off so existing flows stay
+        # byte-identical.
+        self.query_id = query_id
+        if checkpoint_enabled is None:
+            self.checkpoint_enabled = _checkpoint_enabled() and bool(query_id)
+        else:
+            self.checkpoint_enabled = bool(checkpoint_enabled) and bool(query_id)
 
     # ----------------------------------------------------------------- #
     # Entry point
@@ -185,6 +202,17 @@ class InvestmentCommitteeOrchestrator:
             "timed_out": False,
         }
 
+        # Sprint 4: opportunistic resume from a prior checkpoint, if any.
+        # We restore the data the previous run produced (debate exchanges,
+        # master opinions, risk, missing_agents, budget bookkeeping) but
+        # always recompute the wall-clock deadline so a stale checkpoint
+        # cannot run forever.
+        resumed_from_checkpoint = False
+        if self.checkpoint_enabled and self.query_id:
+            prior = _load_checkpoint_state(self.query_id)
+            if isinstance(prior, dict):
+                resumed_from_checkpoint = self._restore_from_checkpoint(state, prior)
+
         # We build the LangGraph for spec-fidelity, but the production
         # execution is driven by the explicit Python sequence below — this
         # keeps tests deterministic and avoids LangGraph runtime quirks
@@ -194,31 +222,43 @@ class InvestmentCommitteeOrchestrator:
         except Exception as exc:  # pragma: no cover — safety net only
             logger.debug("[committee] langgraph build skipped: %s", exc)
 
-        # Debate phase
+        # Debate phase — skip rounds that already have BOTH bull+bear
+        # exchanges in the restored state. The orchestrator treats any
+        # exchange with status='ok' as "node already complete" so we only
+        # rerun rounds that crashed mid-flight.
         for round_idx in range(1, self.debate_rounds + 1):
             state["current_round"] = round_idx
             if self._past_deadline(state):
                 break
-            self._bull_node(state)
+            if not self._has_completed_exchange(state, "bull", round_idx):
+                self._bull_node(state)
+                self._snapshot(state)
             if self._past_deadline(state):
                 break
-            self._bear_node(state)
+            if not self._has_completed_exchange(state, "bear", round_idx):
+                self._bear_node(state)
+                self._snapshot(state)
 
         # Master fan-out (deterministic order = serial for now;
         # parallelisation hook can plug into LangGraph later)
         for persona_id in DEFAULT_PERSONA_ORDER:
             if self._past_deadline(state):
                 break
-            self._master_node(state, persona_id)
+            if not self._has_completed_master(state, persona_id):
+                self._master_node(state, persona_id)
+                self._snapshot(state)
 
         # Risk node
         if not self._past_deadline(state):
-            self._risk_node(state)
+            if not self._has_completed_risk(state):
+                self._risk_node(state)
+                self._snapshot(state)
         else:
             state["missing_agents"].append("risk")
 
         # PM node (always run unless we genuinely cannot synthesise)
         self._pm_node(state)
+        self._snapshot(state)
 
         if not state.get("minutes"):
             # Defensive fallback — PM didn't even produce a failed minutes object
@@ -237,7 +277,140 @@ class InvestmentCommitteeOrchestrator:
 
         minutes_obj = CommitteeMinutes(**state["minutes"])
         duration = round(time.time() - t0, 3)
-        return CommitteeRunResult(minutes=minutes_obj, raw_state=dict(state), duration_s=duration)
+
+        # Sprint 4: clean up the checkpoint once the run produced a final
+        # minutes object. Failure to clear is non-fatal — a stale row will
+        # be overwritten on the next run with the same query_id.
+        if self.checkpoint_enabled and self.query_id and minutes_obj.status in ("ok", "partial"):
+            try:
+                _clear_checkpoint(self.query_id)
+            except Exception as exc:  # pragma: no cover — defensive
+                logger.debug("[committee] checkpoint clear failed: %s", exc)
+
+        # Annotate the raw_state so tests / observers can verify resume
+        # behaviour without re-reading the SQLite DB.
+        out_state = dict(state)
+        out_state["resumed_from_checkpoint"] = bool(resumed_from_checkpoint)
+        return CommitteeRunResult(minutes=minutes_obj, raw_state=out_state, duration_s=duration)
+
+    # ----------------------------------------------------------------- #
+    # Sprint 4 — checkpoint resume helpers
+    # ----------------------------------------------------------------- #
+
+    def _snapshot(self, state: CommitteeState) -> None:
+        """Persist a state snapshot if checkpointing is enabled.
+
+        Errors are swallowed: a failed snapshot must NEVER kill the
+        committee run.  The orchestrator continues; the next snapshot
+        attempt may succeed.
+        """
+        if not self.checkpoint_enabled or not self.query_id:
+            return
+        try:
+            payload = {
+                "schema_version": "1",
+                "debate": list(state.get("debate") or []),
+                "masters": list(state.get("masters") or []),
+                "risk": state.get("risk"),
+                "missing_agents": list(state.get("missing_agents") or []),
+                "current_round": state.get("current_round"),
+                "budget_used": self.budget.used,
+                "budget_cap": self.budget.cap,
+                "debate_rounds": self.debate_rounds,
+                "minutes": state.get("minutes"),
+            }
+            _save_checkpoint_state(self.query_id, payload)
+        except Exception as exc:  # pragma: no cover — defensive
+            logger.debug("[committee] snapshot persist failed: %s", exc)
+
+    def _restore_from_checkpoint(
+        self, state: CommitteeState, prior: Dict[str, Any]
+    ) -> bool:
+        """Replay completed nodes from a prior snapshot into ``state``.
+
+        Returns ``True`` if at least one node was restored; ``False``
+        when the snapshot is unusable.  The wall-clock deadline is
+        intentionally NOT restored — every resume gets a fresh deadline.
+        """
+        if not isinstance(prior, dict):
+            return False
+        try:
+            restored_any = False
+            debate = prior.get("debate")
+            if isinstance(debate, list) and debate:
+                # Defensive: only keep entries that look like our schema.
+                state["debate"] = [
+                    e for e in debate
+                    if isinstance(e, dict) and e.get("side") in ("bull", "bear")
+                ]
+                if state["debate"]:
+                    restored_any = True
+            masters = prior.get("masters")
+            if isinstance(masters, list) and masters:
+                state["masters"] = [m for m in masters if isinstance(m, dict)]
+                if state["masters"]:
+                    restored_any = True
+            risk = prior.get("risk")
+            if isinstance(risk, dict):
+                state["risk"] = risk
+                restored_any = True
+            missing = prior.get("missing_agents") or []
+            if isinstance(missing, list):
+                state["missing_agents"] = list(missing)
+            # Restore budget bookkeeping so the resumed run accounts for
+            # LLM calls the prior run already paid for.
+            used = prior.get("budget_used")
+            if isinstance(used, int) and used > self.budget.used:
+                # Force the budget counter up so the cap-check stays honest.
+                try:
+                    self.budget.used = used  # type: ignore[attr-defined]
+                except Exception:
+                    pass
+            current_round = prior.get("current_round")
+            if isinstance(current_round, int):
+                state["current_round"] = max(1, current_round)
+            if restored_any:
+                logger.info(
+                    "[committee] resumed from checkpoint for query_id=%s "
+                    "(masters=%d, debate=%d, missing=%d, budget_used=%d)",
+                    self.query_id, len(state["masters"]), len(state["debate"]),
+                    len(state["missing_agents"]), self.budget.used,
+                )
+            return restored_any
+        except Exception as exc:
+            logger.warning("[committee] checkpoint restore failed: %s", exc)
+            return False
+
+    def _has_completed_exchange(
+        self, state: CommitteeState, side: str, round_idx: int
+    ) -> bool:
+        """Return True iff the restored state already has an OK exchange for this slot."""
+        for e in state.get("debate") or []:
+            if not isinstance(e, dict):
+                continue
+            if (
+                e.get("side") == side
+                and int(e.get("round_index") or 0) == round_idx
+                and (e.get("status") or "ok") == "ok"
+            ):
+                return True
+        return False
+
+    def _has_completed_master(
+        self, state: CommitteeState, persona_id: str
+    ) -> bool:
+        for m in state.get("masters") or []:
+            if not isinstance(m, dict):
+                continue
+            if m.get("persona") == persona_id and (m.get("status") or "ok") == "ok":
+                return True
+        return False
+
+    def _has_completed_risk(self, state: CommitteeState) -> bool:
+        risk = state.get("risk")
+        if not isinstance(risk, dict):
+            return False
+        return (risk.get("status") or "ok") == "ok"
 
     # ----------------------------------------------------------------- #
     # LangGraph wiring (constructed for spec-fidelity; not executed)

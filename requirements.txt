@@ -70,3 +70,8 @@ python-multipart>=0.0.6     # FastAPI File/Form upload support
 # Note: we deliberately do NOT add langchain-openai / langchain-anthropic — our
 # existing src/agent/llm_adapter.py already abstracts every provider via litellm.
 langgraph==0.4.8            # LangGraph state machine for the Bull/Bear + masters + Risk/PM committee
+# Sprint 4: SQLite-backed checkpoint saver so a half-finished committee run can
+# resume from the last successful node when TASK_QUEUE_CHECKPOINT_ENABLED=true.
+# Opt-in only; absence does not break the committee — orchestrator falls back to
+# the existing imperative driver when this dep is missing.
+langgraph-checkpoint-sqlite>=3.0.1
