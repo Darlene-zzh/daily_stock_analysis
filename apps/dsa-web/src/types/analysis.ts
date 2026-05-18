@@ -5,6 +5,8 @@
 
 // ============ Request Types ============
 
+export type CommitteeDebateRounds = 1 | 2 | 3;
+
 export interface AnalysisRequest {
   stockCode?: string;
   stockCodes?: string[];
@@ -16,6 +18,14 @@ export interface AnalysisRequest {
   selectionSource?: 'manual' | 'autocomplete' | 'import' | 'image';
   notify?: boolean;
   portfolioAccountId?: number | null;
+  /**
+   * Sprint 1B opt-in toggle for the Investment Committee multi-agent pipeline.
+   * Defaults to `false`; when set to `true`, the backend appends a Bull/Bear
+   * debate + 4 master "inspired lens" personas + Risk/PM verdict to the report.
+   */
+  enableInvestmentCommittee?: boolean;
+  /** Bull/Bear debate rounds when committee is enabled. Default 2. */
+  committeeDebateRounds?: CommitteeDebateRounds;
 }
 
 export interface MarketReviewRequest {
@@ -104,12 +114,90 @@ export interface ReportDetails {
   sectorRankings?: SectorRankings;
 }
 
+// ============ Investment Committee Types (Sprint 1B) ============
+
+export type CommitteeStatus = 'ok' | 'partial' | 'failed';
+export type MasterStatus = 'ok' | 'failed' | 'budget_exhausted';
+export type CommitteeVerdict = 'strong_buy' | 'buy' | 'hold' | 'avoid' | 'short';
+export type CommitteeRiskSeverity = 'none' | 'soft' | 'hard';
+export type CommitteePersonaId =
+  | 'warren_buffett'
+  | 'michael_burry'
+  | 'cathie_wood'
+  | 'nassim_taleb';
+
+/**
+ * One Bull/Bear utterance in the debate timeline.
+ * Mirrors `DebateExchange` in `src/schemas/committee_schema.py` (camel-cased).
+ */
+export interface CommitteeDebateExchange {
+  side: 'bull' | 'bear';
+  roundIndex: number;
+  claim?: string;
+  evidence?: string[];
+  rebuttalTo?: string;
+  confidence?: number;
+}
+
+/**
+ * A single master persona's verdict.
+ * Mirrors `MasterOpinion` in `src/schemas/committee_schema.py` (camel-cased).
+ */
+export interface CommitteeMasterOpinion {
+  persona: CommitteePersonaId;
+  verdict?: CommitteeVerdict;
+  score?: number;
+  headline?: string;
+  rationale?: string;
+  keyEvidence?: string[];
+  counterView?: string;
+  toolsUsed?: string[];
+  status?: MasterStatus;
+  errorSummary?: string;
+}
+
+/**
+ * Risk manager output.
+ * Mirrors `RiskAssessment` in `src/schemas/committee_schema.py` (camel-cased).
+ */
+export interface CommitteeRiskAssessment {
+  severity?: CommitteeRiskSeverity;
+  redFlags?: string[];
+  suggestedPositionPct?: number;
+  veto?: boolean;
+  status?: 'ok' | 'failed';
+  errorSummary?: string;
+}
+
+/**
+ * Top-level committee output attached to `report.committee` when the user
+ * opts in. Mirrors `CommitteeMinutes` in `src/schemas/committee_schema.py`.
+ */
+export interface CommitteeMinutes {
+  version?: string;
+  status?: CommitteeStatus;
+  debateRounds?: number;
+  debate?: CommitteeDebateExchange[];
+  masters?: CommitteeMasterOpinion[];
+  risk?: CommitteeRiskAssessment | null;
+  pmVerdict?: CommitteeVerdict;
+  pmScore?: number;
+  pmRationale?: string;
+  pmDissents?: string[];
+  budgetUsed?: number;
+  budgetCap?: number;
+  missingAgents?: string[];
+  latencyMs?: number;
+}
+
 /** Full analysis report */
 export interface AnalysisReport {
   meta: ReportMeta;
   summary: ReportSummary;
   strategy?: ReportStrategy;
   details?: ReportDetails;
+  /** Present only when `enableInvestmentCommittee` was true on the request. */
+  committee?: CommitteeMinutes;
 }
 
 // ============ Analysis Result Types ============

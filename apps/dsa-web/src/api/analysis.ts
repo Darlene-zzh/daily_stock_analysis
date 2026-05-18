@@ -32,6 +32,12 @@ export const analysisApi = {
       selection_source: data.selectionSource,
       ...(data.notify !== undefined && { notify: data.notify }),
       ...(data.portfolioAccountId != null && { portfolio_account_id: data.portfolioAccountId }),
+      ...(data.enableInvestmentCommittee
+        ? {
+            enable_investment_committee: true,
+            committee_debate_rounds: data.committeeDebateRounds ?? 2,
+          }
+        : {}),
     };
 
     const response = await apiClient.post<Record<string, unknown>>(
@@ -66,6 +72,12 @@ export const analysisApi = {
       selection_source: data.selectionSource,
       ...(data.notify !== undefined && { notify: data.notify }),
       ...(data.portfolioAccountId != null && { portfolio_account_id: data.portfolioAccountId }),
+      ...(data.enableInvestmentCommittee
+        ? {
+            enable_investment_committee: true,
+            committee_debate_rounds: data.committeeDebateRounds ?? 2,
+          }
+        : {}),
     };
 
     const response = await apiClient.post<Record<string, unknown>>(

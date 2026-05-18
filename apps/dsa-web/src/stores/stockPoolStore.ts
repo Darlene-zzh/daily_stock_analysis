@@ -3,7 +3,13 @@ import { analysisApi, DuplicateTaskError } from '../api/analysis';
 import type { ParsedApiError } from '../api/error';
 import { getParsedApiError } from '../api/error';
 import { historyApi } from '../api/history';
-import type { AnalysisReport, HistoryItem, HistoryListResponse, TaskInfo } from '../types/analysis';
+import type {
+  AnalysisReport,
+  CommitteeDebateRounds,
+  HistoryItem,
+  HistoryListResponse,
+  TaskInfo,
+} from '../types/analysis';
 import { getRecentStartDate, getTodayInShanghai } from '../utils/format';
 import { isObviouslyInvalidStockQuery, looksLikeStockCode, validateStockCode } from '../utils/validation';
 
@@ -25,6 +31,8 @@ type SubmitAnalysisOptions = {
   notify?: boolean;
   forceRefresh?: boolean;
   portfolioAccountId?: number | null;
+  enableInvestmentCommittee?: boolean;
+  committeeDebateRounds?: CommitteeDebateRounds;
 };
 
 let reportRequestSeq = 0;
@@ -37,6 +45,10 @@ export interface StockPoolState {
   selectionSource: SelectionSource;
   notify: boolean;
   portfolioAccountId: number | null;
+  /** Sprint 1B opt-in toggle (default `false`, off). */
+  enableInvestmentCommittee: boolean;
+  /** Bull/Bear debate rounds when committee is enabled. Default 2. */
+  committeeDebateRounds: CommitteeDebateRounds;
   inputError?: string;
   duplicateError: string | null;
   error: ParsedApiError | null;
@@ -67,6 +79,8 @@ export interface StockPoolState {
   submitAnalysis: (options?: SubmitAnalysisOptions) => Promise<void>;
   setNotify: (notify: boolean) => void;
   setPortfolioAccountId: (accountId: number | null) => void;
+  setEnableInvestmentCommittee: (enabled: boolean) => void;
+  setCommitteeDebateRounds: (rounds: CommitteeDebateRounds) => void;
   syncTaskCreated: (task: TaskInfo) => void;
   syncTaskUpdated: (task: TaskInfo) => void;
   syncTaskFailed: (task: TaskInfo) => void;
@@ -79,6 +93,10 @@ const initialState = {
   selectionSource: 'manual' as SelectionSource,
   notify: true,
   portfolioAccountId: null,
+  // Sprint 1B Investment Committee opt-in: default OFF — keeps the existing
+  // analysis flow zero-impact for users who don't toggle the disclosure.
+  enableInvestmentCommittee: false,
+  committeeDebateRounds: 2 as CommitteeDebateRounds,
   inputError: undefined,
   duplicateError: null,
   error: null,
@@ -196,6 +214,8 @@ export const useStockPoolStore = create<StockPoolState>((set, get) => ({
 
   setNotify: (notify) => set({ notify }),
   setPortfolioAccountId: (accountId) => set({ portfolioAccountId: accountId }),
+  setEnableInvestmentCommittee: (enabled) => set({ enableInvestmentCommittee: enabled }),
+  setCommitteeDebateRounds: (rounds) => set({ committeeDebateRounds: rounds }),
 
   openMarkdownDrawer: () => set({ markdownDrawerOpen: true }),
 
@@ -316,6 +336,10 @@ export const useStockPoolStore = create<StockPoolState>((set, get) => ({
     const notify = options?.notify ?? state.notify;
     const portfolioAccountId = options?.portfolioAccountId ?? state.portfolioAccountId;
     const forceRefresh = options?.forceRefresh ?? false;
+    const enableInvestmentCommittee =
+      options?.enableInvestmentCommittee ?? state.enableInvestmentCommittee;
+    const committeeDebateRounds =
+      options?.committeeDebateRounds ?? state.committeeDebateRounds;
 
     if (!stockCodeInput) {
       set({ inputError: '请输入股票代码', duplicateError: null });
@@ -355,6 +379,8 @@ export const useStockPoolStore = create<StockPoolState>((set, get) => ({
         notify,
         forceRefresh,
         portfolioAccountId,
+        enableInvestmentCommittee,
+        committeeDebateRounds,
       });
 
       if (requestId !== analyzeRequestSeq) {
