@@ -106,7 +106,12 @@ def _render_action_plan_items(items: list) -> list:
         quant = item.get("quant_signal", "")
         inv_rule = item.get("invalidation_rule", "")
 
-        if not shares or not trigger_price:
+        # Render so long as we have a trigger price.  We previously skipped
+        # rows with ``shares=0`` but the LLM frequently leaves ``shares`` at
+        # zero and only fills ``pct_of_position`` — the action is fully
+        # expressible from the pct alone, so dropping these rows hid the
+        # entire 持仓操作计划 table from the user.
+        if not trigger_price:
             continue
 
         # position sizing string
@@ -115,9 +120,15 @@ def _render_action_plan_items(items: list) -> list:
             pos_str = f"持仓 {pct_pos:.1f}%"
         if pct_eq:
             pos_str = f"{pos_str} / 权益 {pct_eq:.1f}%" if pos_str else f"权益 {pct_eq:.1f}%"
-        ops_str = f"{direction_zh} {shares} 股"
-        if pos_str:
-            ops_str += f"（{pos_str}）"
+        # Build the action string: prefer shares when known, else pct
+        if shares:
+            ops_str = f"{direction_zh} {shares} 股"
+            if pos_str:
+                ops_str += f"（{pos_str}）"
+        elif pos_str:
+            ops_str = f"{direction_zh}（{pos_str}）"
+        else:
+            ops_str = direction_zh
 
         lines.append(f"**{ordinal} {emoji} {direction_zh}**（优先级 {priority}）— 触发价：${trigger_price:.2f}")
         lines.append(f"- **触发**：{trigger_cond}")

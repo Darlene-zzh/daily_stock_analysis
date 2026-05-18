@@ -92,6 +92,18 @@ class AnalysisService:
             from src.core.pipeline import StockAnalysisPipeline
             from src.enums import ReportType
 
+            # Sprint 1A/2/3/4 entry diagnostic: capture the opt-in flags
+            # received from the API so we can confirm toggle clicks
+            # actually reach the backend.
+            logger.info(
+                "[analyze_stock] entry %s | committee=%s rounds=%s "
+                "journal=%s quant=%s structured_risk=%s portfolio_acct=%s",
+                stock_code,
+                enable_investment_committee, committee_debate_rounds,
+                enable_decision_journal_reflection, enable_quant_signal,
+                enable_structured_risk, portfolio_account_id,
+            )
+
             # P0.3: 同日同股 24h 报告缓存。默认开启（ANALYSIS_CACHE_HOURS=24），
             # 同一只股 24h 内重复点「分析」不再烧 LLM 配额，直接返回缓存报告。
             # force_refresh=True 或 ANALYSIS_CACHE_HOURS=0 时绕过。
