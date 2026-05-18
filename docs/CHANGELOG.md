@@ -73,6 +73,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 - [新功能] 报告新增「投委会会议纪要」段落，opt-in 时通过 `enable_investment_committee=true` 触发；同步进 history DB raw_result 便于 Sprint 2 复盘。
 - [改进] 异步任务参数链路新增 `enable_investment_committee` / `committee_debate_rounds` 透传（API → task_queue → analysis_service）。
 - [chore] 新增依赖 `langgraph==0.4.8`（最小集，未引入 langchain-openai / -anthropic 等 provider 适配，复用既有 `LLMToolAdapter`）。
+- [新功能] Web 端「召开投委会」opt-in 开关 + 辩论轮次选择器（个股页表单内 Disclosure，默认折叠；适用单股 / 批量分析两条链路，共用同一 `submitAnalysis`）。
+- [新功能] 报告页新增「投委会会议纪要 / Investment Committee Minutes」面板（status 横幅 / PM 决议卡 / 多空辩论时间线 / 4 张 inspired-lens 卡片 / 风险条），`report.committee` 缺失时静默不渲染。
+- [改进] `AnalysisRequest` 透传 `enableInvestmentCommittee` / `committeeDebateRounds`；store + types 两处同步默认值（off / 2 轮）。
+- [测试] 新增 13 个 Vitest 用例覆盖 OptIn 折叠 / 成本提示公式 / 三种 status（ok / partial / failed）渲染分支 / lens rationale 展开折叠 / 中英文小标题切换。
+- [文档] `docs/full-guide.md` 扩写「投委会模式」段落，加入 Web UI 操作步骤与成本提示；`apps/dsa-web/src/utils/personaDisplay.ts` 镜像 Python `PERSONA_DISPLAY`，作为前端单一真源。
 
 ## [3.16.0] - 2026-05-10
 

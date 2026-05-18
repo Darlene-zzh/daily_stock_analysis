@@ -46,6 +46,7 @@ English | [简体中文](../README.md) | [繁體中文](README_CHT.md)
 | Multi-market data | A-shares, Hong Kong, US stocks, ETFs; quotes, K-lines, technicals, capital flow, chips, news, announcements, and fundamentals |
 | Web / desktop workspace | Manual analysis, task progress, history, full Markdown reports, backtest, portfolio, settings, and light/dark themes |
 | Agent strategy chat | Multi-turn Q&A with 11 built-in strategies across Web/Bot/API |
+| Investment Committee (opt-in) | Bull/Bear debate + 4 inspired-lens master agents (Buffett/Burry/Cathie Wood/Taleb) + Risk/PM verdict, configurable debate rounds in Web UI |
 | Smart import & autocomplete | Image, CSV/Excel, clipboard import; code/name/pinyin/alias autocomplete |
 | Automation & notifications | GitHub Actions, Docker, local scheduler, FastAPI service, and WeChat Work / Feishu / Telegram / Discord / Slack / Email delivery |
 

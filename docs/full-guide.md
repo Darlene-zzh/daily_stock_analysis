@@ -1367,11 +1367,27 @@ AGENT_EVENT_ALERT_RULES_JSON=[{"stock_code":"600519","alert_type":"price_cross",
 - 可选参数包括 `account_id`、`cost_method`、`as_of`、`include_positions`、`include_risk`。
 - 若风险块生成失败，快照仍会返回；若当前环境未启用持仓模块，工具会返回结构化 `not_supported`。
 
-## 投委会模式（API 预览）
+## 投委会模式
 
-Sprint 1A 起，后端新增多智能体「投资委员会」流程：在常规 LLM 报告之后，可选触发 Bull/Bear 辩论 + 4 大师视角（Buffett / Burry / Cathie Wood / Taleb）+ Risk Manager + Portfolio Manager 综合决策，并将「投委会会议纪要」段落追加进报告。
+Sprint 1A 起，后端新增多智能体「投资委员会」流程：在常规 LLM 报告之后，可选触发 Bull/Bear 辩论 + 4 大师视角（Buffett / Burry / Cathie Wood / Taleb）+ Risk Manager + Portfolio Manager 综合决策，并将「投委会会议纪要」段落追加进报告。Sprint 1B 配套上线 Web UI opt-in 入口与「投委会会议纪要」面板。
 
-**默认关闭**，对默认链路与现有响应零影响；Web UI 入口将在 Sprint 1B 落地。
+**默认关闭**，对默认链路与现有响应零影响；不勾选 Web UI 中的 Advanced disclosure 时，所有 API / 报告契约保持向后兼容。
+
+### Web UI 操作（Sprint 1B）
+
+1. 打开首页（HomePage），在股票输入框下方找到折叠区 **Advanced — Investment Committee (preview)**（默认折叠，状态指示灯灰色）。
+2. 点击折叠区展开，勾选 **Convene the committee for this analysis**，并选择辩论轮数（1 / 2 / 3，默认 2）。指示灯切换为主色高亮。
+3. 折叠区底部实时显示成本提示 `~N extra LLM calls per stock`，遵循后端公式 `cap = base + 2 * (rounds - 1)`，1/2/3 轮分别为 10/12/14 次调用。
+4. 输入股票代码或名称后点 **分析**（或重新分析现有报告），调用会自动透传 `enable_investment_committee=true` 与 `committee_debate_rounds=N`。
+5. 分析完成后报告区在「策略点位」与「资讯」之间新增 **投委会会议纪要 / Investment Committee Minutes** 面板，逻辑分四块：
+   - 顶部 status 横幅：`ok` 不显示；`partial` 显示琥珀色「N 位成员缺席」；`failed` 显示红色「未达成结论」并自动隐藏 PM 决议卡。
+   - **PM 决议卡**：verdict chip（strong_buy / buy / hold / avoid / short）+ 评分 + rationale + PM 否决的 lens 名单 + 预算与耗时脚注。
+   - **风险条**：severity 色（none/soft/hard）+ red flags 列表 + 建议仓位 % + VETO chip（若有）。
+   - **辩论时间线**：按轮聚合的 Bull / Bear 立场摘要，多空配色一目了然。
+   - **4 张 inspired-lens 卡片**（2×2 网格）：avatar 字母 + 颜色（WB 琥珀 / MB 红 / CW 靛蓝 / NT 灰蓝；与后端 `PERSONA_DISPLAY` 完全一致）+ 中文模式下第一张卡显示括注（如 `巴菲特式价值视角`）+ verdict chip + 评分 + 一句话 headline + 可展开 rationale / key evidence / counter-view。
+6. 缺席 lens 渲染为灰底 + `absent` badge，永远不会出现「真人拒绝评论」之类的暗示文案（spec §13 #7 product safety rule）。
+
+> Tip：开启投委会会显著增加 LLM 配额消耗，建议在重要持仓 / 关键时点使用，并优先验证你的 LLM provider 在峰值并发下的 RPM 限制（参见 Gemini 免费档 20 RPM 共享桶的踩坑）。
 
 ### API 触发
 
