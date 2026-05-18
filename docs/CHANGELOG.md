@@ -11,6 +11,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 <!-- 新条目格式：- [类型] 描述（类型取值：新功能/改进/修复/文档/测试/chore）-->
 <!-- 每条独立一行追加到本段末尾，无需分类标题，合并时冲突最小 -->
+- [新功能] Sprint 3 量化辅助信号（框架先行）：接入 qlib Alpha158 因子库 + 滚动周训 LightGBM 模型，把因子快照与短期预测作为 `Quant Context (auxiliary)` 拼入 LLM prompt，并在 Web 报告页新增 `QuantContextPanel`；明确"辅助、非买卖建议"的护栏文案，4 周 Rank IC 低于 0.02 时自动隐藏预测。
+- [新功能] 新增 `GET /api/v1/quant-signal/{stock_code}` 接口：返回因子分位 + 预测得分；无 qlib / 无模型权重 / 股票不在 CSI 300 与 S&P 500 锁定池 / IC 低于门限时返回 204 No Content，Web 面板静默 no-op。
+- [改进] `AnalysisService.analyze_stock`、`AnalysisTaskQueue.submit_tasks_batch / _execute_task`、API schema、批量与单次分析端点新增 `enable_quant_signal: bool = False`（默认关闭）与 `quant_forecast_horizon: Optional[int]` 参数；analyzer prompt 在三段可选 block（持仓 / 反思 / 量化）之间稳定有序拼接，未启用时完全无副作用。
+- [新功能] 新增 `scripts/setup_qlib_data.sh`（手动下载 cn/us 数据）与 `scripts/train_alpha158_lightgbm.py`（按 ISO 周训练 + 写入 `data/quant_models/<region>/<YYYY-Wxx>/{model.pkl,predictions.json,ic.json}` 三件套），qlib / lightgbm 未安装时打 warning 后干净退出。
+- [新功能] 新增 `.github/workflows/qlib-retrain.yml`：仅 `workflow_dispatch` 手动触发（schedule cron 默认注释掉），训练后将整周 artifact 打成 tar.gz 上传到 Action artifact 与 GitHub Release（pre-release）。
+- [文档] 新增 `requirements-quant.txt`（pyqlib + lightgbm，与主 `requirements.txt` 解耦）；`.env.example` 增补 `QUANT_SIGNAL_ENABLED` / `QUANT_MODEL_DIR` / `QUANT_FORECAST_HORIZON` / `QUANT_IC_GATING_THRESHOLD` / `QLIB_DATA_DIR` / `QLIB_PROVIDER_URI_*`；新增 `docs/quant-signal-setup.md` runbook 与 `docs/full-guide.md` "量化辅助信号 (Quant Context)" 小节。
+- [chore] `.gitignore` 增补 `data/qlib/**` 与 `data/quant_models/**`（仅保留 `.gitkeep` 占位），避免 GB 级二进制数据被误提交。
+- [测试] 新增 `tests/test_quant_signal_service.py`、`tests/test_qlib_fetcher.py`、`tests/test_quant_prompt_injection.py`、`tests/test_analysis_service_quant.py`，覆盖无 qlib / 无 artifact / 池外 / 低 IC 门控 / HK 静默 no-op / 预算异常吞咽 / prompt 包含"辅助、非建议"护栏文案；Web 端新增 `QuantContextPanel.test.tsx`。
 - [新功能] Sprint 2 决策日志与反思闭环：每次成功分析写入 `data/decision_journals/<market>/<code>.md`；可选 `enable_decision_journal_reflection=true` 让下一次同标的分析把历史 verdict / 已实现原始收益 / 基准 Alpha 拼回 prompt，Web 端新增 `复盘 / Decision Tracking` 面板。
 - [新功能] 新增 `GET /api/v1/decision-journal/{stock_code}` 接口，返回最近 N 条日志条目和已实现 Alpha 概要，供 Web 复盘面板渲染。
 - [改进] `AnalysisService.analyze_stock` 与异步任务队列、API schema 新增 `enable_decision_journal_reflection: bool = False` 透传字段；日志写入始终发生（数据先积累），反思读路径按需开启。

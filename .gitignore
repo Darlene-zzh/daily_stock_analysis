@@ -65,6 +65,18 @@ reports/
 !/data/decision_journals/
 /data/decision_journals/*
 !/data/decision_journals/.gitkeep
+
+# Sprint 3 — qlib bulk data is GB-scale and downloaded via
+# scripts/setup_qlib_data.sh; never commit the binary payload.  We keep
+# the dir slot via a .gitkeep so the first run finds the path.
+!/data/qlib/
+/data/qlib/*
+!/data/qlib/.gitkeep
+# Sprint 3 — LightGBM artifacts are per-user, weekly, uploaded to a
+# GitHub Release by the qlib-retrain workflow instead of git history.
+!/data/quant_models/
+/data/quant_models/*
+!/data/quant_models/.gitkeep
 *.db
 *.sqlite
 *.sqlite3

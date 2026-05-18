@@ -1487,3 +1487,72 @@ data/decision_journals/
 - 写入失败、读路径异常、基准拉取失败都不会中断默认分析；所有路径都被 try/except 包住并打 warning。
 - 关闭方式：调用方默认 `enable_decision_journal_reflection=false`（默认值），不传该字段即可保留写入但不读出。
 - 永久回滚：删除新增文件 / `git revert` 即可，主流程 prompt 与默认分析路径均为 additive。
+
+## 量化辅助信号 / Quant Context（Sprint 3）
+
+Sprint 3 引入 qlib Alpha158 + LightGBM 的**辅助统计信号**。它把因子快照与短期超额收益预测拼进 LLM prompt 作为 `Quant Context (auxiliary)`，并在 Web 报告页新增 `QuantContextPanel`。**严格作为辅助观察**，prompt 与 Web 双侧都明确告诉用户与 LLM「不要把它当成买卖建议」。
+
+### 七项锁定决策（P9）
+
+| # | 决策 | 实现 |
+|---|------|------|
+| Q1 | 覆盖范围 | CSI 300（A 股）+ S&P 500（美股）；HK 与池外标的静默 no-op |
+| Q2 | 训练窗口 | 滚动 3 年，每周六自动周训（GitHub Action） |
+| Q3 | 预测期 | 10 个交易日（默认；`QUANT_FORECAST_HORIZON` 可改） |
+| Q4 | IC 指标 | 滚动 20 日 Rank IC + 60 日均线 |
+| Q5 | 低 IC 门控 | 4 周 IC 均线低于 `QUANT_IC_GATING_THRESHOLD`（默认 0.02）时，隐藏预测、保留因子快照并打 "model uncertain" tag |
+| Q6 | 无 artifact | 静默 no-op：prompt、Web 面板、API 均不出现量化分区 |
+| Q7 | 角色 | 仅辅助观察；不能把 PM verdict 提到基本面/技术面不支持的位置（但持续看空可以下调 verdict） |
+
+### 启用步骤
+
+```bash
+# 1. 安装可选量化依赖（不会污染默认 requirements.txt）
+pip install -r requirements-quant.txt
+
+# 2. 一次性下载 qlib 数据到 data/qlib/（GB 级，按 region 拉取）
+bash scripts/setup_qlib_data.sh        # 默认 cn + us
+# bash scripts/setup_qlib_data.sh cn   # 只下载 A 股
+# bash scripts/setup_qlib_data.sh us   # 只下载美股
+
+# 3. 训练首个 LightGBM Alpha158 周训模型
+python scripts/train_alpha158_lightgbm.py
+# 输出到 data/quant_models/<region>/<YYYY-Wxx>/
+#   - model.pkl
+#   - predictions.json
+#   - ic.json
+
+# 4. 在 API 请求里启用 opt-in 字段
+#    POST /api/v1/analysis/analyze
+#    body: { "stock_code": "600519", "enable_quant_signal": true, ... }
+```
+
+> ⚠️ 数据下载是 GB 级，首次跑会比较慢；之后 `setup_qlib_data.sh` 会走 qlib 的增量更新。LightGBM 训练单 region 大概 20 分钟，cn + us 全跑预算 ~30-40 分钟。
+
+### GitHub Actions（每周自动周训）
+
+`.github/workflows/qlib-retrain.yml` 提供 `workflow_dispatch` 手动触发入口，并把 cron schedule 默认注释掉。建议先用 `workflow_dispatch` 手动跑一遍验证后，再去取消注释 `schedule: - cron: "0 2 * * 6"`（周六 02:00 UTC）。Artifact 会以 GitHub Release（prerelease）形式发出，并保留 60 天 Action artifact 副本。
+
+### 失效路径（全部静默 no-op，不影响默认分析）
+
+| 触发条件 | 行为 |
+|---------|------|
+| 未安装 `pyqlib` / `lightgbm` | `QuantSignalService.*` 返回 `None`，prompt 与 Web 都无 Quant Context |
+| 未执行 `setup_qlib_data.sh` | `ensure_initialized` 返回 False，同上 |
+| 未执行训练脚本 → 无 artifact | factor 仍可显示（live fetcher），forecast 缺失 |
+| 股票不在 CSI 300 / S&P 500 | `is_in_universe` 返回 False，整段 Quant Context 不出现 |
+| HK 标的 | 直接判断 market=hk，silent no-op |
+| 4 周 IC 均线 < 0.02 | factor 显示 + uncertain tag，forecast 隐藏 |
+| `QuantSignalService` 内部抛错 | 上层 `try/except` 吞咽，主分析继续 |
+
+### Web 面板
+
+- 入口：`apps/dsa-web/src/components/quant/QuantContextPanel.tsx`，挂在 `ReportSummary` 投委会面板与复盘面板之间。
+- 数据：`GET /api/v1/quant-signal/{stock_code}?market=&horizon=`，状态码 204 时面板返回 `null`，连容器都不渲染。
+- 视觉：顶部 `Auxiliary` 标签 + 警示文案（双语），因子快照按 −1 / +1 双向条形展示，预测块给出 horizon / 排名 / IC / 模型版本。
+
+### 风险与回滚
+
+- 主 `requirements.txt` 不引入 qlib / lightgbm，CI 与默认 Docker 镜像不受影响。
+- `enable_quant_signal=False` 是默认值；不传该字段即可完全旁路。
+- 永久回滚：`git revert` Sprint 3 提交，或删除 `data/qlib`、`data/quant_models`、`requirements-quant.txt`、`.github/workflows/qlib-retrain.yml` 即可。
