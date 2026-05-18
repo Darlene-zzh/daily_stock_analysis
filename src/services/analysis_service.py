@@ -53,6 +53,8 @@ class AnalysisService:
         enable_investment_committee: bool = False,
         committee_debate_rounds: int = 2,
         enable_decision_journal_reflection: bool = False,
+        enable_quant_signal: bool = False,
+        quant_forecast_horizon: Optional[int] = None,
     ) -> Optional[Dict[str, Any]]:
         """
         执行股票分析
@@ -69,6 +71,12 @@ class AnalysisService:
             enable_decision_journal_reflection: 是否将历史决策日志作为
                 反思上下文注入到本次 prompt（Sprint 2 opt-in；默认关闭，
                 journal 写入始终发生但只有显式开启才会读出来）。
+            enable_quant_signal: Sprint 3 opt-in — 是否在 prompt 中拼入
+                qlib Alpha158 + LightGBM 的辅助量化信号；默认关闭。当 qlib
+                未安装 / 无模型权重 / 个股不在锁定池中（CSI 300 / S&P 500）
+                时静默 no-op，绝不抛错。HK 标的同样静默 no-op。
+            quant_forecast_horizon: 预测期（交易日数）；None 时使用默认值
+                ``QUANT_FORECAST_HORIZON`` 环境变量（默认 10）。
 
         Returns:
             分析结果字典，包含:
@@ -141,6 +149,36 @@ class AnalysisService:
                         stock_code, _exc,
                     )
 
+            # Sprint 3: build the quant context block (Alpha158 + LightGBM
+            # forecast).  Mirrors the reflection hook above — built BEFORE
+            # the pipeline starts so analyzer.analyze() can splice it.
+            # All failure modes (no qlib / no model / outside universe /
+            # low IC) return None silently — never kills the request.
+            quant_context_block: Optional[str] = None
+            if enable_quant_signal:
+                try:
+                    from src.services.quant_signal_service import (
+                        QuantSignalService,
+                        infer_market_from_code as infer_quant_market,
+                    )
+                    from src.report_language import normalize_report_language
+                    _quant = QuantSignalService()
+                    _quant_market = infer_quant_market(stock_code)
+                    _quant_lang = normalize_report_language(
+                        getattr(get_config(), "report_language", "zh")
+                    )
+                    quant_context_block = _quant.build_quant_context_block(
+                        stock_code=stock_code,
+                        market=_quant_market,
+                        horizon=quant_forecast_horizon,
+                        language=_quant_lang,
+                    )
+                except Exception as _exc:
+                    logger.warning(
+                        "[analyze_stock] quant block build failed for %s: %s",
+                        stock_code, _exc,
+                    )
+
             # 创建分析流水线
             pipeline = StockAnalysisPipeline(
                 config=config,
@@ -150,6 +188,7 @@ class AnalysisService:
                 portfolio_context_block=portfolio_context_block,
                 portfolio_match=portfolio_match,
                 reflection_context_block=reflection_context_block,
+                quant_context_block=quant_context_block,
             )
             
             # 确定报告类型 (API: simple/detailed/full/brief -> ReportType)

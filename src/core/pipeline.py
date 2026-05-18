@@ -86,6 +86,7 @@ class StockAnalysisPipeline:
         progress_callback: Optional[Callable[[int, str], None]] = None,
         portfolio_context_block: Optional[str] = None,
         reflection_context_block: Optional[str] = None,
+        quant_context_block: Optional[str] = None,
         **_extra: Any,
     ):
         """
@@ -109,6 +110,10 @@ class StockAnalysisPipeline:
         # decision journal.  None disables injection — analyzer just sees
         # the standard prompt.  Forwarded to analyzer.analyze() below.
         self.reflection_context_block = reflection_context_block
+        # Sprint 3: optional quant context block (qlib Alpha158 + LightGBM
+        # auxiliary signal).  None when qlib/model artifact missing or
+        # stock outside the locked universe — analyzer omits the section.
+        self.quant_context_block = quant_context_block
 
         # 初始化各模块
         self.db = get_db()
@@ -494,6 +499,7 @@ class StockAnalysisPipeline:
                 stream_progress_callback=_on_llm_stream,
                 portfolio_context_block=self.portfolio_context_block,
                 reflection_context_block=self.reflection_context_block,
+                quant_context_block=self.quant_context_block,
             )
 
             # Step 7.5: 填充分析时的价格信息到 result

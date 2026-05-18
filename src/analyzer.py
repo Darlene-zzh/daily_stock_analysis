@@ -2185,6 +2185,7 @@ class GeminiAnalyzer:
         stream_progress_callback: Optional[Callable[[int], None]] = None,
         portfolio_context_block: Optional[str] = None,
         reflection_context_block: Optional[str] = None,
+        quant_context_block: Optional[str] = None,
     ) -> AnalysisResult:
         """
         分析单只股票
@@ -2258,6 +2259,7 @@ class GeminiAnalyzer:
                 report_language=report_language,
                 portfolio_context_block=portfolio_context_block,
                 reflection_context_block=reflection_context_block,
+                quant_context_block=quant_context_block,
             )
             
             config = self._get_runtime_config()
@@ -2395,6 +2397,7 @@ class GeminiAnalyzer:
         report_language: str = "zh",
         portfolio_context_block: Optional[str] = None,
         reflection_context_block: Optional[str] = None,
+        quant_context_block: Optional[str] = None,
     ) -> str:
         """
         格式化分析提示词（决策仪表盘 v2.0）
@@ -2434,6 +2437,16 @@ class GeminiAnalyzer:
             if reflection_context_block and reflection_context_block.strip()
             else ""
         )
+        # Sprint 3 quant context block — auxiliary statistical signal from
+        # qlib Alpha158 + LightGBM (rolling weekly).  Strict "auxiliary, not
+        # a recommendation" framing is baked into the block builder.  When
+        # the artifact / qlib stack isn't present this is None and the
+        # whole section is omitted.
+        quant_section = (
+            f"\n{quant_context_block}\n\n---\n"
+            if quant_context_block and quant_context_block.strip()
+            else ""
+        )
         prompt = f"""# 决策仪表盘分析请求
 
 ## 📊 股票基础信息
@@ -2444,7 +2457,7 @@ class GeminiAnalyzer:
 | 分析日期 | {context.get('date', unknown_text)} |
 
 ---
-{portfolio_section}{reflection_section}
+{portfolio_section}{reflection_section}{quant_section}
 ## 📈 技术面数据
 
 ### 今日行情

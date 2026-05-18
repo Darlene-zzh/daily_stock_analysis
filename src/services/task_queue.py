@@ -355,6 +355,8 @@ class AnalysisTaskQueue:
         enable_investment_committee: bool = False,
         committee_debate_rounds: int = 2,
         enable_decision_journal_reflection: bool = False,
+        enable_quant_signal: bool = False,
+        quant_forecast_horizon: Optional[int] = None,
     ) -> Tuple[List[TaskInfo], List[DuplicateTaskError]]:
         """
         Submit analysis tasks in batch.
@@ -407,6 +409,8 @@ class AnalysisTaskQueue:
                         enable_investment_committee,
                         committee_debate_rounds,
                         enable_decision_journal_reflection,
+                        enable_quant_signal,
+                        quant_forecast_horizon,
                     )
                 except Exception:
                     # Roll back the current batch to avoid partial submission.
@@ -590,6 +594,8 @@ class AnalysisTaskQueue:
         enable_investment_committee: bool = False,
         committee_debate_rounds: int = 2,
         enable_decision_journal_reflection: bool = False,
+        enable_quant_signal: bool = False,
+        quant_forecast_horizon: Optional[int] = None,
     ) -> Optional[Dict[str, Any]]:
         """
         执行分析任务（在线程池中运行）
@@ -636,6 +642,8 @@ class AnalysisTaskQueue:
                 enable_investment_committee=enable_investment_committee,
                 committee_debate_rounds=committee_debate_rounds,
                 enable_decision_journal_reflection=enable_decision_journal_reflection,
+                enable_quant_signal=enable_quant_signal,
+                quant_forecast_horizon=quant_forecast_horizon,
             )
             
             if result:
