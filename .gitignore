@@ -114,3 +114,6 @@ static/
 
 # server runtime log written by 'python main.py --webui-only'
 webui.log
+
+# Matt Pocock skills, local-only, not part of the governed single source
+.agents/skills/
