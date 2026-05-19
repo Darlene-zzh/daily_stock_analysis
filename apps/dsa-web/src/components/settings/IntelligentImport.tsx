@@ -3,7 +3,9 @@ import { useCallback, useRef, useState } from 'react';
 import { getParsedApiError } from '../../api/error';
 import { stocksApi, type ExtractItem } from '../../api/stocks';
 import { systemConfigApi, SystemConfigConflictError } from '../../api/systemConfig';
-import { Badge, Button, InlineAlert } from '../common';
+import { Badge } from '../common/Badge';
+import { Button } from '../common/Button';
+import { InlineAlert } from '../common/InlineAlert';
 
 const IMG_EXT = ['.jpg', '.jpeg', '.png', '.webp', '.gif'];
 const IMG_MAX = 5 * 1024 * 1024; // 5MB

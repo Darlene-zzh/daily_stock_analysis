@@ -2,7 +2,7 @@ import type React from 'react';
 import { createContext, useCallback, useContext, useEffect, useState } from 'react';
 import { createParsedApiError, getParsedApiError, type ParsedApiError } from '../api/error';
 import { authApi } from '../api/auth';
-import { useStockPoolStore } from '../stores';
+import { useStockPoolStore } from '../stores/stockPoolStore';
 
 type AuthContextValue = {
   authEnabled: boolean;

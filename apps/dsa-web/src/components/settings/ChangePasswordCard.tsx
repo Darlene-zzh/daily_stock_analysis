@@ -2,8 +2,9 @@ import type React from 'react';
 import { useState } from 'react';
 import type { ParsedApiError } from '../../api/error';
 import { isParsedApiError } from '../../api/error';
-import { useAuth } from '../../hooks';
-import { Button, Input } from '../common';
+import { useAuth } from '../../hooks/useAuth';
+import { Button } from '../common/Button';
+import { Input } from '../common/Input';
 import { SettingsAlert } from './SettingsAlert';
 import { SettingsSectionCard } from './SettingsSectionCard';
 

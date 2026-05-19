@@ -1,8 +1,11 @@
 import type React from 'react';
 import { useRef, useCallback, useEffect, useId } from 'react';
 import type { HistoryItem } from '../../types/analysis';
-import { Badge, Button, ScrollArea } from '../common';
-import { DashboardPanelHeader, DashboardStateBlock } from '../dashboard';
+import { Badge } from '../common/Badge';
+import { Button } from '../common/Button';
+import { ScrollArea } from '../common/ScrollArea';
+import { DashboardPanelHeader } from '../dashboard/DashboardPanelHeader';
+import { DashboardStateBlock } from '../dashboard/DashboardStateBlock';
 import { HistoryListItem } from './HistoryListItem';
 
 interface HistoryListProps {

@@ -4,7 +4,9 @@ import type {
   ReportMeta,
   ReportSummary as ReportSummaryType,
 } from '../../types/analysis';
-import { Badge, Card, ScoreGauge } from '../common';
+import { Badge } from '../common/Badge';
+import { Card } from '../common/Card';
+import { ScoreGauge } from '../common/ScoreGauge';
 import { formatDateTime } from '../../utils/format';
 import { getReportText, normalizeReportLanguage } from '../../utils/reportLanguage';
 

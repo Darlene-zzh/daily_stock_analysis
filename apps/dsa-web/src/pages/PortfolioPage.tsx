@@ -4,7 +4,12 @@ import { Pie, PieChart, ResponsiveContainer, Tooltip, Legend, Cell } from 'recha
 import { portfolioApi } from '../api/portfolio';
 import type { ParsedApiError } from '../api/error';
 import { getParsedApiError } from '../api/error';
-import { ApiErrorAlert, Card, Badge, ConfirmDialog, EmptyState, InlineAlert } from '../components/common';
+import { ApiErrorAlert } from '../components/common/ApiErrorAlert';
+import { Card } from '../components/common/Card';
+import { Badge } from '../components/common/Badge';
+import { ConfirmDialog } from '../components/common/ConfirmDialog';
+import { EmptyState } from '../components/common/EmptyState';
+import { InlineAlert } from '../components/common/InlineAlert';
 import { usePortfolioRealtimePrices } from '../hooks/usePortfolioRealtimePrices';
 import { toDateInputValue } from '../utils/format';
 import type {

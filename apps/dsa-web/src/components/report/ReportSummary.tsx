@@ -13,7 +13,8 @@ import { PositionOutcomeSummary } from './PositionOutcomeSummary';
 import { ReportStrategy } from './ReportStrategy';
 import { ReportNews } from './ReportNews';
 import { ReportDetails } from './ReportDetails';
-import { InlineAlert, Button } from '../common';
+import { InlineAlert } from '../common/InlineAlert';
+import { Button } from '../common/Button';
 import { getReportText, normalizeReportLanguage } from '../../utils/reportLanguage';
 
 interface ReportSummaryProps {

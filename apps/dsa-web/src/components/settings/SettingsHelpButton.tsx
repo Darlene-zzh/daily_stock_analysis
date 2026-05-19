@@ -5,7 +5,7 @@ import { createPortal } from 'react-dom';
 import type { SystemConfigFieldSchema } from '../../types/systemConfig';
 import { getSettingsHelpContent } from '../../locales/settingsHelp';
 import { cn } from '../../utils/cn';
-import { Tooltip } from '../common';
+import { Tooltip } from '../common/Tooltip';
 
 interface SettingsHelpButtonProps {
   fieldKey: string;

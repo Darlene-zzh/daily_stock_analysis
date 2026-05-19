@@ -4,7 +4,13 @@ import { Check, Minus, X } from 'lucide-react';
 import { backtestApi } from '../api/backtest';
 import type { ParsedApiError } from '../api/error';
 import { getParsedApiError } from '../api/error';
-import { ApiErrorAlert, Card, Badge, EmptyState, Pagination, StatusDot, Tooltip } from '../components/common';
+import { ApiErrorAlert } from '../components/common/ApiErrorAlert';
+import { Card } from '../components/common/Card';
+import { Badge } from '../components/common/Badge';
+import { EmptyState } from '../components/common/EmptyState';
+import { Pagination } from '../components/common/Pagination';
+import { StatusDot } from '../components/common/StatusDot';
+import { Tooltip } from '../components/common/Tooltip';
 import type {
   BacktestResultItem,
   BacktestRunResponse,

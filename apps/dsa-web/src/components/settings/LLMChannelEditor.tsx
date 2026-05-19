@@ -4,7 +4,14 @@ import type { ParsedApiError } from '../../api/error';
 import { getParsedApiError } from '../../api/error';
 import { systemConfigApi } from '../../api/systemConfig';
 import type { LLMCapabilityCheck, LLMCapabilityCheckResult } from '../../types/systemConfig';
-import { ApiErrorAlert, Badge, Button, InlineAlert, Input, Select, StatusDot, Tooltip } from '../common';
+import { ApiErrorAlert } from '../common/ApiErrorAlert';
+import { Badge } from '../common/Badge';
+import { Button } from '../common/Button';
+import { InlineAlert } from '../common/InlineAlert';
+import { Input } from '../common/Input';
+import { Select } from '../common/Select';
+import { StatusDot } from '../common/StatusDot';
+import { Tooltip } from '../common/Tooltip';
 import type { ChannelProtocol } from './llmProviderTemplates';
 import {
   LLM_PROVIDER_CAPABILITY_LABELS,

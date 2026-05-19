@@ -2,13 +2,14 @@ import type React from 'react';
 import { useState, useEffect } from 'react';
 import { motion, useMotionValue, useTransform, useSpring } from "motion/react";
 import { Lock, Loader2, Cpu, TrendingUp, Network, ShieldCheck } from "lucide-react";
-import { Button, Input, ParticleBackground } from '../components/common';
+import { Button } from '../components/common/Button';
+import { Input } from '../components/common/Input';
+import { ParticleBackground } from '../components/common/ParticleBackground';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import type { ParsedApiError } from '../api/error';
 import { isParsedApiError } from '../api/error';
-import { useAuth } from '../hooks';
-import { SettingsAlert } from '../components/settings';
-
+import { useAuth } from '../hooks/useAuth';
+import { SettingsAlert } from '../components/settings/SettingsAlert';
 const LoginPage: React.FC = () => {
   const { login, passwordSet, setupState } = useAuth();
   const navigate = useNavigate();

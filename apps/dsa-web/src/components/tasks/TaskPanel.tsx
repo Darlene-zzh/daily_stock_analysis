@@ -1,6 +1,8 @@
 import type React from 'react';
-import { Badge, Card, StatusDot } from '../common';
-import { DashboardPanelHeader } from '../dashboard';
+import { Badge } from '../common/Badge';
+import { Card } from '../common/Card';
+import { StatusDot } from '../common/StatusDot';
+import { DashboardPanelHeader } from '../dashboard/DashboardPanelHeader';
 import type { TaskInfo } from '../../types/analysis';
 
 /**

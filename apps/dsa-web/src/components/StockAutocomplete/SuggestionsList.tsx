@@ -7,7 +7,7 @@
 
 import type { CSSProperties } from 'react';
 import type { StockSuggestion } from '../../types/stockIndex';
-import { Badge } from '../common';
+import { Badge } from '../common/Badge';
 import { cn } from '../../utils/cn';
 
 export interface SuggestionsListProps {

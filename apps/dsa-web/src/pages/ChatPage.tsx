@@ -4,10 +4,17 @@ import Markdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import { cn } from '../utils/cn';
 import { agentApi } from '../api/agent';
-import { ApiErrorAlert, Badge, Button, ConfirmDialog, EmptyState, InlineAlert, ScrollArea, Tooltip } from '../components/common';
+import { ApiErrorAlert } from '../components/common/ApiErrorAlert';
+import { Badge } from '../components/common/Badge';
+import { Button } from '../components/common/Button';
+import { ConfirmDialog } from '../components/common/ConfirmDialog';
+import { EmptyState } from '../components/common/EmptyState';
+import { InlineAlert } from '../components/common/InlineAlert';
+import { ScrollArea } from '../components/common/ScrollArea';
+import { Tooltip } from '../components/common/Tooltip';
 import { getParsedApiError } from '../api/error';
 import type { SkillInfo } from '../api/agent';
-import { DashboardStateBlock } from '../components/dashboard';
+import { DashboardStateBlock } from '../components/dashboard/DashboardStateBlock';
 import {
   useAgentChatStore,
   type Message,

@@ -8,7 +8,12 @@ import type {
   TestNotificationChannelResponse,
   SystemConfigUpdateItem,
 } from '../../types/systemConfig';
-import { ApiErrorAlert, Badge, Button, InlineAlert, Input, Select } from '../common';
+import { ApiErrorAlert } from '../common/ApiErrorAlert';
+import { Badge } from '../common/Badge';
+import { Button } from '../common/Button';
+import { InlineAlert } from '../common/InlineAlert';
+import { Input } from '../common/Input';
+import { Select } from '../common/Select';
 import { SettingsSectionCard } from './SettingsSectionCard';
 
 const CHANNEL_OPTIONS: Array<{ value: NotificationTestChannel; label: string }> = [

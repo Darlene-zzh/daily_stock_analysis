@@ -4,7 +4,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { analysisApi, DuplicateTaskError } from '../../api/analysis';
 import { historyApi } from '../../api/history';
 import { systemConfigApi } from '../../api/systemConfig';
-import { useStockPoolStore } from '../../stores';
+import { useStockPoolStore } from '../../stores/stockPoolStore';
 import { getReportText, normalizeReportLanguage } from '../../utils/reportLanguage';
 import HomePage from '../HomePage';
 

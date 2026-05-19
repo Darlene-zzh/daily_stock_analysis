@@ -1,21 +1,23 @@
 import type React from 'react';
 import { useEffect, useRef, useState } from 'react';
-import { useAuth, useSystemConfig } from '../hooks';
+import { useAuth } from '../hooks/useAuth';
+import { useSystemConfig } from '../hooks/useSystemConfig';
 import { createParsedApiError, getParsedApiError, type ParsedApiError } from '../api/error';
 import { systemConfigApi } from '../api/systemConfig';
-import { ApiErrorAlert, Button, ConfirmDialog, EmptyState } from '../components/common';
-import {
-  AuthSettingsCard,
-  ChangePasswordCard,
-  IntelligentImport,
-  LLMChannelEditor,
-  NotificationTestPanel,
-  SettingsCategoryNav,
-  SettingsAlert,
-  SettingsField,
-  SettingsLoading,
-  SettingsSectionCard,
-} from '../components/settings';
+import { ApiErrorAlert } from '../components/common/ApiErrorAlert';
+import { Button } from '../components/common/Button';
+import { ConfirmDialog } from '../components/common/ConfirmDialog';
+import { EmptyState } from '../components/common/EmptyState';
+import { AuthSettingsCard } from '../components/settings/AuthSettingsCard';
+import { ChangePasswordCard } from '../components/settings/ChangePasswordCard';
+import { IntelligentImport } from '../components/settings/IntelligentImport';
+import { LLMChannelEditor } from '../components/settings/LLMChannelEditor';
+import { NotificationTestPanel } from '../components/settings/NotificationTestPanel';
+import { SettingsCategoryNav } from '../components/settings/SettingsCategoryNav';
+import { SettingsAlert } from '../components/settings/SettingsAlert';
+import { SettingsField } from '../components/settings/SettingsField';
+import { SettingsLoading } from '../components/settings/SettingsLoading';
+import { SettingsSectionCard } from '../components/settings/SettingsSectionCard';
 import { WEB_BUILD_INFO } from '../utils/constants';
 import { getCategoryDescriptionZh } from '../utils/systemConfigI18n';
 import type { SystemConfigCategory } from '../types/systemConfig';
