@@ -101,6 +101,7 @@ export const CommitteeOptIn: React.FC<CommitteeOptInProps> = ({
               type="checkbox"
               role="switch"
               checked={enabled}
+              aria-checked={enabled}
               disabled={disabled}
               onChange={(e) => onEnabledChange(e.target.checked)}
               aria-describedby={`${switchId}-hint`}

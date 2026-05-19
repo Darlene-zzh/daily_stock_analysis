@@ -97,6 +97,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 - [改进] `AnalysisRequest` 透传 `enableInvestmentCommittee` / `committeeDebateRounds`；store + types 两处同步默认值（off / 2 轮）。
 - [测试] 新增 13 个 Vitest 用例覆盖 OptIn 折叠 / 成本提示公式 / 三种 status（ok / partial / failed）渲染分支 / lens rationale 展开折叠 / 中英文小标题切换。
 - [文档] `docs/full-guide.md` 扩写「投委会模式」段落，加入 Web UI 操作步骤与成本提示；`apps/dsa-web/src/utils/personaDisplay.ts` 镜像 Python `PERSONA_DISPLAY`，作为前端单一真源。
+- [chore] Plan B 合并：把 `feat/action-plan-items` 分支 47 个提交（含动作计划、策略分类、情绪面板、Trading 212 导入、市场复盘多时段、桌面端自动更新等）与 Sprint 1A-4 投委会自动链路合并到 main；解决 10 个文件冲突（保留两侧实现），并 cherry-pick agent 兜底相关补丁（`9121956` agent salvage v1、`8294e82` fallback chain wiring）。
+- [修复] `apps/dsa-web/src/pages/HomePage.tsx` 删除合并后残留的未使用 `EmptyState` import，修复 Vite build 失败。
+- [修复] 操作计划渲染器 (`src/notification.py` + `src/services/history_service.py`)：`shares=0` 但 `pct_of_position` 非空时不再 `continue` 跳过，而是按 `止盈（持仓 30.0%）` 渲染纯比例条目；保留双 renderer 字节一致约束。
+- [修复] `src/repositories/analysis_repo.py::update_committee_minutes`：之前用 `get_session()` 返回的裸 Session 只 `flush()` 不 `commit()`，导致投委会会议纪要在 context manager 退出时被静默回滚（log 错误地打印 "DONE"），改为 `with self.db.session_scope() as session:` 自动提交；同时补 5 处 silent-False 路径的诊断日志（lookup 失败 / 记录不存在 / raw_result 非 dict / dashboard 非 dict / session.query 返回 None）。
+- [修复] `api/v1/schemas/history.py::AnalysisReport` 与 `api/v1/endpoints/history.py`：把 `committee` 与 `risk_assessment` 提升到 report 顶层字段（之前藏在 `report.details.raw_result.dashboard.committee` 四层嵌套，前端 `ReportSummary` destructure 不到导致永远不渲染）；同步补全 `Dict` typing import 避免运行时 NameError。
+- [修复] `src/agent/runner.py` agent salvage v2：之前只在 max_steps 触顶时挽救最后一条 assistant content，agent 在自然完成路径返回空字符串时仍判定失败；新增 `_salvage_assistant_text(messages)` 模块级 helper，让两条路径（max_steps + 自然完成空内容）共享挽救逻辑，把投委会 prompt 漂移导致的「未产出最终答复」从硬失败降级为可用降级输出。
+- [chore] 投委会数据链路全程诊断日志：API 入口记录 committee toggle；`analyze_stock` 入口记录三个 opt-in flag；orchestrator.run 包 try/except + 返回类型/状态日志；为定位 4 名大师全部缺席问题提供可观测性（根因：免费 LLM provider RPM 上限 5-15 RPM，4 并发 fan-out 会同时打爆所有 provider，待后续架构调整为串行 / prompt 瘦身）。
+- [修复] Web 端清掉 react-doctor 报出的 3 条 error 级问题：`apps/dsa-web/src/main.tsx` 在根容器外层包 `<MotionConfig reducedMotion="user">`，让用户系统 `prefers-reduced-motion: reduce` 时全局 framer-motion 动效自动降级（满足 WCAG 2.3.3）；`apps/dsa-web/src/components/committee/CommitteeOptIn.tsx` 给 `role="switch"` 的 checkbox 补 `aria-checked={enabled}`，屏幕阅读器可正确读出开关状态；`apps/dsa-web/src/App.tsx` 把 `useLocation()` 解构成 `{ pathname, search }`，effect deps 不再形如 `location.pathname`（react-doctor `no-mutable-in-deps` 误把 react-router 的 location 视作浏览器全局 `location`）。`npm run lint` + `npm run build` 通过；warning 数 279 不变（下批处理）。
 
 ## [3.16.0] - 2026-05-10
 
