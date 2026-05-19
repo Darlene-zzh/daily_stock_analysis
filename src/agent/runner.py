@@ -354,6 +354,42 @@ def _build_budget_guard_result(
     )
 
 
+def _salvage_assistant_text(messages: List[Dict[str, Any]]) -> str:
+    """Walk backwards through messages for the most recent non-empty
+    assistant text content.
+
+    Used by both salvage paths in :func:`run_agent_loop`:
+    1. ``max_steps`` exceeded without a tool-free final answer
+       (non-Gemini providers that keep emitting tool_calls every turn)
+    2. Natural-completion branch (no tool_calls) but
+       ``response.content`` is empty — a rare-but-real failure mode from
+       rate-limited / content-filtered / glitchy LLM endpoints
+
+    Some adapters wrap content as a list of content-parts (e.g. Anthropic
+    style ``[{"type": "text", "text": "..."}, ...]``) — handle that shape
+    by joining all text parts.
+
+    Returns ``""`` when no salvageable assistant text exists anywhere in
+    the message history. Caller decides whether to treat empty salvage as
+    a hard failure.
+    """
+    for msg in reversed(messages):
+        if msg.get("role") != "assistant":
+            continue
+        c = msg.get("content")
+        if isinstance(c, str) and c.strip():
+            return c
+        if isinstance(c, list):
+            joined = " ".join(
+                part.get("text", "")
+                for part in c
+                if isinstance(part, dict) and isinstance(part.get("text"), str)
+            ).strip()
+            if joined:
+                return joined
+    return ""
+
+
 # ============================================================
 # Core loop
 # ============================================================
@@ -574,6 +610,34 @@ def run_agent_loop(
             final_content = response.content or ""
             is_error = response.provider == "error"
 
+            # If the natural-completion branch fires but the model returned
+            # an empty assistant message (no tool_calls AND no content — a
+            # rare-but-real failure mode from rate-limited / content-filtered
+            # / glitchy LLM endpoints), fall through to salvage: walk back
+            # through messages for the most recent non-empty assistant text.
+            # Previously this case bailed with success=False, which surfaced
+            # as "Agent loop did not produce a final answer" in the UI even
+            # though earlier turns had usable content.
+            if not is_error and not final_content:
+                salvaged = _salvage_assistant_text(messages)
+                if salvaged:
+                    logger.warning(
+                        "Agent completed in %d steps but final assistant message "
+                        "was empty — salvaging %d chars of the prior assistant turn",
+                        step + 1, len(salvaged),
+                    )
+                    return RunLoopResult(
+                        success=True,
+                        content=salvaged,
+                        tool_calls_log=tool_calls_log,
+                        total_steps=step + 1,
+                        total_tokens=total_tokens,
+                        provider=provider_used,
+                        models_used=models_used,
+                        error=None,
+                        messages=messages,
+                    )
+
             return RunLoopResult(
                 success=not is_error and bool(final_content),
                 content=final_content if not is_error else "",
@@ -599,29 +663,7 @@ def run_agent_loop(
     # producing a tool-free message. Both styles previously bailed here
     # with `success=False, content=""`, which surfaced as the screenshot
     # the user flagged ("Agent loop did not produce a final answer").
-    #
-    # Salvage: walk backwards through `messages` for the most recent
-    # assistant message with non-empty textual content. Even when the
-    # model also requested tools on that turn, the prose it wrote alongside
-    # is usable as a final answer for downstream post-processing.
-    salvaged_content = ""
-    for msg in reversed(messages):
-        if msg.get("role") != "assistant":
-            continue
-        c = msg.get("content")
-        if isinstance(c, str) and c.strip():
-            salvaged_content = c
-            break
-        # Some adapters wrap content as list-of-parts; handle that shape.
-        if isinstance(c, list):
-            joined = " ".join(
-                part.get("text", "")
-                for part in c
-                if isinstance(part, dict) and isinstance(part.get("text"), str)
-            ).strip()
-            if joined:
-                salvaged_content = joined
-                break
+    salvaged_content = _salvage_assistant_text(messages)
 
     if salvaged_content:
         logger.warning(
