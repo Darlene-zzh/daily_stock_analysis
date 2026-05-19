@@ -326,12 +326,27 @@ def get_history_detail(
         
         dashboard_data = raw_result.get("dashboard")
         dashboard = None
+        committee_payload = None
+        risk_assessment_payload = None
         if isinstance(dashboard_data, dict):
             from api.v1.schemas.history import DashboardSection
             try:
                 dashboard = DashboardSection(**dashboard_data)
             except Exception:
                 dashboard = None
+            # Lift opt-in payloads to top level so the frontend's
+            # ``ReportSummary`` destructure (``{committee, riskAssessment}``)
+            # finds them without diving into ``dashboard``. The live
+            # analyze_stock response already returns committee at
+            # response["report"]["committee"]; this mirrors that shape for
+            # the history endpoint so the Web UI looks identical for live
+            # vs cached reports.
+            raw_committee = dashboard_data.get("committee")
+            if isinstance(raw_committee, dict) and raw_committee:
+                committee_payload = raw_committee
+            raw_risk = dashboard_data.get("risk_assessment")
+            if isinstance(raw_risk, dict) and raw_risk:
+                risk_assessment_payload = raw_risk
 
         return AnalysisReport(
             meta=meta,
@@ -339,6 +354,8 @@ def get_history_detail(
             strategy=strategy,
             details=details,
             dashboard=dashboard,
+            committee=committee_payload,
+            risk_assessment=risk_assessment_payload,
         )
         
     except HTTPException:

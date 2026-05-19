@@ -234,6 +234,17 @@ class AnalysisReport(BaseModel):
     strategy: Optional[ReportStrategy] = Field(None, description="策略点位区")
     details: Optional[ReportDetails] = Field(None, description="详情区")
     dashboard: Optional[DashboardSection] = Field(None, description="决策仪表盘结构化数据")
+    # Sprint 1B — top-level surface for Investment Committee minutes so the
+    # frontend ``ReportSummary`` can destructure ``committee`` directly
+    # without diving into ``dashboard``. Lives at top level because that's
+    # how the live analyze_stock response (response["report"]["committee"])
+    # exposes it; the history endpoint must match the same shape.
+    committee: Optional[Dict[str, Any]] = Field(None, description="投委会会议纪要 (opt-in)")
+    # Sprint 4 — same rationale: surface standalone structured risk at top
+    # level so ``ReportSummary`` can find it without dashboard nesting.
+    risk_assessment: Optional[Dict[str, Any]] = Field(
+        None, description="结构化风险评估 (opt-in)"
+    )
 
     class Config:
         json_schema_extra = {
