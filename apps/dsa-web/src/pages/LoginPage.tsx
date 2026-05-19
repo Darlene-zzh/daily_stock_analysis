@@ -116,11 +116,11 @@ const LoginPage: React.FC = () => {
           </motion.div>
 
           <div className="mt-8 flex flex-col items-center">
-            <h2 className="text-4xl font-extrabold tracking-tighter text-[var(--login-text-primary)] sm:text-6xl">
+            <h2 className="text-4xl font-semibold tracking-tighter text-[var(--login-text-primary)] sm:text-6xl">
               <span className="bg-gradient-to-r from-[var(--login-text-primary)] via-[var(--login-text-primary)] to-[var(--login-text-secondary)] bg-clip-text text-transparent">DAILY </span>
               <span className="bg-gradient-to-r from-[var(--login-brand-start)] to-[var(--login-brand-end)] bg-clip-text text-transparent drop-shadow-[0_0_20px_var(--login-accent-glow)]">STOCK</span>
             </h2>
-            <h3 className="mt-1 text-xl font-bold uppercase tracking-[0.5em] text-[var(--login-text-muted)]">
+            <h3 className="mt-1 text-xl font-semibold uppercase tracking-[0.5em] text-[var(--login-text-muted)]">
               Analysis Engine
             </h3>
           </div>
@@ -151,7 +151,7 @@ const LoginPage: React.FC = () => {
             <div className="absolute -bottom-20 -left-20 size-40 rounded-full bg-blue-600/10 blur-[50px]" />
 
             <div className="mb-8">
-              <h1 className="flex items-center gap-2 text-2xl font-bold tracking-tight text-[var(--login-text-primary)]">
+              <h1 className="flex items-center gap-2 text-2xl font-semibold tracking-tight text-[var(--login-text-primary)]">
                 {isFirstTime ? (
                   <>
                     <ShieldCheck className="size-6 text-emerald-400" />

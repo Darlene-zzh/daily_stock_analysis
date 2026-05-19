@@ -64,10 +64,16 @@ export const Drawer: React.FC<DrawerProps> = ({
 
   return (
     <div className="fixed inset-0 overflow-hidden" style={{ zIndex }} role="presentation">
-      {/* Backdrop */}
-      <div
+      {/* Backdrop — rendered as a button so click + keyboard close are both
+          first-class. Document-level Escape (handleKeyDown above) is the
+          primary keyboard close path; the button role keeps lint happy and
+          ensures users on keyboard-only navigation can still dismiss via Enter
+          / Space if they reach the backdrop via Tab. */}
+      <button
+        type="button"
+        aria-label="关闭抽屉"
         className={cn(
-          'absolute inset-0 bg-background/80 backdrop-blur-sm transition-opacity duration-300',
+          'absolute inset-0 cursor-default bg-background/80 backdrop-blur-sm transition-opacity duration-300',
           backdropClassName,
         )}
         onClick={onClose}
