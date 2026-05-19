@@ -128,23 +128,39 @@ class AnalysisRepository:
         per spec §11 graceful-degradation rule).
         """
         import json
+        logger.info("[update_committee_minutes] start query_id=%s", query_id)
         try:
             records = self.db.get_analysis_history(query_id=query_id, limit=1)
         except Exception as exc:
-            logger.warning("update_committee_minutes lookup failed: %s", exc)
+            logger.warning("[update_committee_minutes] lookup failed: %s", exc)
             return False
         if not records:
+            logger.warning(
+                "[update_committee_minutes] no record found for query_id=%s",
+                query_id,
+            )
             return False
         record = records[0]
+        logger.info(
+            "[update_committee_minutes] found record id=%s code=%s",
+            getattr(record, "id", "?"), getattr(record, "code", "?"),
+        )
         raw = getattr(record, "raw_result", None)
         if isinstance(raw, str):
             try:
                 payload = json.loads(raw)
-            except Exception:
+            except Exception as exc:
+                logger.warning(
+                    "[update_committee_minutes] raw_result JSON parse failed: %s", exc,
+                )
                 return False
         elif isinstance(raw, dict):
             payload = dict(raw)
         else:
+            logger.warning(
+                "[update_committee_minutes] raw_result has unexpected type=%s",
+                type(raw).__name__,
+            )
             payload = {}
         dashboard = payload.get("dashboard")
         if not isinstance(dashboard, dict):
@@ -159,12 +175,20 @@ class AnalysisRepository:
                     .one_or_none()
                 )
                 if row is None:
+                    logger.warning(
+                        "[update_committee_minutes] session.query returned None for id=%s",
+                        record.id,
+                    )
                     return False
                 row.raw_result = json.dumps(payload, ensure_ascii=False, default=str)
                 session.flush()
+                logger.info(
+                    "[update_committee_minutes] DONE id=%s payload_size=%d bytes",
+                    record.id, len(row.raw_result),
+                )
                 return True
         except Exception as exc:
-            logger.warning("update_committee_minutes persist failed: %s", exc)
+            logger.warning("[update_committee_minutes] persist failed: %s", exc, exc_info=True)
             return False
     
     def count_by_code(self, code: str, days: int = 30) -> int:
