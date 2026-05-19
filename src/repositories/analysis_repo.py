@@ -168,7 +168,14 @@ class AnalysisRepository:
         dashboard["committee"] = committee
         payload["dashboard"] = dashboard
         try:
-            with self.db.get_session() as session:
+            # ``get_session`` returns a raw Session — caller is responsible
+            # for committing. Previously we only called ``session.flush()``
+            # which writes the row into the transaction but does NOT persist;
+            # on context-manager exit the transaction was rolled back and
+            # the committee payload was silently lost (log line "DONE" was
+            # misleading). Use ``session_scope`` which auto-commits, or fall
+            # back to an explicit commit if scope helper is unavailable.
+            with self.db.session_scope() as session:
                 row = (
                     session.query(AnalysisHistory)
                     .filter(AnalysisHistory.id == record.id)
@@ -181,9 +188,12 @@ class AnalysisRepository:
                     )
                     return False
                 row.raw_result = json.dumps(payload, ensure_ascii=False, default=str)
+                # session_scope() calls commit() on clean exit; flush is
+                # not strictly required but keeps SQLAlchemy's UPDATE order
+                # deterministic when callers chain multiple operations.
                 session.flush()
                 logger.info(
-                    "[update_committee_minutes] DONE id=%s payload_size=%d bytes",
+                    "[update_committee_minutes] DONE id=%s payload_size=%d bytes (committed)",
                     record.id, len(row.raw_result),
                 )
                 return True
