@@ -11,7 +11,7 @@ import { EmptyState } from '../components/common/EmptyState';
 import { AuthSettingsCard } from '../components/settings/AuthSettingsCard';
 import { ChangePasswordCard } from '../components/settings/ChangePasswordCard';
 import { IntelligentImport } from '../components/settings/IntelligentImport';
-import { LLMChannelEditor } from '../components/settings/LLMChannelEditor';
+import { LLMChannelEditor } from '../components/settings/LLMChannelEditor/LLMChannelEditor';
 import { NotificationTestPanel } from '../components/settings/NotificationTestPanel';
 import { SettingsCategoryNav } from '../components/settings/SettingsCategoryNav';
 import { SettingsAlert } from '../components/settings/SettingsAlert';
