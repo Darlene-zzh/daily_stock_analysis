@@ -67,7 +67,7 @@ export const Select: React.FC<SelectProps> = ({
         {/* Dropdown arrow */}
         <div className="absolute inset-y-0 right-0 flex items-center pr-3 pointer-events-none">
           <svg
-            className="h-4 w-4 text-secondary-text"
+            className="size-4 text-secondary-text"
             fill="none"
             stroke="currentColor"
             viewBox="0 0 24 24"

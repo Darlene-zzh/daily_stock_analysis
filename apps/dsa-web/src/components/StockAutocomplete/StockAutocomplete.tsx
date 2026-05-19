@@ -268,7 +268,7 @@ function StockAutocompleteInner({
       {/* Loading indicator */}
       {loading && (
         <div className="absolute right-3 top-1/2 -translate-y-1/2">
-          <div className="w-4 h-4 border-2 border-cyan/20 border-t-cyan rounded-full animate-spin" />
+          <div className="size-4 border-2 border-cyan/20 border-t-cyan rounded-full animate-spin" />
         </div>
       )}
 

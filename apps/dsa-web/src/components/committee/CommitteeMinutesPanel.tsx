@@ -295,7 +295,7 @@ const LensCard: React.FC<LensCardProps> = ({
       <div className="flex items-center gap-2">
         <span
           aria-hidden="true"
-          className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-xs font-bold text-white"
+          className="flex size-8 shrink-0 items-center justify-center rounded-full text-xs font-bold text-white"
           style={{ backgroundColor: display.avatarColor }}
         >
           {display.avatarInitials}

@@ -92,7 +92,7 @@ export const NotificationTestPanel: React.FC<NotificationTestPanelProps> = ({
           isLoading={isTesting}
           loadingText="测试中..."
         >
-          <Send className="h-4 w-4" />
+          <Send className="size-4" />
           发送测试
         </Button>
       )}

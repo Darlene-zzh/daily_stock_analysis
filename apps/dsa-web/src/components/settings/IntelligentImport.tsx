@@ -409,7 +409,7 @@ export const IntelligentImport: React.FC<IntelligentImportProps> = ({
                     checked={it.checked}
                     onChange={() => toggleChecked(it.id)}
                     disabled={!it.code || disabled}
-                    className="settings-input-checkbox h-4 w-4 rounded border-border/70 bg-base"
+                    className="settings-input-checkbox size-4 rounded border-border/70 bg-base"
                   />
                   <span className={it.code ? 'font-medium text-foreground' : 'font-medium text-danger'}>
                     {it.code || '解析失败'}

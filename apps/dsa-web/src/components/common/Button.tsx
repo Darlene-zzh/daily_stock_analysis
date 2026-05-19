@@ -74,7 +74,7 @@ export const Button: React.FC<ButtonProps> = ({
       {isLoading ? (
         <span className="flex items-center justify-center gap-2">
           <svg
-            className="h-4 w-4 animate-spin text-current"
+            className="size-4 animate-spin text-current"
             xmlns="http://www.w3.org/2000/svg"
             fill="none"
             viewBox="0 0 24 24"

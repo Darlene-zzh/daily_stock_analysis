@@ -37,9 +37,9 @@ export const DashboardStateBlock: React.FC<DashboardStateBlockProps> = ({
       )}
     >
       {loading ? (
-        <div className="home-spinner h-6 w-6 animate-spin border-2" aria-hidden="true" />
+        <div className="home-spinner size-6 animate-spin border-2" aria-hidden="true" />
       ) : icon ? (
-        <div className="home-state-icon-muted flex h-11 w-11 items-center justify-center rounded-full bg-subtle">
+        <div className="home-state-icon-muted flex size-11 items-center justify-center rounded-full bg-subtle">
           {icon}
         </div>
       ) : null}

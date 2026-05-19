@@ -24,7 +24,7 @@ const AppContent: React.FC = () => {
   if (isLoading) {
     return (
       <div className="flex min-h-screen items-center justify-center bg-base">
-        <div className="h-8 w-8 animate-spin rounded-full border-2 border-cyan/20 border-t-cyan" />
+        <div className="size-8 animate-spin rounded-full border-2 border-cyan/20 border-t-cyan" />
       </div>
     );
   }

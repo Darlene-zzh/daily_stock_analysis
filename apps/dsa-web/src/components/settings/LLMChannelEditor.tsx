@@ -190,7 +190,7 @@ const ChannelRow: React.FC<ChannelRowProps> = ({
           type="checkbox"
           checked={channel.enabled}
           disabled={busy}
-          className="settings-input-checkbox h-4 w-4 shrink-0 rounded border-border/70 bg-base"
+          className="settings-input-checkbox size-4 shrink-0 rounded border-border/70 bg-base"
           onClick={(e) => e.stopPropagation()}
           onChange={(e) => onUpdate(index, 'enabled', e.target.checked)}
         />
@@ -257,7 +257,7 @@ const ChannelRow: React.FC<ChannelRowProps> = ({
       </div>
 
       {expanded ? (
-        <div className="settings-surface-overlay-soft space-y-4 px-4 py-4">
+        <div className="settings-surface-overlay-soft space-y-4 p-4">
           <div className="grid gap-2 sm:grid-cols-2">
             <Input
               label="渠道名称"
@@ -387,7 +387,7 @@ const ChannelRow: React.FC<ChannelRowProps> = ({
                         ))}
                         disabled={busy}
                         onChange={() => onUpdate(index, 'models', toggleModelSelection(channel.models, model, channel.protocol))}
-                        className="settings-input-checkbox h-4 w-4 rounded border-border/70 bg-base"
+                        className="settings-input-checkbox size-4 rounded border-border/70 bg-base"
                       />
                       <span>{model}</span>
                     </label>
@@ -482,7 +482,7 @@ const ChannelRow: React.FC<ChannelRowProps> = ({
                       checked={selectedCapabilities.includes(option.value)}
                       disabled={busy || capabilityBusy}
                       onChange={() => onToggleCapability(channel, option.value)}
-                      className="settings-input-checkbox h-3.5 w-3.5 rounded border-border/70 bg-base"
+                      className="settings-input-checkbox size-3.5 rounded border-border/70 bg-base"
                     />
                     <span>{option.label}</span>
                   </label>
@@ -1711,7 +1711,7 @@ export const LLMChannelEditor: React.FC<LLMChannelEditorProps> = ({
                             checked={runtimeConfig.fallbackModels.includes(model)}
                             disabled={busy || model === runtimeConfig.primaryModel}
                             onChange={() => toggleFallbackModel(model)}
-                            className="settings-input-checkbox h-4 w-4 rounded border-border/70 bg-base"
+                            className="settings-input-checkbox size-4 rounded border-border/70 bg-base"
                           />
                           <span>{model}</span>
                         </label>
