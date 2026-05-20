@@ -504,15 +504,18 @@ class InvestmentCommitteeOrchestrator:
     # Helper — output language
     # ----------------------------------------------------------------- #
 
-    def _language_suffix(self) -> str:
-        """Return the Chinese-output instruction suffix when ctx requests zh.
+    def _language_prefix(self) -> str:
+        """Return the Chinese-output instruction PREFIX when ctx requests zh.
 
+        Prepended to system prompts (not appended) — leading directives
+        are followed more reliably by smaller LLM fallbacks (Cerebras
+        llama, Groq, mini models) which often skim past trailing rules.
         Returns empty string for non-zh contexts so existing English
         behavior is byte-identical.
         """
         lang = (getattr(self.ctx, "report_language", "zh") or "zh").lower()
         if lang.startswith("zh"):
-            return COMMITTEE_LANGUAGE_SUFFIX_ZH
+            return COMMITTEE_LANGUAGE_SUFFIX_ZH + "\n\n"
         return ""
 
     # ----------------------------------------------------------------- #
@@ -579,7 +582,7 @@ class InvestmentCommitteeOrchestrator:
         try:
             parsed: DebateExchange = self._call_llm_with_retry(
                 node_name=node,
-                system_prompt=BullResearcher.system_prompt() + self._language_suffix(),
+                system_prompt=self._language_prefix() + BullResearcher.system_prompt(),
                 user_message=BullResearcher.build_user_message(
                     self.ctx,
                     round_index=round_idx,
@@ -619,7 +622,7 @@ class InvestmentCommitteeOrchestrator:
         try:
             parsed: DebateExchange = self._call_llm_with_retry(
                 node_name=node,
-                system_prompt=BearResearcher.system_prompt() + self._language_suffix(),
+                system_prompt=self._language_prefix() + BearResearcher.system_prompt(),
                 user_message=BearResearcher.build_user_message(
                     self.ctx,
                     round_index=round_idx,
@@ -662,7 +665,7 @@ class InvestmentCommitteeOrchestrator:
         try:
             parsed: MasterOpinion = self._call_llm_with_retry(
                 node_name=f"master_{persona_id}",
-                system_prompt=persona_cls.system_prompt(self.ctx) + self._language_suffix(),
+                system_prompt=self._language_prefix() + persona_cls.system_prompt(self.ctx),
                 user_message=persona_cls.build_user_message(
                     self.ctx,
                     report_json=self.report_json,
@@ -722,7 +725,7 @@ class InvestmentCommitteeOrchestrator:
         try:
             parsed: RiskAssessment = self._call_llm_with_retry(
                 node_name="risk",
-                system_prompt=risk_sys + self._language_suffix(),
+                system_prompt=self._language_prefix() + risk_sys,
                 user_message=risk_user,
                 parse=parse_risk_assessment_strict,
                 schema_example=RISK_ASSESSMENT_SCHEMA_EXAMPLE,
@@ -798,7 +801,7 @@ class InvestmentCommitteeOrchestrator:
         try:
             parsed: CommitteeMinutes = self._call_llm_with_retry(
                 node_name="pm",
-                system_prompt=pm_sys + self._language_suffix(),
+                system_prompt=self._language_prefix() + pm_sys,
                 user_message=pm_user,
                 parse=parse_committee_minutes_strict,
                 schema_example=COMMITTEE_MINUTES_PM_SCHEMA_EXAMPLE,

@@ -116,6 +116,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 - [修复] 投委会 master fan-out 在超时触发时，未执行的 persona 现在会以 `status="failed"` 占位写入 `minutes.masters` 并加入 `missing_agents`，前后端 partial 状态计数与渲染一致（之前是渲染层凭 `DEFAULT_PERSONA_ORDER` 兜底，`missing_agents` 数据本身漏标）。
 - [新功能] 投委会 prompts（bull / bear / master 4 视角 / risk / PM）现在跟随 `report_language` 输出中文：JSON 键名、verdict/side/severity 枚举、persona ID 保持英文，但 `headline` / `rationale` / `key_evidence` / `claim` / `evidence` / `red_flags` / `pm_rationale` 等自由文本字段在 `report_language=zh` 下用简体中文（与主分析器的「双语速览」对齐）。
 - [改进] `AgentContext` 新增 `report_language` 字段（默认 `zh`），由 `AnalysisService._invoke_committee` 从 `result.report_language` / `config.report_language` 解析后填入，供 committee orchestrator 分支使用。
+- [改进] 投委会 prompt 的中文输出指令从末尾改到开头（method `_language_suffix` → `_language_prefix`），对 Cerebras / Groq llama 等 fallback 模型的语言遵从更稳健。
+- [新功能] 前端「缺席」徽章新增简短原因标签（超时跳过 / 解析失败 / 预算超支 / 运行异常），鼠标悬停显示完整 `error_summary`。
 
 ## [3.16.0] - 2026-05-10
 

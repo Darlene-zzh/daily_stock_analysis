@@ -35,18 +35,20 @@ def _make_orch(report_language: str) -> InvestmentCommitteeOrchestrator:
     )
 
 
-def test_language_suffix_emits_zh_block_when_report_language_zh():
+def test_language_prefix_emits_zh_block_when_report_language_zh():
     orch = _make_orch("zh")
-    suffix = orch._language_suffix()
-    assert "输出语言" in suffix
-    assert "JSON" in suffix or "键名" in suffix
-    assert "headline" in suffix or "rationale" in suffix or "claim" in suffix
+    prefix = orch._language_prefix()
+    assert "输出语言" in prefix
+    assert "JSON" in prefix or "键名" in prefix
+    assert "headline" in prefix or "rationale" in prefix or "claim" in prefix
+    # PREFIX must end with blank line(s) so it composes cleanly with base prompt
+    assert prefix.endswith("\n\n")
 
 
-def test_language_suffix_empty_when_report_language_en():
+def test_language_prefix_empty_when_report_language_en():
     orch = _make_orch("en")
-    suffix = orch._language_suffix()
-    assert suffix == ""
+    prefix = orch._language_prefix()
+    assert prefix == ""
 
 
 def test_language_suffix_constant_module_export():
@@ -56,17 +58,22 @@ def test_language_suffix_constant_module_export():
     assert "rationale" in COMMITTEE_LANGUAGE_SUFFIX_ZH
 
 
-def test_bull_prompt_includes_zh_suffix_under_zh_context():
+def test_bull_prompt_has_zh_prefix_at_HEAD_not_tail():
+    """The language directive must appear at the START of the composed
+    prompt, not the end — small LLM fallbacks (Cerebras llama, mini
+    models) often ignore trailing instructions.
+    """
     from src.agent.agents.bull_researcher import BullResearcher
     orch = _make_orch("zh")
-    composed = BullResearcher.system_prompt() + orch._language_suffix()
-    assert "输出语言" in composed
+    composed = orch._language_prefix() + BullResearcher.system_prompt()
+    head = composed[:1000]
+    assert "输出语言" in head, "language directive must be at HEAD not tail"
     assert "Bull Researcher" in composed
 
 
 def test_bull_prompt_unchanged_under_en_context():
     from src.agent.agents.bull_researcher import BullResearcher
     orch = _make_orch("en")
-    composed = BullResearcher.system_prompt() + orch._language_suffix()
+    composed = orch._language_prefix() + BullResearcher.system_prompt()
     assert "输出语言" not in composed
     assert "Bull Researcher" in composed
