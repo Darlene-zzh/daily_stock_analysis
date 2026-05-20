@@ -489,3 +489,69 @@ def test_invoke_committee_defaults_report_language_to_zh_when_result_missing(mon
     ctx = captured.get("ctx")
     assert ctx is not None
     assert ctx.report_language == "zh"  # Default
+
+
+def test_invoke_committee_logs_channel_per_llm_call(monkeypatch, caplog):
+    """Every committee LLM call must emit a [committee-llm] log line with
+    the channel/model that handled it.
+
+    Why: when committee output drifts (e.g. English in zh context), the
+    operator needs to know WHICH channel handled which call so they can
+    pinpoint the misbehaving model without rerunning the analysis.
+    """
+    from types import SimpleNamespace
+    from src.services.analysis_service import AnalysisService
+
+    class _FakeAdapter:
+        def __init__(self, *args, **kwargs):  # noqa: ARG002
+            self._litellm_available = True
+
+        def call_text(self, *args, **kwargs):  # noqa: ARG002
+            return SimpleNamespace(
+                content='{"side": "bull", "round_index": 1, "claim": "x",'
+                        ' "evidence": ["a","b","c"], "rebuttal_to": null,'
+                        ' "confidence": 0.5}',
+                model="gemini/gemini-2.5-flash",
+            )
+
+    captured_orch = {}
+
+    class _SpyOrchestrator:
+        def __init__(self, ctx, *args, **kwargs):  # noqa: ARG002
+            captured_orch["llm"] = kwargs.get("llm_callable")
+            captured_orch["ctx"] = ctx
+
+        def run(self):
+            # Manually invoke llm_callable once to exercise the telemetry hook
+            captured_orch["llm"]("sys", "user")
+            from src.schemas.committee_schema import failed_committee_minutes
+            from src.agent.orchestrator_committee import CommitteeRunResult
+            return CommitteeRunResult(
+                minutes=failed_committee_minutes(
+                    debate_rounds=2, budget_used=0, budget_cap=14,
+                    error_summary="stub", missing_agents=[],
+                    debate=[], masters=[], risk=None, latency_ms=0,
+                ),
+                raw_state={}, duration_s=0.01,
+            )
+
+    import src.agent.llm_adapter as _llm_mod
+    import src.agent.orchestrator_committee as _orch_mod
+    monkeypatch.setattr(_llm_mod, "LLMToolAdapter", _FakeAdapter)
+    monkeypatch.setattr(_orch_mod, "InvestmentCommitteeOrchestrator", _SpyOrchestrator)
+
+    import logging
+    caplog.set_level(logging.INFO)
+
+    svc = AnalysisService()
+    svc._invoke_committee(
+        stock_code="AAPL",
+        result=SimpleNamespace(code="AAPL", name="Apple Inc.", report_language="zh"),
+        response={"report": {"summary": "x"}, "stock_name": "Apple Inc."},
+        debate_rounds=2,
+    )
+
+    telemetry_lines = [r for r in caplog.records if "[committee-llm]" in r.getMessage()]
+    assert len(telemetry_lines) >= 1, "expected at least one [committee-llm] log line"
+    msg = telemetry_lines[0].getMessage()
+    assert "gemini/gemini-2.5-flash" in msg, f"channel not logged: {msg!r}"

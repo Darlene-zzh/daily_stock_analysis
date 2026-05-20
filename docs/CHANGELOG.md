@@ -118,6 +118,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 - [改进] `AgentContext` 新增 `report_language` 字段（默认 `zh`），由 `AnalysisService._invoke_committee` 从 `result.report_language` / `config.report_language` 解析后填入，供 committee orchestrator 分支使用。
 - [改进] 投委会 prompt 的中文输出指令从末尾改到开头（method `_language_suffix` → `_language_prefix`），对 Cerebras / Groq llama 等 fallback 模型的语言遵从更稳健。
 - [新功能] 前端「缺席」徽章新增简短原因标签（超时跳过 / 解析失败 / 预算超支 / 运行异常），鼠标悬停显示完整 `error_summary`。
+- [改进] 投委会 LLM 调用增加 channel 遥测日志（`[committee-llm] <code>: model=<channel> content_len=<n>`），便于事后定位语言漂移 / 解析失败的具体 channel。
+- [改进] master persona 的 `system_prompt` 从 ~2100 chars 瘦身到 <=1400 chars（约 38% 缩减），剥离冗余 voice/inputs 段、收紧 JSON schema example 但保留 enum 与全部 8 字段，为后续并行 fan-out 节省 TPM 余量。
 
 ## [3.16.0] - 2026-05-10
 

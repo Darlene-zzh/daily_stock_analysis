@@ -491,7 +491,13 @@ class AnalysisService:
                 # Return a sentinel string so the orchestrator's strict parse
                 # treats it as a schema failure rather than a Python exception.
                 return f"<<llm_call_failed: {exc}>>"
+            model_used = getattr(resp, "model", None) or "<unknown>"
             content = resp.content if hasattr(resp, "content") else None
+            content_len = len(content) if content else 0
+            logger.info(
+                "[committee-llm] %s: model=%s content_len=%d",
+                stock_code, model_used, content_len,
+            )
             return content or "<<empty_llm_response>>"
 
         normalised = normalize_stock_code(stock_code)

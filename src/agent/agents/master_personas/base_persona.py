@@ -64,50 +64,39 @@ class BasePersonaLens:
 
     @classmethod
     def system_prompt(cls, ctx: AgentContext) -> str:  # noqa: ARG003 — ctx reserved for future contextual tweaks
-        tenets_block = "\n".join(f"{i + 1}. {t}" for i, t in enumerate(cls.tenets))
+        tenets_block = "\n".join(f"- {t}" for t in cls.tenets)
         scope_note = ""
         if cls.out_of_scope_guard:
-            scope_note = f"\n\nScope guard:\n{cls.out_of_scope_guard}"
-
+            # Strip the canonical "In those/that case... verdict='hold'..."
+            # boilerplate suffix from each persona's guard string — that
+            # instruction is restated globally in the directive line below
+            # to keep prompt overhead per persona under the TPM cap.
+            guard = cls.out_of_scope_guard
+            for suffix in (
+                ' In those cases issue verdict="hold" with the scope rationale stated explicitly.',
+                ' In that case issue verdict="hold" with the scope rationale stated explicitly.',
+            ):
+                if guard.endswith(suffix):
+                    guard = guard[: -len(suffix)]
+                    break
+            scope_note = f"Out-of-scope: {guard} Return verdict=\"hold\".\n"
         return (
-            "You are a senior equity analyst applying the "
-            f"**{cls.display_en}** — the decision framework canonically "
-            f"associated with {cls._associated_person()}. You speak as an "
-            f"analyst, not as {cls._associated_person_short()} personally; "
-            "never use first-person voice impersonating the real person. "
-            "Output is in third-person analyst voice "
-            "(e.g. \"The position appears…\", NOT \"I, Buffett, see…\").\n"
-            "\n"
-            "The lens you apply:\n"
-            f"{tenets_block}\n"
-            f"{scope_note}\n"
-            "\n"
-            "You will receive: (a) a structured pre-analysis report on the "
-            "stock, (b) optionally one or more strategy-tool outputs from "
-            "this curated toolbox: "
-            "`ma`, `macd`, `boll`, `sentiment_aggregator`, "
-            "`fundamentals_snapshot`.\n"
-            "\n"
-            "You MUST:\n"
-            "- Cite at least three concrete pieces of evidence from the "
-            "materials provided\n"
-            "- Refuse to invent fundamentals you cannot verify in the "
-            "supplied context\n"
-            "- If the case is outside this lens's analytical scope, return "
-            "verdict=\"hold\" and explicitly say so in `rationale`\n"
-            "- Output third-person analyst voice; do not impersonate the "
-            "real person\n"
-            "\n"
-            "Output a SINGLE JSON object matching this schema "
-            "(no markdown, no commentary outside JSON):\n"
+            f"Analyst applying the **{cls.display_en}** "
+            f"(framework of {cls._associated_person()}); "
+            "third-person voice; never use first-person voice.\n"
+            f"Tenets:\n{tenets_block}\n"
+            f"{scope_note}"
+            "Tools: `ma`, `macd`, `boll`, `sentiment_aggregator`, "
+            "`fundamentals_snapshot`. Cite >=3 evidence; no invented data.\n"
+            "Output a SINGLE JSON object (no commentary outside JSON):\n"
             "{\n"
             f'  "persona": "{cls.persona_id}",\n'
-            '  "verdict": "strong_buy" | "buy" | "hold" | "avoid" | "short",\n'
-            '  "score": <number 0..10>,\n'
-            '  "headline": "<one analyst-voice sentence>",\n'
-            '  "rationale": "<2-4 analyst-voice sentences>",\n'
-            '  "key_evidence": ["<bullet 1>", "<bullet 2>", "<bullet 3>"],\n'
-            '  "counter_view": "<what would change the verdict>",\n'
+            '  "verdict": "strong_buy"|"buy"|"hold"|"avoid"|"short",\n'
+            '  "score": <0..10>,\n'
+            '  "headline": "<one sentence>",\n'
+            '  "rationale": "<2-4 sentences>",\n'
+            '  "key_evidence": ["<e1>","<e2>","<e3>"],\n'
+            '  "counter_view": "<what flips it>",\n'
             '  "tools_used": []\n'
             "}\n"
         )
