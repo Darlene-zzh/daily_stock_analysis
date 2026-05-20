@@ -411,6 +411,7 @@ export const LLMChannelEditor: React.FC<LLMChannelEditorProps> = ({
     }));
 
     try {
+      // react-doctor-disable-next-line react-doctor/async-defer-await -- handleDiscoverModels has no sync skip path; setState before await is the loading-spinner pattern, and the post-await nonce check is the only correct race-cancellation point
       const result = await systemConfigApi.discoverLLMChannelModels({
         name: channel.name,
         protocol: channel.protocol,
@@ -489,6 +490,7 @@ export const LLMChannelEditor: React.FC<LLMChannelEditorProps> = ({
     }));
 
     try {
+      // react-doctor-disable-next-line react-doctor/async-defer-await -- the selected.length === 0 sync early-return is already above this await; setState before await is the loading-spinner pattern
       const result = await systemConfigApi.testLLMChannel({
         name: channel.name,
         protocol: channel.protocol,

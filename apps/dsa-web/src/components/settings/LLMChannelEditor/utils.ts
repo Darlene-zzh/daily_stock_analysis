@@ -152,10 +152,10 @@ export function parseEnabled(value: string | undefined): boolean {
 }
 
 export function splitModels(models: string): string[] {
-  return models
-    .split(',')
-    .map((entry) => entry.trim())
-    .filter(Boolean);
+  return models.split(',').flatMap((entry) => {
+    const trimmed = entry.trim();
+    return trimmed ? [trimmed] : [];
+  });
 }
 
 export function parseModelRef(model: string): ParsedModelRef {
@@ -442,10 +442,7 @@ export function parseRuntimeConfigFromItems(items: Array<{ key: string; value: s
 
 export function parseChannelsFromItems(items: Array<{ key: string; value: string }>): ChannelConfig[] {
   const itemMap = new Map(items.map((item) => [item.key, item.value]));
-  const channelNames = (itemMap.get('LLM_CHANNELS') || '')
-    .split(',')
-    .map((segment) => segment.trim())
-    .filter(Boolean);
+  const channelNames = splitModels(itemMap.get('LLM_CHANNELS') || '');
 
   return channelNames.map((name, index) => {
     const upperName = name.toUpperCase();
@@ -472,7 +469,7 @@ export function channelsToUpdateItems(
   includeRuntimeConfig: boolean,
 ): Array<{ key: string; value: string }> {
   const updates: Array<{ key: string; value: string }> = [];
-  const activeNames = channels.map((channel) => channel.name.toUpperCase());
+  const activeNamesSet = new Set(channels.map((channel) => channel.name.toUpperCase()));
 
   updates.push({ key: 'LLM_CHANNELS', value: channels.map((channel) => channel.name).join(',') });
   if (includeRuntimeConfig) {
@@ -485,6 +482,7 @@ export function channelsToUpdateItems(
 
   for (const channel of channels) {
     const prefix = `LLM_${channel.name.toUpperCase()}`;
+    // react-doctor-disable-next-line react-doctor/js-set-map-lookups -- String.includes, not array lookup
     const isMultiKey = channel.apiKey.includes(',');
     updates.push({ key: `${prefix}_PROTOCOL`, value: channel.protocol });
     updates.push({ key: `${prefix}_BASE_URL`, value: channel.baseUrl });
@@ -496,7 +494,7 @@ export function channelsToUpdateItems(
 
   for (const oldName of previousChannelNames) {
     const upperName = oldName.toUpperCase();
-    if (activeNames.includes(upperName)) {
+    if (activeNamesSet.has(upperName)) {
       continue;
     }
 
