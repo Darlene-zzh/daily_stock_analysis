@@ -133,3 +133,14 @@ def committee_default_enabled() -> bool:
     """Return whether the committee is on by default (rarely; usually False)."""
     raw = os.getenv("INVESTMENT_COMMITTEE_ENABLED_BY_DEFAULT", "false").strip().lower()
     return raw in {"1", "true", "yes", "on"}
+
+
+def resolve_masters_parallel() -> bool:
+    """Return True iff the env opts into parallel master fan-out.
+
+    Default is False (serial) — free-tier LLM channels share RPM
+    buckets across personas; parallel fan-out trips 429 cascades.
+    Paid-tier OpenAI/Anthropic users can opt in via env var.
+    """
+    raw = os.getenv("INVESTMENT_COMMITTEE_MASTERS_PARALLEL", "false")
+    return raw.strip().lower() in ("true", "1", "yes", "on")

@@ -559,3 +559,80 @@ def test_deadline_in_master_fanout_tags_skipped_personas_as_missing(monkeypatch)
 
     # status must be partial (3 masters missing => partial)
     assert minutes.status == "partial"
+
+
+def test_master_fanout_parallel_opt_in_completes_all_4_within_single_max_call(monkeypatch):
+    """When INVESTMENT_COMMITTEE_MASTERS_PARALLEL=true, the 4 masters
+    fan out concurrently — overall master-phase wall time is bounded
+    by the SLOWEST single master, not the sum.
+
+    Why: free-tier OK with serial default; paid-tier opt-in cuts
+    master phase from ~Nx to ~1x slowest. See plan Phase I.
+    """
+    import time as _time
+    monkeypatch.setenv("INVESTMENT_COMMITTEE_MASTERS_PARALLEL", "true")
+
+    delays = {
+        "warren_buffett": 0.10,
+        "michael_burry": 0.12,
+        "cathie_wood": 0.11,
+        "nassim_taleb": 0.13,
+    }
+
+    class _DelayedLLM:
+        def __init__(self, responses):
+            self.responses = list(responses)
+            self.calls = []
+            self._idx = 0
+            self._lock = __import__("threading").Lock()
+
+        def __call__(self, system, user):
+            with self._lock:
+                content = self.responses[self._idx]
+                self._idx += 1
+                self.calls.append((system, user))
+            # Sleep OUTSIDE the lock so master calls actually run in parallel
+            for pid, delay in delays.items():
+                if f'"persona": "{pid}"' in content:
+                    _time.sleep(delay)
+                    break
+            return content
+
+    responses = [
+        _bull_payload(1), _bear_payload(1),
+        _bull_payload(2), _bear_payload(2),
+        _master_payload("warren_buffett"),
+        _master_payload("michael_burry"),
+        _master_payload("cathie_wood"),
+        _master_payload("nassim_taleb"),
+        _risk_payload(),
+        _pm_payload(),
+    ]
+    llm = _DelayedLLM(responses)
+    budget = LLMCallBudget(cap=14)
+
+    orch = InvestmentCommitteeOrchestrator(
+        _make_ctx(),
+        report_json={"summary": "x"},
+        budget=budget,
+        llm_callable=llm,
+        debate_rounds=2,
+        timeout_s=999,
+    )
+
+    t0 = _time.time()
+    result = orch.run()
+    elapsed = _time.time() - t0
+
+    minutes = result.minutes
+    assert minutes.status == "ok", f"expected ok, got {minutes.status}"
+    assert len(minutes.masters) == 4
+    assert all(m.status == "ok" for m in minutes.masters)
+
+    # Sum of master delays = 0.46s. Parallel should be close to
+    # max(delays) = 0.13s plus debate latency. Use a loose upper bound
+    # to avoid CI flakiness on slow runners.
+    assert elapsed < 0.40, (
+        f"parallel fan-out took {elapsed:.3f}s — expected < 0.40s "
+        f"(sum of master delays={sum(delays.values()):.2f}s)"
+    )
