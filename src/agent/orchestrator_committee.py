@@ -240,9 +240,26 @@ class InvestmentCommitteeOrchestrator:
                 self._snapshot(state)
 
         # Master fan-out (deterministic order = serial for now;
-        # parallelisation hook can plug into LangGraph later)
+        # parallelisation hook can plug into LangGraph later).
+        # When the deadline trips mid-fan-out, append failed placeholders
+        # for the remaining personas so minutes.masters keeps a stable
+        # 4-element shape AND minutes.missing_agents accurately lists
+        # which personas were skipped — symmetric with the risk path
+        # below.
         for persona_id in DEFAULT_PERSONA_ORDER:
             if self._past_deadline(state):
+                for remaining in DEFAULT_PERSONA_ORDER:
+                    if self._has_completed_master(state, remaining):
+                        continue
+                    node = f"master_{remaining}"
+                    if node in state["missing_agents"]:
+                        continue
+                    fb = failed_master_opinion(
+                        remaining,
+                        error_summary="deadline reached before invocation",
+                    )
+                    state["masters"].append(fb.model_dump())
+                    state["missing_agents"].append(node)
                 break
             if not self._has_completed_master(state, persona_id):
                 self._master_node(state, persona_id)
