@@ -114,6 +114,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 - [改进] react-doctor 性能修复 LLMChannelEditor utils：`splitModels` 与 `parseChannelsFromItems` 的 `.map().filter()` 合并为单遍 `.flatMap()`；`channelsToUpdateItems` 把 `activeNames` 改为 Set 让 `.includes()` 检查变 O(1)，消除 O(n*m) 热路径。2 处 `js-set-map-lookups` / `async-defer-await` 误报用 `// react-doctor-disable-next-line react-doctor/<rule>` 标注原因；该 disable 语法是 react-doctor 专属（非 eslint-disable / oxlint-disable）。该文件 react-doctor warnings 从 14 降到 3（剩 1 条 `no-giant-component` 主 editor、1 条 `prefer-useReducer`、1 条 `no-cascading-set-state`，全部留 Deep 级 useReducer 迁移专题）。
 - [改进] 投委会 wall-clock 超时默认值由 90s 提升到 180s（`INVESTMENT_COMMITTEE_TIMEOUT_S`），避免 4 大师串行 fan-out + retry 时剩余 master 被静默跳过。
 - [修复] 投委会 master fan-out 在超时触发时，未执行的 persona 现在会以 `status="failed"` 占位写入 `minutes.masters` 并加入 `missing_agents`，前后端 partial 状态计数与渲染一致（之前是渲染层凭 `DEFAULT_PERSONA_ORDER` 兜底，`missing_agents` 数据本身漏标）。
+- [新功能] 投委会 prompts（bull / bear / master 4 视角 / risk / PM）现在跟随 `report_language` 输出中文：JSON 键名、verdict/side/severity 枚举、persona ID 保持英文，但 `headline` / `rationale` / `key_evidence` / `claim` / `evidence` / `red_flags` / `pm_rationale` 等自由文本字段在 `report_language=zh` 下用简体中文（与主分析器的「双语速览」对齐）。
+- [改进] `AgentContext` 新增 `report_language` 字段（默认 `zh`），由 `AnalysisService._invoke_committee` 从 `result.report_language` / `config.report_language` 解析后填入，供 committee orchestrator 分支使用。
 
 ## [3.16.0] - 2026-05-10
 

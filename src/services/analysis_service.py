@@ -502,9 +502,14 @@ class AnalysisService:
         else:
             market = "A"
         stock_name = response.get("stock_name") or getattr(result, "name", None) or ""
+        report_language = normalize_report_language(
+            getattr(result, "report_language", None)
+            or getattr(get_config(), "report_language", "zh")
+        )
         ctx = AgentContext(
             stock_code=stock_code,
             stock_name=stock_name,
+            report_language=report_language,
             meta={"market": market},
         )
 

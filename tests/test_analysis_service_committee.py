@@ -359,3 +359,133 @@ def test_analyze_request_schema_exposes_committee_fields():
         AnalyzeRequest(stock_code="600519", committee_debate_rounds=5)
     with pytest.raises(Exception):
         AnalyzeRequest(stock_code="600519", committee_debate_rounds=0)
+
+
+# --------------------------------------------------------------------------- #
+# Task D2: ctx.report_language propagation
+# --------------------------------------------------------------------------- #
+
+
+def test_invoke_committee_threads_report_language_into_agent_context(monkeypatch):
+    """The committee invocation must propagate result.report_language into
+    AgentContext.report_language so the orchestrator can branch on it.
+
+    Why: prior to this wiring the committee orchestrator always emitted
+    English prompts regardless of the analyzer's report_language setting,
+    causing US/zh reports to ship with English committee minutes (debate,
+    master lenses, PM rationale) — see 2026-05-20 INTC incident.
+    """
+    from types import SimpleNamespace
+    from src.services.analysis_service import AnalysisService
+
+    captured = {}
+
+    # Fake adapter that reports itself available so the early-exit at
+    # _invoke_committee:475-477 doesn't fire.
+    class _FakeAdapter:
+        def __init__(self, *args, **kwargs):  # noqa: ARG002
+            self._litellm_available = True
+
+        def call_text(self, *args, **kwargs):  # noqa: ARG002
+            return SimpleNamespace(content="{}")
+
+    # Spy orchestrator: capture the ctx and return a minimal partial minutes.
+    class _SpyOrchestrator:
+        def __init__(self, ctx, *args, **kwargs):  # noqa: ARG002
+            captured["ctx"] = ctx
+
+        def run(self):
+            from src.schemas.committee_schema import failed_committee_minutes
+            from src.agent.orchestrator_committee import CommitteeRunResult
+            return CommitteeRunResult(
+                minutes=failed_committee_minutes(
+                    debate_rounds=2,
+                    budget_used=0,
+                    budget_cap=14,
+                    error_summary="stub for ctx-capture test",
+                    missing_agents=[],
+                    debate=[],
+                    masters=[],
+                    risk=None,
+                    latency_ms=0,
+                ),
+                raw_state={},
+                duration_s=0.01,
+            )
+
+    # Patch at the import site inside _invoke_committee. The function uses
+    # local imports (lines 453-464) so monkeypatch the module attributes
+    # AFTER they would be resolved.
+    import src.agent.llm_adapter as _llm_adapter_mod
+    import src.agent.orchestrator_committee as _orch_mod
+    monkeypatch.setattr(_llm_adapter_mod, "LLMToolAdapter", _FakeAdapter)
+    monkeypatch.setattr(_orch_mod, "InvestmentCommitteeOrchestrator", _SpyOrchestrator)
+
+    fake_result = SimpleNamespace(code="AAPL", name="Apple Inc.", report_language="en")
+
+    svc = AnalysisService()
+    svc._invoke_committee(
+        stock_code="AAPL",
+        result=fake_result,
+        response={"report": {"summary": "x"}, "stock_name": "Apple Inc."},
+        debate_rounds=2,
+    )
+
+    ctx = captured.get("ctx")
+    assert ctx is not None, "_invoke_committee never reached the orchestrator construction"
+    assert ctx.report_language == "en", (
+        f"expected ctx.report_language=='en', got {ctx.report_language!r}"
+    )
+
+
+def test_invoke_committee_defaults_report_language_to_zh_when_result_missing(monkeypatch):
+    """If result has no report_language attribute, fall back to config default 'zh'.
+
+    Why: backward-compat with older pipeline results / test fixtures that
+    don't set report_language. The orchestrator's _language_suffix then
+    produces Chinese output (the historical default).
+    """
+    from types import SimpleNamespace
+    from src.services.analysis_service import AnalysisService
+
+    captured = {}
+
+    class _FakeAdapter:
+        def __init__(self, *args, **kwargs):  # noqa: ARG002
+            self._litellm_available = True
+
+    class _SpyOrchestrator:
+        def __init__(self, ctx, *args, **kwargs):  # noqa: ARG002
+            captured["ctx"] = ctx
+
+        def run(self):
+            from src.schemas.committee_schema import failed_committee_minutes
+            from src.agent.orchestrator_committee import CommitteeRunResult
+            return CommitteeRunResult(
+                minutes=failed_committee_minutes(
+                    debate_rounds=2, budget_used=0, budget_cap=14,
+                    error_summary="stub", missing_agents=[],
+                    debate=[], masters=[], risk=None, latency_ms=0,
+                ),
+                raw_state={}, duration_s=0.01,
+            )
+
+    import src.agent.llm_adapter as _llm_adapter_mod
+    import src.agent.orchestrator_committee as _orch_mod
+    monkeypatch.setattr(_llm_adapter_mod, "LLMToolAdapter", _FakeAdapter)
+    monkeypatch.setattr(_orch_mod, "InvestmentCommitteeOrchestrator", _SpyOrchestrator)
+
+    fake_result = SimpleNamespace(code="600519", name="贵州茅台")
+    # Intentionally no report_language attribute set
+
+    svc = AnalysisService()
+    svc._invoke_committee(
+        stock_code="600519",
+        result=fake_result,
+        response={"report": {"summary": "y"}},
+        debate_rounds=2,
+    )
+
+    ctx = captured.get("ctx")
+    assert ctx is not None
+    assert ctx.report_language == "zh"  # Default

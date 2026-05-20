@@ -72,6 +72,33 @@ from src.schemas.committee_schema import (
 logger = logging.getLogger(__name__)
 
 
+# ============================================================
+# Bilingual output — committee prompts append this suffix when the
+# caller's AgentContext has report_language == "zh". JSON keys and
+# enum values stay English (so parsers don't break); only the
+# user-facing free-text fields switch to Simplified Chinese.
+#
+# Symmetric with src/analyzer.py's main-prompt zh_suffix (2026-05-15
+# bilingual feature) — but scoped to the committee narrative (debate,
+# master lenses, risk red_flags, PM rationale).
+# ============================================================
+COMMITTEE_LANGUAGE_SUFFIX_ZH = """
+
+## 输出语言（最高优先级）
+
+- 所有 JSON 键名保持英文不变。
+- 所有 verdict / side / severity / status 等枚举值保持英文（如 `strong_buy` / `buy` / `hold` / `avoid` / `short` / `bull` / `bear` / `none` / `soft` / `hard` / `ok` / `failed` / `partial`）。
+- persona ID 保持英文（如 `warren_buffett` / `michael_burry` / `cathie_wood` / `nassim_taleb`）。
+- 数值字段（`score` / `round_index` / `confidence` / `suggested_position_pct` / `budget_used` / `budget_cap`）保持原始类型。
+- 所有面向用户的人类可读自由文本字段必须使用简体中文，包括但不限于：
+  `headline` / `rationale` / `key_evidence` 各项 / `counter_view` / `thesis` /
+  `claim` / `evidence` 各项 / `rebuttal_to` /
+  `red_flags` 各项 /
+  `pm_rationale` / `pm_dissents` 各项的描述部分 / `error_summary`。
+- 翻译时忠实于原英文 prompt 要求的分析角度，不要扩写或二次分析。
+"""
+
+
 # ---------------------------------------------------------------------------- #
 # LLM callable contract
 # ---------------------------------------------------------------------------- #
@@ -474,6 +501,21 @@ class InvestmentCommitteeOrchestrator:
         return graph
 
     # ----------------------------------------------------------------- #
+    # Helper — output language
+    # ----------------------------------------------------------------- #
+
+    def _language_suffix(self) -> str:
+        """Return the Chinese-output instruction suffix when ctx requests zh.
+
+        Returns empty string for non-zh contexts so existing English
+        behavior is byte-identical.
+        """
+        lang = (getattr(self.ctx, "report_language", "zh") or "zh").lower()
+        if lang.startswith("zh"):
+            return COMMITTEE_LANGUAGE_SUFFIX_ZH
+        return ""
+
+    # ----------------------------------------------------------------- #
     # Helper — deadline & retry contract
     # ----------------------------------------------------------------- #
 
@@ -537,7 +579,7 @@ class InvestmentCommitteeOrchestrator:
         try:
             parsed: DebateExchange = self._call_llm_with_retry(
                 node_name=node,
-                system_prompt=BullResearcher.system_prompt(),
+                system_prompt=BullResearcher.system_prompt() + self._language_suffix(),
                 user_message=BullResearcher.build_user_message(
                     self.ctx,
                     round_index=round_idx,
@@ -577,7 +619,7 @@ class InvestmentCommitteeOrchestrator:
         try:
             parsed: DebateExchange = self._call_llm_with_retry(
                 node_name=node,
-                system_prompt=BearResearcher.system_prompt(),
+                system_prompt=BearResearcher.system_prompt() + self._language_suffix(),
                 user_message=BearResearcher.build_user_message(
                     self.ctx,
                     round_index=round_idx,
@@ -620,7 +662,7 @@ class InvestmentCommitteeOrchestrator:
         try:
             parsed: MasterOpinion = self._call_llm_with_retry(
                 node_name=f"master_{persona_id}",
-                system_prompt=persona_cls.system_prompt(self.ctx),
+                system_prompt=persona_cls.system_prompt(self.ctx) + self._language_suffix(),
                 user_message=persona_cls.build_user_message(
                     self.ctx,
                     report_json=self.report_json,
@@ -680,7 +722,7 @@ class InvestmentCommitteeOrchestrator:
         try:
             parsed: RiskAssessment = self._call_llm_with_retry(
                 node_name="risk",
-                system_prompt=risk_sys,
+                system_prompt=risk_sys + self._language_suffix(),
                 user_message=risk_user,
                 parse=parse_risk_assessment_strict,
                 schema_example=RISK_ASSESSMENT_SCHEMA_EXAMPLE,
@@ -756,7 +798,7 @@ class InvestmentCommitteeOrchestrator:
         try:
             parsed: CommitteeMinutes = self._call_llm_with_retry(
                 node_name="pm",
-                system_prompt=pm_sys,
+                system_prompt=pm_sys + self._language_suffix(),
                 user_message=pm_user,
                 parse=parse_committee_minutes_strict,
                 schema_example=COMMITTEE_MINUTES_PM_SCHEMA_EXAMPLE,
