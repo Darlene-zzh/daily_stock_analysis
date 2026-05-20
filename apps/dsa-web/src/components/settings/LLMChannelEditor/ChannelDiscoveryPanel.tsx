@@ -67,8 +67,8 @@ export const ChannelDiscoveryPanel: React.FC<ChannelDiscoveryPanelProps> = ({
       ) : null}
 
       {discoveredModels.length > 0 ? (
-        <div>
-          <label className="mb-2 block text-sm font-medium text-foreground">可选模型（可多选）</label>
+        <fieldset className="m-0 border-0 p-0">
+          <legend className="mb-2 block text-sm font-medium text-foreground">可选模型（可多选）</legend>
           <div className="max-h-48 space-y-2 overflow-y-auto rounded-xl border border-[var(--settings-border)] bg-[var(--settings-surface)] p-3">
             {discoveredModels.map((model) => (
               <label key={model} className="flex items-center gap-2 text-sm text-secondary-text">
@@ -85,7 +85,7 @@ export const ChannelDiscoveryPanel: React.FC<ChannelDiscoveryPanelProps> = ({
               </label>
             ))}
           </div>
-        </div>
+        </fieldset>
       ) : null}
 
       <Input

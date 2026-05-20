@@ -1,4 +1,5 @@
 import type React from 'react';
+import { useId } from 'react';
 import { Badge } from '../../common/Badge';
 import { Button } from '../../common/Button';
 import { Input } from '../../common/Input';
@@ -35,6 +36,7 @@ export const ChannelRow: React.FC<ChannelRowProps> = ({
   onToggleCapability,
   onCheckCapabilities,
 }) => {
+  const protocolSelectId = useId();
   const preset = getProviderTemplate(channel.name);
   const showProviderTemplateDetails = isKnownProviderTemplate(channel.name);
   const displayName = preset?.label || channel.name;
@@ -148,8 +150,9 @@ export const ChannelRow: React.FC<ChannelRowProps> = ({
               placeholder="primary"
             />
             <div className="space-y-2">
-              <label className="block text-sm font-medium text-foreground">协议</label>
+              <label htmlFor={protocolSelectId} className="block text-sm font-medium text-foreground">协议</label>
               <Select
+                id={protocolSelectId}
                 value={channel.protocol}
                 onChange={(v) => onUpdate(index, 'protocol', normalizeProtocol(v))}
                 options={PROTOCOL_OPTIONS}

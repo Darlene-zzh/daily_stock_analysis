@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useEffect, useId, useMemo, useRef, useState } from 'react';
 import type React from 'react';
 import type { ParsedApiError } from '../../../api/error';
 import { getParsedApiError } from '../../../api/error';
@@ -48,6 +48,7 @@ export const LLMChannelEditor: React.FC<LLMChannelEditorProps> = ({
   onSaved,
   disabled = false,
 }) => {
+  const temperatureInputId = useId();
   const initialChannels = useMemo(() => parseChannelsFromItems(items), [items]);
   const initialNames = useMemo(() => initialChannels.map((channel) => channel.name), [initialChannels]);
   const initialRuntimeConfig = useMemo(() => parseRuntimeConfigFromItems(items), [items]);
@@ -656,9 +657,10 @@ export const LLMChannelEditor: React.FC<LLMChannelEditorProps> = ({
                 <Badge variant="default" className="border-[var(--settings-border)] bg-[var(--settings-surface-hover)] text-muted-text">Runtime</Badge>
               </div>
               <div className="mb-4">
-                <label className="mb-1 block text-xs text-muted-text">Temperature</label>
+                <label htmlFor={temperatureInputId} className="mb-1 block text-xs text-muted-text">Temperature</label>
                 <div className="flex items-center gap-3">
                   <input
+                    id={temperatureInputId}
                     type="range"
                     min="0"
                     max="2"
@@ -708,8 +710,8 @@ export const LLMChannelEditor: React.FC<LLMChannelEditorProps> = ({
                     />
                   </div>
 
-                  <div>
-                    <label className="mb-2 block text-xs text-muted-text">备选模型</label>
+                  <fieldset className="m-0 border-0 p-0">
+                    <legend className="mb-2 block text-xs text-muted-text">备选模型</legend>
                     <div className="space-y-2 rounded-xl border settings-border-strong settings-surface-overlay-soft p-3">
                       {availableModels.map((model) => (
                         <label key={model} className="flex items-center gap-2 text-sm text-secondary-text">
@@ -727,7 +729,7 @@ export const LLMChannelEditor: React.FC<LLMChannelEditorProps> = ({
                     <p className="mt-1 text-[11px] text-secondary-text">
                       备选模型只会在主模型失败时使用。主模型不会重复加入备选模型。
                     </p>
-                  </div>
+                  </fieldset>
 
                   <div>
                     <label htmlFor="runtime-vision-model" className="mb-1 block text-xs text-muted-text">Vision 模型</label>
