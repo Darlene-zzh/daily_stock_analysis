@@ -1875,8 +1875,24 @@ class GeminiAnalyzer:
                 .replace("{default_skill_policy_section}", default_skill_policy_section)
                 .replace("{skills_section}", skills_section)
             )
+        intelligence_requirement = """
+
+## intelligence 区块必填字段（CRITICAL）
+
+无论是否有相关数据，`intelligence` 对象必须同时包含以下 5 个字段（无数据时按下表填占位值，不要省略字段）：
+
+| 字段 | 类型 | 无数据时占位 |
+|---|---|---|
+| `latest_news` | string | `""`（空字符串） |
+| `risk_alerts` | array of strings | `[]`（空列表） |
+| `positive_catalysts` | array of strings | `[]`（空列表） |
+| `earnings_outlook` | string | `""`（空字符串） |
+| `sentiment_summary` | string | `""`（空字符串） |
+
+省略任何字段都会被后端拦截为不合规输出。
+"""
         if lang == "en":
-            return base_prompt + """
+            return base_prompt + intelligence_requirement + """
 
 ## Output Language (highest priority)
 
@@ -1935,7 +1951,7 @@ intelligence 区块新增字段示例（仅供格式参考，实际内容由你�
 "earnings_outlook_zh": "业绩预期的中文翻译"
 ```
 """
-        return base_prompt + zh_suffix
+        return base_prompt + intelligence_requirement + zh_suffix
 
     def _has_channel_config(self, config: Config) -> bool:
         """Check if multi-channel config (channels / YAML / legacy model_list) is active."""
