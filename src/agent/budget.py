@@ -35,7 +35,7 @@ logger = logging.getLogger(__name__)
 
 # Defaults — matches `.env.example` and spec §13 locked decisions.
 DEFAULT_BUDGET_BASE = 12
-DEFAULT_TIMEOUT_S = 90
+DEFAULT_TIMEOUT_S = 180
 
 
 def compute_effective_cap(debate_rounds: int, base: Optional[int] = None) -> int:

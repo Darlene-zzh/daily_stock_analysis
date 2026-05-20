@@ -1408,7 +1408,7 @@ Sprint 1A 起，后端新增多智能体「投资委员会」流程：在常规 
 ### 调用成本与预算
 
 - LLM 调用上限按辩论轮数自动计算：`cap = base + 2 * (rounds - 1)`，以默认 `INVESTMENT_COMMITTEE_BUDGET_BASE=12` 为例：1/2/3 轮分别为 10/12/14 次调用。
-- 单次运行 wall-clock 超时由 `INVESTMENT_COMMITTEE_TIMEOUT_S`（默认 90 秒）控制；超时会跳过未完成节点并降级为 `status="partial"`。
+- 单次运行 wall-clock 超时由 `INVESTMENT_COMMITTEE_TIMEOUT_S`（默认 180 秒）控制；超时会跳过未完成节点并降级为 `status="partial"`。
 - 任一大师 LLM JSON 失败 → 严格解析失败后自动一次重试（带 schema 示例），若仍失败则记为 `status="failed"`，PM 仍可以基于剩余节点出结论。
 - 任一节点 wall-clock 卡住 → 后续节点跳过，缺席节点登记进 `missing_agents`，PM 在 `pm_rationale` 中明确说明缺口。
 
