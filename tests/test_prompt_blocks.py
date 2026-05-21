@@ -1,5 +1,5 @@
 from src.analysis.facts import FactRecord, FactBundle, CandidateLevel
-from src.analysis.prompt_blocks import format_facts_table
+from src.analysis.prompt_blocks import format_facts_table, format_candidates_menu
 
 
 def _bundle_with(facts, candidates=None):
@@ -49,3 +49,64 @@ def test_format_facts_table_empty_bundle_returns_minimal_header():
     out = format_facts_table(bundle)
     assert "## [事实数据库]" in out
     assert "（无可用事实）" in out
+
+
+def _make_candidate(id_, direction, price, basis_rule, strategies, tier="primary",
+                    distance=1.0):
+    return CandidateLevel(
+        id=id_, type="candidate", label=f"{basis_rule}", value=price,
+        display_value=f"${price:.2f}", direction=direction, price=price,
+        basis_fact_id="technical.resistance", basis_rule=basis_rule,
+        applicable_strategies=strategies, tier=tier,
+        distance_pct_from_current=distance,
+    )
+
+
+def test_format_candidates_menu_renders_table_with_header():
+    bundle = _bundle_with([], candidates=[
+        _make_candidate("candidate.exit.1", "take_profit", 226.13, "resistance_touch",
+                        ["swing_trade", "stepped_profit_taking"], distance=1.2),
+        _make_candidate("candidate.stop.1", "stop_loss", 213.39, "ma20_breakdown",
+                        ["swing_trade", "stepped_profit_taking"], distance=-4.5),
+    ])
+    out = format_candidates_menu(bundle)
+    assert "## [候选触发价位]" in out
+    assert "candidate.exit.1" in out
+    assert "candidate.stop.1" in out
+    assert "$226.13" in out
+    assert "resistance_touch" in out
+    assert "swing_trade" in out
+    assert "禁止创造新价位" in out  # guard against LLM creativity
+
+
+def test_format_candidates_menu_filters_out_filtered_tier():
+    bundle = _bundle_with([], candidates=[
+        _make_candidate("candidate.exit.1", "take_profit", 226.13, "resistance_touch",
+                        ["swing_trade"]),
+        _make_candidate("candidate.exit.bad", "take_profit", 100.0, "stale_target",
+                        ["swing_trade"], tier="filtered"),
+    ])
+    out = format_candidates_menu(bundle)
+    assert "candidate.exit.1" in out
+    assert "candidate.exit.bad" not in out
+
+
+def test_format_candidates_menu_strategy_filter():
+    """When recommended_strategy given, candidates that don't apply are excluded
+    from the menu so the LLM only chooses from valid options."""
+    bundle = _bundle_with([], candidates=[
+        _make_candidate("candidate.exit.swing", "take_profit", 226.13, "resistance",
+                        ["swing_trade"]),
+        _make_candidate("candidate.exit.lth", "take_profit", 280.0, "cost_x_1_5",
+                        ["long_term_hold"]),
+    ])
+    out = format_candidates_menu(bundle, strategy="swing_trade")
+    assert "candidate.exit.swing" in out
+    assert "candidate.exit.lth" not in out
+
+
+def test_format_candidates_menu_empty_returns_no_options_note():
+    bundle = _bundle_with([], candidates=[])
+    out = format_candidates_menu(bundle)
+    assert "## [候选触发价位]" in out
+    assert "无可用候选" in out

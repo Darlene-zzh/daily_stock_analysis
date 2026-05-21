@@ -47,3 +47,34 @@ def format_facts_table(bundle: FactBundle) -> str:
             lines.append(f"- `{f.id}` · {f.label} = {f.display_value}{extra_str}")
 
     return "\n".join(lines)
+
+
+def format_candidates_menu(
+    bundle: FactBundle,
+    strategy: Optional[str] = None,
+) -> str:
+    """Markdown table of candidate trigger prices. LLM must pick `candidate_id`
+    from this list — `tier=filtered` rows are excluded, and when `strategy` is
+    given, only candidates whose `applicable_strategies` contains it are shown.
+    """
+    visible: list[CandidateLevel] = [
+        c for c in bundle.candidates
+        if c.tier != "filtered"
+        and (strategy is None or strategy in c.applicable_strategies)
+    ]
+    lines: list[str] = ["## [候选触发价位] — 你只能从下表选 candidate_id，禁止创造新价位"]
+    if not visible:
+        lines.append("（无可用候选）")
+        return "\n".join(lines)
+
+    lines.append("")
+    lines.append("| ID | 方向 | 价格 | 距现价 | 规则 | 适用策略 | 层级 |")
+    lines.append("|---|---|---|---|---|---|---|")
+    for c in visible:
+        dist = f"{c.distance_pct_from_current:+.1f}%"
+        strategies = ", ".join(c.applicable_strategies)
+        lines.append(
+            f"| `{c.id}` | {c.direction} | {c.display_value} | {dist} "
+            f"| {c.basis_rule} | {strategies} | {c.tier} |"
+        )
+    return "\n".join(lines)
