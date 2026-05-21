@@ -2759,12 +2759,39 @@ intelligence 区块新增字段示例（仅供格式参考，实际内容由你�
         code: str,
         strategy: Optional[str] = None,
     ) -> list:
-        """Apply cost-basis sanitization + per-strategy template enforcement.
+        """Apply post-LLM sanitization.
 
-        Per spec: stepped_profit_taking forbids buy; wait_and_see caps at 1 item;
-        long_term_hold requires a cost-based real stop_loss at avg_cost × 0.9 — if
-        missing we synthesize one.
+        Phase 2: when a FactBundle is stashed on the agent (set by
+        `_try_inject_action_plan_items` before calling sanitize), route through
+        the v2 candidate-anchored 9-check pipeline. Otherwise fall back to the
+        legacy cost-basis path so old callers / test fixtures keep working.
         """
+        bundle_dict = getattr(self, "_fact_bundle_for_sanitize", None)
+        current_price = getattr(self, "_current_price_for_sanitize", None)
+        if bundle_dict and isinstance(bundle_dict, dict):
+            try:
+                from src.analysis.facts import FactBundle, FactRecord, CandidateLevel
+                from src.analysis.sanitizer_v2 import sanitize_with_candidates
+                bundle = FactBundle(
+                    as_of=bundle_dict.get("as_of", ""),
+                    market=bundle_dict.get("market", "us"),
+                    stock_code=bundle_dict.get("stock_code", ""),
+                    facts=[FactRecord(**f) for f in bundle_dict.get("facts", [])],
+                    candidates=[
+                        CandidateLevel(**c)
+                        for c in bundle_dict.get("candidates", [])
+                    ],
+                )
+                return sanitize_with_candidates(
+                    items, bundle, strategy=strategy, current_price=current_price,
+                )
+            except Exception as exc:
+                logger.warning(
+                    "[sanitizer_v2] fallback to legacy due to error: %s", exc,
+                )
+                # fall through to legacy
+
+        # Legacy cost-basis path (unchanged from Phase 1)
         from src.services.portfolio_context_service import _parse_portfolio_facts
         avg_cost = _parse_portfolio_facts(portfolio_context_block or "").get("avg_cost")
         forbidden = self._STRATEGY_FORBIDDEN_DIRECTIONS.get(strategy or "", set())
