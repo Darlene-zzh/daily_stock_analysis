@@ -2434,6 +2434,22 @@ intelligence 区块新增字段示例（仅供格式参考，实际内容由你�
             return
         core = result.dashboard.get("core_conclusion") or {}
 
+        # Phase 2: stash FactBundle + current price so `_sanitize_action_plan_items`
+        # (called by both the upstream-strategy branch AND the LLM branch below) can
+        # route to the v2 candidate-anchored sanitizer.
+        fact_bundle = result.dashboard.get("fact_bundle") if isinstance(
+            result.dashboard, dict
+        ) else None
+        self._fact_bundle_for_sanitize = fact_bundle
+        current_price = None
+        try:
+            persp_local = result.dashboard.get("data_perspective") or {}
+            cp = (persp_local.get("price_position") or {}).get("current_price")
+            current_price = float(cp) if cp is not None else None
+        except (TypeError, ValueError):
+            current_price = None
+        self._current_price_for_sanitize = current_price
+
         # Phase 1: If an upstream layer (e.g. agent-mode synthesis) already filled
         # recommended_strategy + action_plan_items, the LLM call below should be
         # skipped — but we MUST still sanitize the upstream output and recompute
@@ -2458,6 +2474,9 @@ intelligence 区块新增字段示例（仅供格式参考，实际内容由你�
                 core, sanitized, portfolio_context_block
             )
             result.dashboard["core_conclusion"] = core
+            # Phase 2: clear stashed bundle so the next stock starts fresh
+            self._fact_bundle_for_sanitize = None
+            self._current_price_for_sanitize = None
             return
 
         battle = result.dashboard.get("battle_plan") or {}
@@ -2499,6 +2518,7 @@ intelligence 区块新增字段示例（仅供格式参考，实际内容由你�
             portfolio_context_block=portfolio_context_block,
             sentiment_dimensions=sentiment_dims,
             compact_dashboard=compact_input,
+            fact_bundle=fact_bundle,
         )
 
         raw = self.generate_text(prompt, max_tokens=3072, temperature=0.3)
@@ -2525,6 +2545,42 @@ intelligence 区块新增字段示例（仅供格式参考，实际内容由你�
         strategy = parsed.get("recommended_strategy") if isinstance(parsed.get("recommended_strategy"), str) else None
         items = self._sanitize_action_plan_items(items, portfolio_context_block, code, strategy=strategy)
 
+        # Phase 2: tag survivors as LLM-provenance; if sanitizer emptied the list,
+        # fall back to candidate-based synthesizer so the user still sees a real plan.
+        for it in items:
+            if isinstance(it, dict) and "provenance" not in it:
+                it["provenance"] = "llm"
+
+        if not items and fact_bundle and isinstance(fact_bundle, dict):
+            try:
+                from src.analysis.facts import FactBundle, FactRecord, CandidateLevel
+                from src.analysis.synthesizer import synthesize_from_candidates
+                bundle_obj = FactBundle(
+                    as_of=fact_bundle.get("as_of", ""),
+                    market=fact_bundle.get("market", "us"),
+                    stock_code=fact_bundle.get("stock_code", ""),
+                    facts=[FactRecord(**f) for f in fact_bundle.get("facts", [])],
+                    candidates=[
+                        CandidateLevel(**c)
+                        for c in fact_bundle.get("candidates", [])
+                    ],
+                )
+                fallback_strategy = strategy or "swing_trade"
+                items = synthesize_from_candidates(
+                    bundle_obj.candidates,
+                    strategy=fallback_strategy,
+                    facts=bundle_obj.facts,
+                )
+                logger.info(
+                    "[action_plan] sanitizer empty -> synthesized %d items "
+                    "from candidates for %s/%s", len(items), code, fallback_strategy,
+                )
+            except Exception as exc:
+                logger.warning(
+                    "[action_plan] synthesize_from_candidates failed for %s: %s",
+                    code, exc,
+                )
+
         # Inject all fields atomically
         if not isinstance(result.dashboard.get("core_conclusion"), dict):
             result.dashboard["core_conclusion"] = {}
@@ -2549,6 +2605,9 @@ intelligence 区块新增字段示例（仅供格式参考，实际内容由你�
         self._recompute_position_outcome_summary(
             core_out, items or [], portfolio_context_block
         )
+        # Phase 2: clear stashed bundle so the next stock starts fresh
+        self._fact_bundle_for_sanitize = None
+        self._current_price_for_sanitize = None
 
     _STRATEGY_FORBIDDEN_DIRECTIONS = {
         "stepped_profit_taking": {"buy"},
