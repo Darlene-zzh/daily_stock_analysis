@@ -65,3 +65,27 @@ def test_extract_technical_with_ohlc_includes_atr():
     atr_facts = [f for f in facts if f.id == "technical.atr_14"]
     assert len(atr_facts) == 1
     assert atr_facts[0].value > 0
+
+
+def test_extract_swing_high_low_from_ohlc():
+    dp = {"price_position": {"current_price": 100.0}}
+    ohlc = [
+        {"high": 95 + i, "low": 90 + i, "close": 93 + i, "open": 92 + i}
+        for i in range(20)
+    ]
+    ohlc[5]["high"] = 130.0
+    ohlc[15]["low"] = 80.0
+    facts = extract_technical_facts(dp, rsi_12=None, as_of="2026-05-21T00:43:00Z", ohlc=ohlc)
+    ids = {f.id for f in facts}
+    assert "technical.swing_high_20d" in ids
+    assert "technical.swing_low_20d" in ids
+    sh = next(f for f in facts if f.id == "technical.swing_high_20d")
+    sl = next(f for f in facts if f.id == "technical.swing_low_20d")
+    assert sh.value == 130.0
+    assert sl.value == 80.0
+
+
+def test_swing_no_ohlc_skipped():
+    dp = {"price_position": {"current_price": 100.0}}
+    facts = extract_technical_facts(dp, rsi_12=None, as_of="2026-05-21T00:43:00Z")
+    assert not any(f.id.startswith("technical.swing_") for f in facts)

@@ -115,4 +115,21 @@ def extract_technical_facts(
                 as_of=as_of,
             ))
 
+        if len(ohlc) >= 5:
+            last_n = ohlc[-20:] if len(ohlc) >= 20 else ohlc
+            swing_high = max(float(bar["high"]) for bar in last_n)
+            swing_low = min(float(bar["low"]) for bar in last_n)
+            facts.append(FactRecord(
+                id="technical.swing_high_20d", type="technical",
+                label=f"前 {len(last_n)} 日波段高点", value=swing_high,
+                display_value=_format_price(swing_high, market),
+                source="data_provider/daily_data:swing", as_of=as_of,
+            ))
+            facts.append(FactRecord(
+                id="technical.swing_low_20d", type="technical",
+                label=f"前 {len(last_n)} 日波段低点", value=swing_low,
+                display_value=_format_price(swing_low, market),
+                source="data_provider/daily_data:swing", as_of=as_of,
+            ))
+
     return facts
