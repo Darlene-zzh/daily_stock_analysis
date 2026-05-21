@@ -110,3 +110,13 @@ def test_format_candidates_menu_empty_returns_no_options_note():
     out = format_candidates_menu(bundle)
     assert "## [候选触发价位]" in out
     assert "无可用候选" in out
+
+
+def test_output_contract_zh_constants():
+    from src.analysis.prompt_blocks import OUTPUT_CONTRACT_ZH
+    assert "candidate_id" in OUTPUT_CONTRACT_ZH
+    assert "evidence_refs" in OUTPUT_CONTRACT_ZH
+    assert "narrative" in OUTPUT_CONTRACT_ZH
+    assert "discipline_anchor" in OUTPUT_CONTRACT_ZH
+    assert "至多 1 条" in OUTPUT_CONTRACT_ZH or "at most 1" in OUTPUT_CONTRACT_ZH
+    assert "至少 2 个 fact_id" in OUTPUT_CONTRACT_ZH

@@ -78,3 +78,24 @@ def format_candidates_menu(
             f"| {c.basis_rule} | {strategies} | {c.tier} |"
         )
     return "\n".join(lines)
+
+
+OUTPUT_CONTRACT_ZH = """## [输出契约 — Phase 2 证据接地]
+
+对推荐策略输出 2-4 条 action_plan_items。**每条必须包含以下新字段**：
+
+- `candidate_id`: 上表某个 ID（不能是 filtered 的，也不能凭空创造）
+- `trigger_price`: 必须等于该 candidate 的 price（系统会强制核对）
+- `evidence_refs`: 至少 2 个 fact_id，引用支持决策的事实（来自上方事实数据库）
+- `narrative`: 一段论证文本（30-80 字），可在文中内嵌 `<ref:fact_id>` 标记
+- `tier`: `primary` 或 `discipline_anchor`，与上表的 tier 保持一致
+- `provenance`: 固定填 `"llm"`
+
+其余字段（trigger_condition / direction / shares / pct_of_position / pct_of_equity /
+technical_basis / fundamental_basis / quant_signal / invalidation_rule / priority）按现有约束保留。
+
+**硬约束：**
+- `discipline_anchor` 层至多 1 条（仅当没有任何合适的 primary 时使用）
+- 同一 `candidate_id` 不能出现两次
+- `direction` 必须与该 candidate 的方向一致
+"""
