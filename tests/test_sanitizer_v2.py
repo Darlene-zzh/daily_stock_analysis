@@ -101,3 +101,60 @@ def test_check4_drop_filtered_tier_candidate():
     out = sanitize_with_candidates(items, bundle, strategy="swing_trade",
                                     current_price=223.47)
     assert out == []
+
+
+def test_check5_drop_take_profit_below_current_price():
+    bundle = _bundle(
+        [_candidate("candidate.exit.bad", "take_profit", 220.0,
+                    ["swing_trade"])],
+        current_price=223.47,
+    )
+    items = [{"candidate_id": "candidate.exit.bad", "trigger_price": 220.0,
+              "direction": "take_profit", "priority": 1,
+              "evidence_refs": ["a", "b"], "tier": "primary"}]
+    out = sanitize_with_candidates(items, bundle, strategy="swing_trade",
+                                    current_price=223.47)
+    assert out == []
+
+
+def test_check5_drop_stop_loss_above_current_price():
+    bundle = _bundle(
+        [_candidate("candidate.stop.bad", "stop_loss", 230.0,
+                    ["swing_trade"])],
+        current_price=223.47,
+    )
+    items = [{"candidate_id": "candidate.stop.bad", "trigger_price": 230.0,
+              "direction": "stop_loss", "priority": 1,
+              "evidence_refs": ["a", "b"], "tier": "primary"}]
+    out = sanitize_with_candidates(items, bundle, strategy="swing_trade",
+                                    current_price=223.47)
+    assert out == []
+
+
+def test_check5_keep_take_profit_above_current():
+    bundle = _bundle(
+        [_candidate("candidate.exit.ok", "take_profit", 226.0,
+                    ["swing_trade"])],
+        current_price=223.47,
+    )
+    items = [{"candidate_id": "candidate.exit.ok", "trigger_price": 226.0,
+              "direction": "take_profit", "priority": 1,
+              "evidence_refs": ["a", "b"], "tier": "primary"}]
+    out = sanitize_with_candidates(items, bundle, strategy="swing_trade",
+                                    current_price=223.47)
+    assert len(out) == 1
+
+
+def test_check5_no_current_price_skips_direction_check():
+    """When current_price unknown, can't validate direction logic — pass-through."""
+    bundle = _bundle(
+        [_candidate("candidate.exit.x", "take_profit", 100.0, ["swing_trade"])],
+        current_price=223.47,
+    )
+    items = [{"candidate_id": "candidate.exit.x", "trigger_price": 100.0,
+              "direction": "take_profit", "priority": 1,
+              "evidence_refs": ["a", "b"], "tier": "primary"}]
+    out = sanitize_with_candidates(items, bundle, strategy="swing_trade",
+                                    current_price=None)
+    # No current_price -> direction check skipped, item survives
+    assert len(out) == 1

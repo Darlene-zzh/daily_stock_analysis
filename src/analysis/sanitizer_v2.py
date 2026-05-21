@@ -77,6 +77,22 @@ def sanitize_with_candidates(
             )
             continue
 
+        # Check #5 — direction logic vs current price
+        if current_price is not None:
+            cp = float(current_price)
+            if cand.direction == "take_profit" and candidate_price <= cp:
+                logger.info(
+                    "[sanitizer_v2] drop item: take_profit @ %s ≤ current %s",
+                    candidate_price, cp,
+                )
+                continue
+            if cand.direction == "stop_loss" and candidate_price >= cp:
+                logger.info(
+                    "[sanitizer_v2] drop item: stop_loss @ %s ≥ current %s",
+                    candidate_price, cp,
+                )
+                continue
+
         survivors.append(it)
 
     # Renumber priority 1..N (final step shared with later checks)
