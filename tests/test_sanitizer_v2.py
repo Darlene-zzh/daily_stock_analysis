@@ -210,3 +210,64 @@ def test_check6_keeps_valid_evidence_refs():
     assert out[0]["evidence_refs"] == [
         "technical.resistance", "committee.pm_verdict", "intel.risk_alert.0",
     ]
+
+
+def test_check7_discipline_anchor_capped_to_one():
+    bundle = _bundle([
+        _candidate("candidate.disc.1", "take_profit", 230.0, ["stepped_profit_taking"],
+                   tier="discipline_anchor"),
+        _candidate("candidate.disc.2", "take_profit", 240.0, ["stepped_profit_taking"],
+                   tier="discipline_anchor"),
+        _candidate("candidate.primary", "take_profit", 226.0, ["stepped_profit_taking"],
+                   tier="primary"),
+    ])
+    items = [
+        {"candidate_id": "candidate.disc.1", "trigger_price": 230.0,
+         "direction": "take_profit", "priority": 1,
+         "evidence_refs": ["a", "b"], "tier": "discipline_anchor"},
+        {"candidate_id": "candidate.disc.2", "trigger_price": 240.0,
+         "direction": "take_profit", "priority": 2,
+         "evidence_refs": ["a", "b"], "tier": "discipline_anchor"},
+        {"candidate_id": "candidate.primary", "trigger_price": 226.0,
+         "direction": "take_profit", "priority": 3,
+         "evidence_refs": ["a", "b"], "tier": "primary"},
+    ]
+    out = sanitize_with_candidates(items, bundle, strategy="stepped_profit_taking",
+                                    current_price=223.47)
+    anchors = [it for it in out if it.get("tier") == "discipline_anchor"]
+    assert len(anchors) == 1
+
+
+def test_check8_dedup_same_candidate_id_keeps_highest_priority():
+    bundle = _bundle([_candidate("candidate.exit.1", "take_profit", 226.13,
+                                  ["swing_trade"])])
+    items = [
+        {"candidate_id": "candidate.exit.1", "trigger_price": 226.13,
+         "direction": "take_profit", "priority": 5,
+         "evidence_refs": ["a", "b"], "tier": "primary"},
+        {"candidate_id": "candidate.exit.1", "trigger_price": 226.13,
+         "direction": "take_profit", "priority": 1,  # higher priority (lower number)
+         "evidence_refs": ["a", "b"], "tier": "primary"},
+    ]
+    out = sanitize_with_candidates(items, bundle, strategy="swing_trade",
+                                    current_price=223.47)
+    assert len(out) == 1
+
+
+def test_check9_priority_renumbered_1_to_N():
+    bundle = _bundle([
+        _candidate("candidate.exit.1", "take_profit", 226.13, ["swing_trade"]),
+        _candidate("candidate.exit.2", "take_profit", 230.0, ["swing_trade"]),
+    ])
+    items = [
+        {"candidate_id": "candidate.exit.1", "trigger_price": 226.13,
+         "direction": "take_profit", "priority": 7,
+         "evidence_refs": ["a", "b"], "tier": "primary"},
+        {"candidate_id": "candidate.exit.2", "trigger_price": 230.0,
+         "direction": "take_profit", "priority": 19,
+         "evidence_refs": ["a", "b"], "tier": "primary"},
+    ]
+    out = sanitize_with_candidates(items, bundle, strategy="swing_trade",
+                                    current_price=223.47)
+    priorities = sorted(it["priority"] for it in out)
+    assert priorities == [1, 2]

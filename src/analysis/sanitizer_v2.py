@@ -128,7 +128,38 @@ def sanitize_with_candidates(
 
         survivors.append(it)
 
-    # Renumber priority 1..N (final step shared with later checks)
+    # Check #8 — dedup by candidate_id, keeping the lowest-priority-number entry
+    by_id: Dict[str, Dict[str, Any]] = {}
+    for it in survivors:
+        cid = it["candidate_id"]
+        existing = by_id.get(cid)
+        existing_pri = existing.get("priority", 1e9) if existing else 1e9
+        new_pri = it.get("priority", 1e9)
+        if existing is None or (
+            isinstance(new_pri, (int, float)) and new_pri < existing_pri
+        ):
+            by_id[cid] = it
+    survivors = list(by_id.values())
+
+    # Check #7 — discipline_anchor capped to 1 entry (drop extras)
+    def _effective_tier(item: Dict[str, Any]) -> str:
+        item_tier = item.get("tier")
+        if item_tier:
+            return item_tier
+        cand_obj = cmap.get(item["candidate_id"])
+        return cand_obj.tier if cand_obj else ""
+
+    anchors = [it for it in survivors if _effective_tier(it) == "discipline_anchor"]
+    if len(anchors) > 1:
+        anchors.sort(key=lambda x: x.get("priority", 99))
+        keep_id = anchors[0]["candidate_id"]
+        drop_ids = {it["candidate_id"] for it in anchors[1:]}
+        survivors = [
+            it for it in survivors
+            if it["candidate_id"] == keep_id or it["candidate_id"] not in drop_ids
+        ]
+
+    # Check #9 — Renumber priority 1..N after dedup/cap
     for new_pri, it in enumerate(survivors, start=1):
         it["priority"] = new_pri
 
