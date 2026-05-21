@@ -36,3 +36,32 @@ def test_extract_technical_volume_ratio_na_skipped():
     dp = {"volume_analysis": {"volume_ratio": "N/A"}}
     facts = extract_technical_facts(dp, rsi_12=None, as_of="2026-05-21T00:43:00Z")
     assert "technical.volume_ratio" not in {f.id for f in facts}
+
+
+def test_compute_atr_14_from_ohlc():
+    from src.analysis.extractors.technical import compute_atr_14
+    ohlc = [
+        {"high": 100, "low": 95, "close": 98},
+        {"high": 102, "low": 97, "close": 100},
+    ]
+    for i in range(13):
+        ohlc.append({"high": 105 + i, "low": 100 + i, "close": 103 + i})
+    atr = compute_atr_14(ohlc)
+    assert atr is not None
+    assert atr > 0
+    assert atr < 20
+
+
+def test_compute_atr_14_insufficient_data_returns_none():
+    from src.analysis.extractors.technical import compute_atr_14
+    short_ohlc = [{"high": 100, "low": 95, "close": 98}]
+    assert compute_atr_14(short_ohlc) is None
+
+
+def test_extract_technical_with_ohlc_includes_atr():
+    dp = {"price_position": {"current_price": 100.0}}
+    ohlc = [{"high": 100 + i, "low": 95 + i, "close": 98 + i} for i in range(20)]
+    facts = extract_technical_facts(dp, rsi_12=None, as_of="2026-05-21T00:43:00Z", ohlc=ohlc)
+    atr_facts = [f for f in facts if f.id == "technical.atr_14"]
+    assert len(atr_facts) == 1
+    assert atr_facts[0].value > 0
