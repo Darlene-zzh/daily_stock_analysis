@@ -60,3 +60,33 @@ def test_ma10_pullback_skipped_when_above_current():
 def test_no_current_price_returns_empty():
     facts = [_fact("technical.resistance", 226.13)]
     assert compute_candidates(facts) == []
+
+
+def test_atr_2x_stop():
+    facts = [
+        _fact("technical.current_price", 223.47),
+        _fact("technical.atr_14", 4.32),
+    ]
+    cands = compute_candidates(facts)
+    atr2 = [c for c in cands if c.basis_rule == "atr_2x_below_current"]
+    assert len(atr2) == 1
+    assert abs(atr2[0].price - (223.47 - 2 * 4.32)) < 0.01
+    assert atr2[0].direction == "stop_loss"
+    assert atr2[0].tier == "primary"
+
+
+def test_atr_3x_stop():
+    facts = [
+        _fact("technical.current_price", 223.47),
+        _fact("technical.atr_14", 4.32),
+    ]
+    cands = compute_candidates(facts)
+    atr3 = [c for c in cands if c.basis_rule == "atr_3x_below_current"]
+    assert len(atr3) == 1
+    assert "stepped_profit_taking" in atr3[0].applicable_strategies
+
+
+def test_no_atr_no_atr_candidates():
+    facts = [_fact("technical.current_price", 223.47)]
+    cands = compute_candidates(facts)
+    assert not any(c.basis_rule.startswith("atr_") for c in cands)

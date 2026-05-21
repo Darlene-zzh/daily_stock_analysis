@@ -124,4 +124,29 @@ def compute_candidates(facts: List[FactRecord]) -> List[CandidateLevel]:
             applicable_strategies=["swing_trade"],
         ))
 
+    # ---- Rule: atr_2x_below_current (stop_loss) ----
+    atr = _get_value(facts, "technical.atr_14")
+    if atr is not None:
+        price_2x = current - 2 * atr
+        add(_make_candidate(
+            next_idx("stop"),
+            direction="stop_loss", price=round(price_2x, 2), current=current,
+            label="ATR(14)×2 止损",
+            basis_fact_id="technical.atr_14",
+            basis_rule="atr_2x_below_current",
+            applicable_strategies=["swing_trade"],
+        ))
+
+    # ---- Rule: atr_3x_below_current (stop_loss) ----
+    if atr is not None:
+        price_3x = current - 3 * atr
+        add(_make_candidate(
+            next_idx("stop"),
+            direction="stop_loss", price=round(price_3x, 2), current=current,
+            label="ATR(14)×3 止损",
+            basis_fact_id="technical.atr_14",
+            basis_rule="atr_3x_below_current",
+            applicable_strategies=["stepped_profit_taking", "long_term_hold"],
+        ))
+
     return candidates
