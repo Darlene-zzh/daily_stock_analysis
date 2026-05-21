@@ -90,3 +90,45 @@ def test_no_atr_no_atr_candidates():
     facts = [_fact("technical.current_price", 223.47)]
     cands = compute_candidates(facts)
     assert not any(c.basis_rule.startswith("atr_") for c in cands)
+
+
+def test_r_multiple_2r_target():
+    facts = [
+        _fact("technical.current_price", 223.47),
+        _fact("technical.ma20", 213.4),
+    ]
+    cands = compute_candidates(facts)
+    r2 = [c for c in cands if c.basis_rule == "r_multiple_2r"]
+    assert len(r2) == 1
+    assert abs(r2[0].price - (223.47 + 2 * (223.47 - 213.4))) < 0.01
+    assert r2[0].direction == "take_profit"
+
+
+def test_r_multiple_3r_target():
+    facts = [
+        _fact("technical.current_price", 223.47),
+        _fact("technical.ma20", 213.4),
+    ]
+    cands = compute_candidates(facts)
+    r3 = [c for c in cands if c.basis_rule == "r_multiple_3r"]
+    assert len(r3) == 1
+    assert "long_term_hold" in r3[0].applicable_strategies
+
+
+def test_resistance_plus_atr():
+    facts = [
+        _fact("technical.current_price", 223.47),
+        _fact("technical.resistance", 226.13),
+        _fact("technical.atr_14", 4.32),
+    ]
+    cands = compute_candidates(facts)
+    rpa = [c for c in cands if c.basis_rule == "resistance_plus_atr"]
+    assert len(rpa) == 1
+    assert abs(rpa[0].price - (226.13 + 4.32)) < 0.01
+    assert "stepped_profit_taking" in rpa[0].applicable_strategies
+
+
+def test_r_multiple_skipped_when_no_stop_reference():
+    facts = [_fact("technical.current_price", 223.47)]
+    cands = compute_candidates(facts)
+    assert not any(c.basis_rule.startswith("r_multiple") for c in cands)

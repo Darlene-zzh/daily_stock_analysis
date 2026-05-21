@@ -149,4 +149,41 @@ def compute_candidates(facts: List[FactRecord]) -> List[CandidateLevel]:
             applicable_strategies=["stepped_profit_taking", "long_term_hold"],
         ))
 
+    # ---- Rule: resistance_plus_atr (take_profit) ----
+    if r is not None and atr is not None and r > current:
+        price = r + atr
+        add(_make_candidate(
+            next_idx("exit"),
+            direction="take_profit", price=round(price, 2), current=current,
+            label="阻力 + 1×ATR 延伸",
+            basis_fact_id="technical.resistance",
+            basis_rule="resistance_plus_atr",
+            applicable_strategies=["stepped_profit_taking", "long_term_hold"],
+        ))
+
+    # ---- R-multiple targets: need a stop reference ----
+    # Prefer MA20 stop, fall back to ATR stop
+    stop_ref = ma20 if (ma20 is not None and ma20 < current) else None
+    if stop_ref is None and atr is not None:
+        stop_ref = current - 2 * atr
+    if stop_ref is not None and stop_ref < current:
+        r_unit = current - stop_ref
+        stop_basis = "technical.ma20" if (ma20 is not None and ma20 == stop_ref) else "technical.atr_14"
+        add(_make_candidate(
+            next_idx("exit"),
+            direction="take_profit", price=round(current + 2 * r_unit, 2), current=current,
+            label="2R 目标",
+            basis_fact_id=stop_basis,
+            basis_rule="r_multiple_2r",
+            applicable_strategies=["swing_trade", "stepped_profit_taking"],
+        ))
+        add(_make_candidate(
+            next_idx("exit"),
+            direction="take_profit", price=round(current + 3 * r_unit, 2), current=current,
+            label="3R 目标",
+            basis_fact_id=stop_basis,
+            basis_rule="r_multiple_3r",
+            applicable_strategies=["stepped_profit_taking", "long_term_hold"],
+        ))
+
     return candidates
