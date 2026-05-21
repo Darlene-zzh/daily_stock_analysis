@@ -136,3 +136,29 @@ else:
 
 - `src/core/pipeline.py` (+118 / −1, added `_attach_fact_bundle` + call from `process_single_stock`)
 - `docs/CHANGELOG.md` (+1 line in `[Unreleased]` flat format)
+
+---
+
+## Post-handoff verification (added at 06:00 local when user asked "我要怎么检查")
+
+| Check | Result | Notes |
+|---|---|---|
+| Phase 1 12-file test suite | ✅ **59 / 59 PASS** | ~2.9s wall |
+| Full offline test suite `-m "not network"` | ✅ **2405 passed, 1 failed** in 63s | The 1 failure is `tests/test_agent_executor.py::TestAgentExecutor::test_max_steps_exceeded` — confirmed pre-existing (fails on `d3cc5c7` before Phase 1 even started); root cause is [[repo-agent-salvage-v2]] salvage behavior making runner emit `failed to parse dashboard JSON` instead of `max steps` in error string. Not in Phase 1 scope. |
+| `py_compile main.py + src/core/pipeline.py + src/analysis/**` | ✅ clean | |
+| flake8 `E9,F63,F7,F82` over `src/analysis/ + pipeline.py + tests/test_facts*.py` | ✅ 0 issues | |
+| Offline NVDA smoke (real `analysis_history` row → `_attach_fact_bundle`) | ✅ 22 facts, 7 candidates, JSON round-trip clean, 12 dashboard keys untouched | rules covered: `ma10_pullback`, `ma20_breakdown`, `psychological_round`, `r_multiple_2r`, `r_multiple_3r`, `resistance_touch`, `support_test` |
+| Commit count | ✅ 20 commits, `b554f32`..`1174883`, +2402 / −1, 28 files | only 2 existing files touched: `src/core/pipeline.py` + `docs/CHANGELOG.md` |
+
+**Self-flag** during the verification — at one point I ran `git stash -u && git checkout d3cc5c7 -- && pytest ... && git checkout HEAD --` to confirm the `test_agent_executor` failure was pre-existing. The `git checkout HEAD --` did NOT reattach to the branch ref; HEAD was left detached at `d3cc5c7`. Caught it before any commit touched the wrong ref. Reattached with `git checkout feat/committee-timeout-and-bilingual`; reflog confirmed `1174883` was alive on the branch ref the whole time; **nothing was lost**. Lesson: use `git switch -` (or `git switch <branch>`) to return to the prior branch instead of `git checkout HEAD --`.
+
+## Handoff for the next window
+
+User is opening a fresh window to start Phase 2. The clean entry point:
+1. Read `[[project-phase-2-handoff]]` memory — has everything below in skimmable form
+2. Read spec Section B (`docs/superpowers/specs/2026-05-21-evidence-grounded-decision-pipeline-design.md` lines 293-446)
+3. Write `docs/superpowers/plans/2026-05-21-phase-2-llm-prompt-sanitizer.md` BEFORE any code
+4. Phase 2 ≈ replace `_sanitize_action_plan_items` + `synthesize_action_plan_items` to validate `trigger_price` against `dashboard.fact_bundle.candidates[].price` allowlist; inject facts table + candidate IDs into analyzer prompt; gate behind `STRUCTURED_EVIDENCE_V1=true` env flag
+5. Files Phase 2 will likely touch: `src/services/portfolio_context_service.py`, `src/analyzer.py`, `src/schemas/*.py` (additive `evidence_refs`), `src/config.py` (env flag), existing `tests/test_action_plan_*.py`, new Phase 2 tests
+6. Parallelism: Phase 2 and Phase 4 (frontend basework) are independent. Can write both plans in same window if energy permits.
+7. Don't touch in Phase 2: notification/history renderers (Phase 3), frontend (Phase 4-5), feature flag removal (Phase 6)
