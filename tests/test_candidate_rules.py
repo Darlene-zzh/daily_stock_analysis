@@ -132,3 +132,52 @@ def test_r_multiple_skipped_when_no_stop_reference():
     facts = [_fact("technical.current_price", 223.47)]
     cands = compute_candidates(facts)
     assert not any(c.basis_rule.startswith("r_multiple") for c in cands)
+
+
+def test_psychological_round_next_above():
+    facts = [_fact("technical.current_price", 223.47)]
+    cands = compute_candidates(facts)
+    rounds = [c for c in cands if c.basis_rule == "psychological_round"]
+    assert len(rounds) >= 1
+    assert any(c.price == 230.0 for c in rounds)
+    assert all(c.tier == "secondary" for c in rounds)
+
+
+def test_cost_plus_5pct_anchor_when_held_and_not_triggered():
+    facts = [
+        _fact("technical.current_price", 200.0),
+        _fact("portfolio.avg_cost", 196.18, type_="portfolio"),
+    ]
+    cands = compute_candidates(facts)
+    anchors = [c for c in cands if c.basis_rule == "cost_plus_5pct"]
+    assert len(anchors) == 1
+    assert anchors[0].tier == "discipline_anchor"
+    assert abs(anchors[0].price - 196.18 * 1.05) < 0.01
+
+
+def test_cost_plus_5pct_skipped_when_already_triggered():
+    facts = [
+        _fact("technical.current_price", 223.47),
+        _fact("portfolio.avg_cost", 196.18, type_="portfolio"),
+    ]
+    cands = compute_candidates(facts)
+    anchors = [c for c in cands if c.basis_rule == "cost_plus_5pct"]
+    assert anchors == []
+
+
+def test_cost_minus_10pct_anchor():
+    facts = [
+        _fact("technical.current_price", 200.0),
+        _fact("portfolio.avg_cost", 196.18, type_="portfolio"),
+    ]
+    cands = compute_candidates(facts)
+    stops = [c for c in cands if c.basis_rule == "cost_minus_10pct"]
+    assert len(stops) == 1
+    assert stops[0].tier == "discipline_anchor"
+    assert stops[0].direction == "stop_loss"
+
+
+def test_no_avg_cost_no_anchor_candidates():
+    facts = [_fact("technical.current_price", 200.0)]
+    cands = compute_candidates(facts)
+    assert not any(c.basis_rule.startswith("cost_") for c in cands)

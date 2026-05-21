@@ -8,6 +8,7 @@ Section A "Candidate 生成规则".
 """
 from __future__ import annotations
 
+import math
 from typing import Any, Callable, Dict, List, Optional
 
 from src.analysis.facts import CandidateLevel, FactRecord
@@ -185,5 +186,51 @@ def compute_candidates(facts: List[FactRecord]) -> List[CandidateLevel]:
             basis_rule="r_multiple_3r",
             applicable_strategies=["stepped_profit_taking", "long_term_hold"],
         ))
+
+    # ---- Rule: psychological_round (take_profit, secondary tier) ----
+    step = 10 if current < 500 else 50
+    next_round = math.ceil(current / step) * step
+    if next_round > current:
+        add(_make_candidate(
+            next_idx("exit"),
+            direction="take_profit", price=float(next_round), current=current,
+            label="心理整数关口",
+            basis_fact_id="technical.current_price",
+            basis_rule="psychological_round",
+            applicable_strategies=["long_term_hold", "swing_trade", "stepped_profit_taking"],
+            tier="secondary",
+        ))
+
+    # ---- Cost-based discipline anchors (only if held) ----
+    avg_cost = _get_value(facts, "portfolio.avg_cost")
+    if avg_cost is not None and avg_cost > 0:
+        for pct, rule_name, strategies in [
+            (0.05, "cost_plus_5pct", ["stepped_profit_taking"]),
+            (0.12, "cost_plus_12pct", ["stepped_profit_taking"]),
+            (0.20, "cost_plus_20pct", ["stepped_profit_taking", "long_term_hold"]),
+        ]:
+            price = avg_cost * (1 + pct)
+            if price > current:
+                add(_make_candidate(
+                    next_idx("exit"),
+                    direction="take_profit", price=round(price, 2), current=current,
+                    label=f"成本 +{int(pct * 100)}% 纪律锚",
+                    basis_fact_id="portfolio.avg_cost",
+                    basis_rule=rule_name,
+                    applicable_strategies=strategies,
+                    tier="discipline_anchor",
+                ))
+
+        stop_price = avg_cost * 0.9
+        if stop_price < current:
+            add(_make_candidate(
+                next_idx("stop"),
+                direction="stop_loss", price=round(stop_price, 2), current=current,
+                label="成本 −10% 纪律止损",
+                basis_fact_id="portfolio.avg_cost",
+                basis_rule="cost_minus_10pct",
+                applicable_strategies=["long_term_hold", "stepped_profit_taking"],
+                tier="discipline_anchor",
+            ))
 
     return candidates
