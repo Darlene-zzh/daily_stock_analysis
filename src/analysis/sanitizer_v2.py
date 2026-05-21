@@ -93,6 +93,39 @@ def sanitize_with_candidates(
                 )
                 continue
 
+        # Check #6 — evidence_refs autofill (must have ≥ 2 valid fact_ids)
+        raw_refs = it.get("evidence_refs") or []
+        if not isinstance(raw_refs, list):
+            raw_refs = []
+        valid_fact_ids = (
+            {f.id for f in bundle.facts}
+            | {c.id for c in bundle.candidates}
+        )
+        refs = [r for r in raw_refs if isinstance(r, str) and r in valid_fact_ids]
+        if len(refs) < 2:
+            # Auto-fill: basis_fact_id + first available committee fact
+            if cand.basis_fact_id and cand.basis_fact_id not in refs:
+                refs.append(cand.basis_fact_id)
+            committee_facts = [f.id for f in bundle.facts
+                                if f.type == "committee" and f.id not in refs]
+            if committee_facts and len(refs) < 2:
+                refs.append(committee_facts[0])
+            if len(refs) < 2:
+                # Fall back to a technical anchor when committee isn't available
+                for f in bundle.facts:
+                    if f.type == "technical" and f.id not in refs:
+                        refs.append(f.id)
+                        break
+        # Strip duplicates while preserving order
+        seen: set = set()
+        deduped: list = []
+        for r in refs:
+            if r not in seen:
+                seen.add(r)
+                deduped.append(r)
+        it = dict(it)
+        it["evidence_refs"] = deduped
+
         survivors.append(it)
 
     # Renumber priority 1..N (final step shared with later checks)

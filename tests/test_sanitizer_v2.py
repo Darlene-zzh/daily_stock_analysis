@@ -158,3 +158,55 @@ def test_check5_no_current_price_skips_direction_check():
                                     current_price=None)
     # No current_price -> direction check skipped, item survives
     assert len(out) == 1
+
+
+def test_check6_autofill_evidence_refs_when_less_than_two():
+    """Per spec: if evidence_refs has <2 entries, auto-fill from
+    candidate.basis_fact_id + a default committee anchor."""
+    facts = [
+        FactRecord(id="technical.current_price", type="technical", label="现价",
+                   value=223.47, display_value="$223.47"),
+        FactRecord(id="committee.pm_verdict", type="committee", label="PM",
+                   value="hold", display_value="Hold"),
+    ]
+    bundle = FactBundle(
+        as_of="x", market="us", stock_code="NVDA", facts=facts,
+        candidates=[_candidate("candidate.exit.1", "take_profit", 226.13,
+                                ["swing_trade"],
+                                basis_fact_id="technical.resistance")],
+    )
+    # Item has 0 evidence_refs
+    items = [{"candidate_id": "candidate.exit.1", "trigger_price": 226.13,
+              "direction": "take_profit", "priority": 1, "tier": "primary"}]
+    out = sanitize_with_candidates(items, bundle, strategy="swing_trade",
+                                    current_price=223.47)
+    assert len(out) == 1
+    refs = out[0]["evidence_refs"]
+    assert "technical.resistance" in refs  # basis fact
+    assert len(refs) >= 2
+
+
+def test_check6_keeps_valid_evidence_refs():
+    facts = [
+        FactRecord(id="technical.resistance", type="technical", label="阻力",
+                   value=226.13, display_value="$226.13"),
+        FactRecord(id="committee.pm_verdict", type="committee", label="PM",
+                   value="hold", display_value="Hold"),
+        FactRecord(id="intel.risk_alert.0", type="intel", label="风险",
+                   value="RSI 71.1", display_value="RSI 71.1"),
+    ]
+    bundle = FactBundle(
+        as_of="x", market="us", stock_code="NVDA", facts=facts,
+        candidates=[_candidate("candidate.exit.1", "take_profit", 226.13,
+                                ["swing_trade"])],
+    )
+    items = [{"candidate_id": "candidate.exit.1", "trigger_price": 226.13,
+              "direction": "take_profit", "priority": 1,
+              "evidence_refs": ["technical.resistance", "committee.pm_verdict",
+                                 "intel.risk_alert.0"],
+              "tier": "primary"}]
+    out = sanitize_with_candidates(items, bundle, strategy="swing_trade",
+                                    current_price=223.47)
+    assert out[0]["evidence_refs"] == [
+        "technical.resistance", "committee.pm_verdict", "intel.risk_alert.0",
+    ]
