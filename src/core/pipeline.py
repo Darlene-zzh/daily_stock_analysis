@@ -1736,7 +1736,16 @@ class StockAnalysisPipeline:
                     f"[{code}] 分析完成: {result.operation_advice}, "
                     f"评分 {result.sentiment_score}"
                 )
-                
+
+                # === Phase 1 — Attach FactBundle to dashboard (non-disruptive) ===
+                # Wrap in try/except: any failure logs and continues; dashboard untouched.
+                try:
+                    self._attach_fact_bundle(result, code)
+                except Exception as fb_exc:
+                    logger.warning(
+                        f"[{code}] FactBundle 附加失败，dashboard 未变更: {fb_exc}"
+                    )
+
                 # 单股推送模式（#55）：每分析完一只股票立即推送
                 if single_stock_notify:
                     self._send_single_stock_notification(
@@ -1758,6 +1767,114 @@ class StockAnalysisPipeline:
         finally:
             reset_frozen_target_date(token)
     
+    def _attach_fact_bundle(self, result, code: str) -> None:
+        """Phase 1 — assemble FactBundle from result.dashboard and attach as dashboard.fact_bundle.
+
+        Pure additive: dashboard.fact_bundle is a new top-level key alongside existing
+        ones. Old consumers ignore unknown keys. Any failure is swallowed by the caller.
+        """
+        if not isinstance(result.dashboard, dict):
+            return
+
+        from dataclasses import asdict
+        from datetime import datetime, timezone
+        import json
+        from pathlib import Path
+
+        from src.analysis.facts_builder import build_fact_bundle
+        from src.analysis.extractors.quant import find_latest_qlib_week
+        from src.core.trading_calendar import get_market_for_stock
+
+        market = get_market_for_stock(code) or "us"
+
+        # Resolve qlib predictions for this market
+        qlib_predictions: dict = {}
+        qlib_ic: dict = {}
+        qlib_week = ""
+        qlib_universe_size = 0
+        try:
+            market_dir = Path("data/quant_models") / ("cn" if market == "a" else "us")
+            week = find_latest_qlib_week(market_dir)
+            if week:
+                qlib_week = week
+                pred_path = market_dir / week / "predictions.json"
+                ic_path = market_dir / week / "ic.json"
+                if pred_path.exists():
+                    qlib_predictions = json.loads(pred_path.read_text())
+                    qlib_universe_size = len(qlib_predictions)
+                if ic_path.exists():
+                    qlib_ic = json.loads(ic_path.read_text())
+        except Exception as exc:
+            logger.warning(f"[facts_builder] {code} qlib load failed: {exc}")
+
+        # Pull rsi_12 from existing intelligence block if available
+        rsi_12 = None
+        try:
+            intel_block = (
+                result.dashboard.get("intelligence", {}) if isinstance(result.dashboard, dict)
+                else {}
+            )
+            tech_block = intel_block.get("technical_indicators") or {}
+            rsi_12 = tech_block.get("rsi_12")
+        except Exception:
+            rsi_12 = None
+
+        # OHLC: fetch last 30 days for ATR + swing computation
+        ohlc_list = None
+        try:
+            df, _src = self.fetcher_manager.get_daily_data(code, days=30)
+            if df is not None and len(df) > 0:
+                cols = [c for c in ("high", "low", "close") if c in df.columns]
+                if len(cols) == 3:
+                    ohlc_list = df[cols].tail(30).to_dict(orient="records")
+        except Exception as exc:
+            logger.debug(f"[facts_builder] {code} OHLC fetch failed: {exc}")
+
+        # Flow + chip: A-share only
+        flow_data = None
+        chip_data = None
+        if market == "a":
+            try:
+                if hasattr(self.fetcher_manager, "get_capital_flow_context"):
+                    flow_data = self.fetcher_manager.get_capital_flow_context(code)
+            except Exception as exc:
+                logger.debug(f"[facts_builder] {code} flow fetch failed: {exc}")
+            try:
+                if hasattr(self.fetcher_manager, "get_chip_distribution"):
+                    chip_data = self.fetcher_manager.get_chip_distribution(code)
+            except Exception as exc:
+                logger.debug(f"[facts_builder] {code} chip fetch failed: {exc}")
+
+        # Portfolio context: Phase 1 attaches without it; Phase 2 wires the real context.
+        # If the analyzer/service has stashed it on the result, use it; otherwise None.
+        portfolio_context = None
+        try:
+            portfolio_context = getattr(result, "portfolio_context", None)
+        except Exception:
+            portfolio_context = None
+
+        bundle = build_fact_bundle(
+            stock_code=code, market=market,
+            dashboard=result.dashboard,
+            portfolio_context=portfolio_context,
+            ohlc=ohlc_list, rsi_12=rsi_12,
+            qlib_predictions=qlib_predictions, qlib_ic=qlib_ic,
+            qlib_week=qlib_week, qlib_universe_size=qlib_universe_size,
+            as_of=datetime.now(timezone.utc).isoformat(),
+            flow=flow_data, chip=chip_data,
+        )
+        result.dashboard["fact_bundle"] = {
+            "as_of": bundle.as_of,
+            "market": bundle.market,
+            "stock_code": bundle.stock_code,
+            "facts": [asdict(f) for f in bundle.facts],
+            "candidates": [asdict(c) for c in bundle.candidates],
+        }
+        logger.info(
+            f"[facts_builder] {code} bundle attached: "
+            f"{len(bundle.facts)} facts, {len(bundle.candidates)} candidates"
+        )
+
     def run(
         self,
         stock_codes: Optional[List[str]] = None,
