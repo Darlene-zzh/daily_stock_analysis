@@ -64,3 +64,40 @@ def test_check1_drop_when_candidate_id_missing_entirely():
     out = sanitize_with_candidates(items, bundle, strategy="swing_trade",
                                     current_price=223.47)
     assert out == []
+
+
+def test_check3_drop_item_when_strategy_not_in_applicable_strategies():
+    bundle = _bundle([
+        _candidate("candidate.exit.1", "take_profit", 226.13,
+                   ["swing_trade", "stepped_profit_taking"]),
+        _candidate("candidate.exit.lth", "take_profit", 280.0,
+                   ["long_term_hold"]),  # wrong strategy
+    ])
+    items = [
+        {"candidate_id": "candidate.exit.1", "trigger_price": 226.13,
+         "direction": "take_profit", "priority": 1,
+         "evidence_refs": ["technical.resistance", "committee.pm_verdict"],
+         "tier": "primary"},
+        {"candidate_id": "candidate.exit.lth", "trigger_price": 280.0,
+         "direction": "take_profit", "priority": 2,
+         "evidence_refs": ["technical.resistance", "committee.pm_verdict"],
+         "tier": "primary"},
+    ]
+    out = sanitize_with_candidates(items, bundle, strategy="swing_trade",
+                                    current_price=223.47)
+    ids = [it["candidate_id"] for it in out]
+    assert "candidate.exit.1" in ids
+    assert "candidate.exit.lth" not in ids
+
+
+def test_check4_drop_filtered_tier_candidate():
+    bundle = _bundle([
+        _candidate("candidate.exit.stale", "take_profit", 100.0,
+                   ["swing_trade"], tier="filtered"),
+    ])
+    items = [{"candidate_id": "candidate.exit.stale", "trigger_price": 100.0,
+              "direction": "take_profit", "priority": 1,
+              "evidence_refs": ["a", "b"], "tier": "filtered"}]
+    out = sanitize_with_candidates(items, bundle, strategy="swing_trade",
+                                    current_price=223.47)
+    assert out == []

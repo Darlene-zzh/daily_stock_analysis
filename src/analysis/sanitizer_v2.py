@@ -61,6 +61,22 @@ def sanitize_with_candidates(
             it = dict(it)
             it["trigger_price"] = candidate_price
 
+        # Check #3 — recommended_strategy must be in candidate.applicable_strategies
+        if strategy and strategy not in cand.applicable_strategies:
+            logger.info(
+                "[sanitizer_v2] drop item: candidate=%s applies to %s, "
+                "recommended=%s",
+                cid, cand.applicable_strategies, strategy,
+            )
+            continue
+
+        # Check #4 — candidate must not be in `filtered` tier
+        if cand.tier == "filtered":
+            logger.info(
+                "[sanitizer_v2] drop item: candidate=%s is in filtered tier", cid,
+            )
+            continue
+
         survivors.append(it)
 
     # Renumber priority 1..N (final step shared with later checks)
