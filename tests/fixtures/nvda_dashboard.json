@@ -1,0 +1,335 @@
+{
+  "data_perspective": {
+    "trend_status": {
+      "ma_alignment": "bullish",
+      "trend_score": 75,
+      "is_bullish": true
+    },
+    "price_position": {
+      "current_price": 223.47,
+      "ma5": 225.49,
+      "ma10": 222.02,
+      "ma20": 213.4,
+      "bias_ma5": -0.9,
+      "bias_status": "中性",
+      "support_level": 222.02,
+      "resistance_level": 226.13
+    },
+    "volume_analysis": {
+      "volume_ratio": "N/A",
+      "turnover_rate": "N/A",
+      "volume_status": "量能正常",
+      "volume_meaning": "NVDA exhibits a strong bullish trend with MA5>MA10>MA20 alignment and good trend strength. The current price is slightly below MA5 (-0.89%), indicating a preferred pullback entry point with MA10 acting as effective support. However, the 12-day RSI is in overbought territory (71.1), suggesting a potential for short-term consolidation or pullback."
+    }
+  },
+  "core_conclusion": {
+    "one_sentence": "[风控下调: hold -> sell] NVDA维持多头趋势结构，价格回踩MA10获支撑，符合趋势延续逻辑。但RSI(12)进入超买区（71.1），叠加估值数据缺失，增加短期不确定性。虽技术面仍偏强，但缺乏量能配合与基本面锚定，暂不宜追高。",
+    "time_sensitivity": "本周内",
+    "signal_type": "🔴卖出信号",
+    "position_advice": {
+      "no_position": "暂不参与，等待风险充分释放。",
+      "has_position": "优先控制回撤，按计划减仓或离场。"
+    },
+    "strategy_choices": [
+      {
+        "id": "stepped_profit_taking",
+        "applicable": true,
+        "label_zh": "阶梯式止盈",
+        "emoji": "🪜"
+      },
+      {
+        "id": "swing_trade",
+        "applicable": false,
+        "inapplicable_reason": "持仓已盈利+13.33%，但技术面显示RSI超买、缺乏量能配合，不支持追高或加仓操作",
+        "label_zh": "短线波段",
+        "emoji": "⚡"
+      },
+      {
+        "id": "long_term_hold",
+        "applicable": false,
+        "inapplicable_reason": "虽基本面叙事未明确恶化，但估值数据缺失且RSI进入超买区，继续持有需承担较高回调风险",
+        "label_zh": "长线持有",
+        "emoji": "🌳"
+      },
+      {
+        "id": "wait_and_see",
+        "applicable": false,
+        "inapplicable_reason": "当前持仓已有显著浮盈，且技术结构尚未破坏，存在明确减仓窗口",
+        "label_zh": "暂不操作",
+        "emoji": "🚪"
+      }
+    ],
+    "recommended_strategy": "stepped_profit_taking",
+    "strategy_thesis": "用户持有NVDA 0.7597股，平均成本196.18 USD，当前价223.47 USD，浮盈达+13.33%（+14.78 GBP），已满足阶梯止盈条件。技术面显示MA多头排列（MA20=213.4，MA10=222.02），价格回踩MA10获支撑，短期趋势仍强；但RSI(12)达71.1，进入超买区，叠加估值数据缺失，市场情绪存在降温风险。采用阶梯止盈可在锁定部分利润的同时保留上行空间，优势在于平衡风险与收益，劣势是若价格持续突破则剩余仓位收益受限。",
+    "action_plan_items": [
+      {
+        "trigger_price": 205.99,
+        "trigger_condition": "成本价上方 +5% 触发首档止盈",
+        "direction": "take_profit",
+        "shares": 0,
+        "pct_of_position": 30.0,
+        "technical_basis": "首档止盈：覆盖手续费与短期波动后锁定基础利润",
+        "fundamental_basis": "落袋为安第一档",
+        "quant_signal": null,
+        "invalidation_rule": "若价格回踩成本价以下则取消并降级为持有",
+        "priority": 1
+      },
+      {
+        "trigger_price": 219.72,
+        "trigger_condition": "成本价上方 +12% 触发中档止盈",
+        "direction": "take_profit",
+        "shares": 0,
+        "pct_of_position": 40.0,
+        "technical_basis": "中档止盈：均线多头排列下的合理止盈区",
+        "fundamental_basis": "落袋为安第二档（主仓位）",
+        "quant_signal": null,
+        "invalidation_rule": "若 MA 排列转空且跌破首档止盈位则提前减仓",
+        "priority": 2
+      },
+      {
+        "trigger_price": 235.41,
+        "trigger_condition": "成本价上方 +20% 触发尾档止盈（拉伸目标）",
+        "direction": "take_profit",
+        "shares": 0,
+        "pct_of_position": 30.0,
+        "technical_basis": "尾档止盈：保留 30% 仓位博取主升浪",
+        "fundamental_basis": "尾仓让利润奔跑",
+        "quant_signal": null,
+        "invalidation_rule": "若价格抵达后未能企稳则改为追踪止盈",
+        "priority": 3
+      },
+      {
+        "trigger_price": 176.56,
+        "trigger_condition": "基于成本基础的硬底线：成本价下方 10%，跌破该位强制止损",
+        "direction": "stop_loss",
+        "shares": 0,
+        "pct_of_position": 100.0,
+        "technical_basis": "基于成本基础的真止损位（非技术信号）",
+        "fundamental_basis": "保护本金为先",
+        "quant_signal": null,
+        "invalidation_rule": "当日强势收回 186.37 以上则推迟",
+        "priority": 4
+      }
+    ],
+    "position_outcome_summary": {
+      "remaining_shares_after_all_triggers": 0.0,
+      "worst_case_loss_pct": -10.0,
+      "worst_case_loss_amount": -14.9,
+      "worst_case_currency": "GBP",
+      "best_case_gain_pct": 12.3,
+      "best_case_gain_amount": 18.33,
+      "risk_reward_ratio": "1:1.2"
+    }
+  },
+  "intelligence": {
+    "risk_alerts": [
+      "Valuation metrics (PE, PB) are unavailable, which may indicate reporting delays, non-compliance, or data incompatibility; this lack of transparency poses a medium risk.",
+      "RSI(12) at 71.1 indicates overbought conditions, increasing the risk of a short-term pullback or correction."
+    ],
+    "risk_alerts_zh": [
+      "估值指标（市盈率、市净率）不可用，可能表明存在报告延迟、不合规或数据不兼容；这种缺乏透明度的情况构成中等风险。",
+      "12日相对强弱指数（RSI）为71.1，表明处于超买状态，短期回调或修正的风险增加。"
+    ]
+  },
+  "battle_plan": {
+    "sniper_points": {
+      "ideal_buy": 222.02,
+      "secondary_buy": "N/A",
+      "stop_loss": 213.39,
+      "take_profit": 226.13
+    },
+    "action_checklist": [],
+    "position_strategy": {
+      "suggested_position": "降仓防守",
+      "entry_plan": "暂不参与，等待风险充分释放。",
+      "risk_control": "止损参考 213.39"
+    }
+  },
+  "sentiment_score": 39,
+  "trend_prediction": "短期承压，中期仍强",
+  "operation_advice": "减仓/卖出（原建议已被风控下调）",
+  "decision_type": "sell",
+  "confidence_level": "中",
+  "analysis_summary": "[风控下调: hold -> sell] NVDA维持多头趋势结构，价格回踩MA10获支撑，符合趋势延续逻辑。但RSI(12)进入超买区（71.1），叠加估值数据缺失，增加短期不确定性。虽技术面仍偏强，但缺乏量能配合与基本面锚定，暂不宜追高。",
+  "decision_stability": {
+    "applied": false,
+    "reason": "资金流不可用，未使用资金流校准",
+    "capital_flow_status": "市场资金流服务暂不支持",
+    "current_price": 223.47000122070312,
+    "support": 222.02,
+    "resistance": 226.13,
+    "capital_flow_bias": "unavailable"
+  },
+  "committee": {
+    "version": "1",
+    "status": "ok",
+    "debate_rounds": 2,
+    "debate": [
+      {
+        "side": "bull",
+        "round_index": 1,
+        "claim": "NVDA技术面呈多头排列，价格回踩MA10获支撑，中期趋势强劲，具备延续上涨基础。",
+        "evidence": [
+          "MA5(225.49)、MA10(222.02)、MA20(213.4)呈现完整多头排列，趋势得分为75，显示强劲上升结构。",
+          "当前价223.47接近MA10支撑位222.02，回踩有效，符合趋势延续的典型技术形态。",
+          "核心结论指出‘短期承压，中期仍强’，表明尽管有超买风险，但中线趋势依然看涨。"
+        ],
+        "rebuttal_to": "尽管RSI超买和估值缺失引发短期担忧，但这不改变中期技术强势格局。",
+        "confidence": 0.85,
+        "status": "ok",
+        "error_summary": null
+      },
+      {
+        "side": "bear",
+        "round_index": 1,
+        "claim": "NVDA技术面虽呈多头排列，但RSI超买、估值缺失且缺乏量能配合，短期回调风险高，不宜追高。",
+        "evidence": [
+          "RSI(12)已达71.1，进入超买区域，历史数据显示此类水平后常伴随短期回调或盘整。",
+          "估值指标（PE、PB）缺失，存在报告延迟或数据不透明风险，削弱基本面锚定依据。",
+          "技术面缺乏量能配合，成交量未同步放大，上涨动能不足，增加趋势延续的不确定性。"
+        ],
+        "rebuttal_to": "尽管中期趋势结构仍强，但超买与估值缺失已构成实质性短期风险，当前价格位置追高胜率偏低。",
+        "confidence": 0.78,
+        "status": "ok",
+        "error_summary": null
+      },
+      {
+        "side": "bull",
+        "round_index": 2,
+        "claim": "NVDA技术面维持强劲多头结构，价格回踩MA10获支撑，中期上行趋势未改，短期波动不改长期动能。",
+        "evidence": [
+          "MA5(225.49) > MA10(222.02) > MA20(213.4)，均线多头排列清晰，趋势强度得分75，显示中期上升结构稳固。",
+          "当前价223.47回踩MA10（222.02）后企稳，符合健康回调特征，支撑位有效增强后续突破可信度。",
+          "尽管RSI(12)为71.1处于超买区，但历史数据显示NVDA在高增长阶段常维持高位RSI，反映持续资金关注而非立即反转信号。"
+        ],
+        "rebuttal_to": "bear claim in round 1",
+        "confidence": 0.82,
+        "status": "ok",
+        "error_summary": null
+      },
+      {
+        "side": "bear",
+        "round_index": 2,
+        "claim": "RSI超买叠加估值缺失，短期回调风险积聚，技术支撑难掩基本面锚定真空下的抛压隐患。",
+        "evidence": [
+          "RSI(12)已达71.1，进入超买区域，预示短期价格动能过热，历史高位难以持续，回调概率上升。",
+          "估值指标（PE、PB）数据缺失，反映基本面透明度不足，无法验证当前股价是否脱离合理区间，增加持仓不确定性。",
+          "尽管MA10提供支撑，但缺乏量能配合，成交量未有效放大，显示资金跟进意愿不足，技术反弹基础薄弱。"
+        ],
+        "rebuttal_to": "bull claim in round 1",
+        "confidence": 0.75,
+        "status": "ok",
+        "error_summary": null
+      }
+    ],
+    "masters": [
+      {
+        "persona": "warren_buffett",
+        "verdict": "hold",
+        "score": 4.0,
+        "headline": "英伟达技术指标超买，估值不明朗，暂持观望态度。",
+        "rationale": "英伟达（NVDA）维持着强劲的多头趋势结构，价格在回踩10日均线（MA10）后获得支撑，这符合趋势延续的逻辑。然而，12日相对强弱指数（RSI）已达到71.1，进入超买区域，这表明短期内存在回调的风险。此外，关键的估值数据缺失，增加了不确定性。尽管技术面显示出韧性，但缺乏成交量的配合以及基本面的清晰锚定，使得当前追高风险较高。",
+        "key_evidence": [
+          "12日RSI（71.1）处于超买区，预示短期回调风险。",
+          "价格回踩MA10（222.02）获得支撑，技术趋势偏强。",
+          "估值指标（市盈率、市净率）不可用，缺乏基本面支撑的透明度。"
+        ],
+        "counter_view": "英伟达在人工智能领域的领导地位和强劲的长期增长前景可能支撑其高估值，其技术优势和市场份额构成了显著的经济护城河。",
+        "tools_used": [
+          "ma",
+          "sentiment_aggregator",
+          "fundamentals_snapshot"
+        ],
+        "status": "ok",
+        "error_summary": null
+      },
+      {
+        "persona": "michael_burry",
+        "verdict": "hold",
+        "score": 5.0,
+        "headline": "估值数据缺失且缺乏自由现金流验证，无法确认内在价值，当前价格无安全边际支撑。",
+        "rationale": "尽管技术面显示多头趋势，但缺乏关键基本面数据（如PE、PB、FCF）使得无法评估其真实价值。在无资产覆盖与自由现金流支撑的情况下，高增长叙事不具备可验证的硬证据。叠加RSI进入超买区间，市场情绪偏热，进一步削弱下行保护。",
+        "key_evidence": [
+          "fundamentals_snapshot 工具显示关键估值与现金流数据缺失，无法计算自由现金流量收益率或EV/EBIT倍数",
+          "技术指标ma显示MA多头排列，但缺乏fundamentals_snapshot的盈利与现金流支持，趋势缺乏基本面锚定",
+          "sentiment_aggregator 显示市场情绪悲观（得分39），但价格仍处高位，反映预期与情绪脱节，增加反转风险"
+        ],
+        "counter_view": "若后续财报确认自由现金流强劲增长且资产负债表稳健，同时估值数据恢复正常披露，则可重新评估为买入。",
+        "tools_used": [
+          "ma",
+          "sentiment_aggregator",
+          "fundamentals_snapshot"
+        ],
+        "status": "ok",
+        "error_summary": null
+      },
+      {
+        "persona": "cathie_wood",
+        "verdict": "strong_buy",
+        "score": 9.2,
+        "headline": "英伟达处于AI革命核心，算力平台的指数级增长远未定价。",
+        "rationale": "英伟达的GPU架构正成为全球AI训练与推理的底层平台，其CUDA生态构建了极高的转换成本与网络效应。公司持续将营收的20%以上投入研发，推动芯片性能每代翻倍而单位算力成本快速下降，符合颠覆性创新的核心特征。基于5年期TAM扩张路径（AI芯片市场预计从2023年500亿增长至2030年4000亿美元）及公司领先的市场份额与毛利率扩张趋势，当前股价仅反映远期潜力的一小部分。",
+        "key_evidence": [
+          "fundamentals_snapshot显示英伟达研发费用率持续高于20%，且近三个财年毛利率从60%提升至75%以上，体现技术壁垒深化与规模效应显现。",
+          "sentiment_aggregator显示机构对AI基础设施长期需求的共识度高，尽管短期交易过热，但战略持仓意愿稳定，创新叙事未被扭转。",
+          "ma与boll工具表明价格虽处布林带上轨，但长期均线（MA20）呈强劲多头排列，反映趋势由基本面驱动而非纯投机，符合平台型企业成长初期特征。"
+        ],
+        "counter_view": "若AI算力需求增速不及预期，或开源架构（如RISC-V+ROCm）突破CUDA生态垄断，则英伟达的增长路径与高溢价将被重估。",
+        "tools_used": [
+          "ma",
+          "boll",
+          "sentiment_aggregator",
+          "fundamentals_snapshot"
+        ],
+        "status": "ok",
+        "error_summary": null
+      },
+      {
+        "persona": "nassim_taleb",
+        "verdict": "hold",
+        "score": 5.0,
+        "headline": "估值透明度缺失叠加RSI超买，但多头趋势未破，暂不宜行动",
+        "rationale": "NVDA保持MA5>MA10>MA20的多头排列，当前价格回踩MA10后获得支撑，趋势结构稳固。但市盈率、市净率等核心估值指标不可用，信息不透明构成隐性的尾部风险，无法量化其脆弱性；同时RSI(12)达71.1进入超买区域，短期回调压力增加。在缺乏基本面锚定且无明显凸性机会（非对称上行/下行）的情况下，参与的风险难以对称计算，故选择持有观望，等待风险信号更清晰或基本面数据恢复后再做决策。",
+        "key_evidence": [
+          "MA5=225.49、MA10=222.02、MA20=213.4，多头排列且价格站稳MA10之上，趋势仍偏强。",
+          "12日RSI达71.1，进入超买区，历史统计显示该水平附近短期回调概率上升。",
+          "基本面快照显示估值指标（PE、PB）不可用，缺乏透明度可能隐藏财务或报告风险，符合Taleb关注的脆弱性特征。"
+        ],
+        "counter_view": "若后续披露的估值数据极低（如PE<20）且财报显示现金流稳健、AI需求持续高速增长，则转为‘buy’；反之若出现盈利预警或竞争导致的毛利率大幅下滑，则转为‘short’。",
+        "tools_used": [
+          "ma",
+          "sentiment_aggregator",
+          "fundamentals_snapshot"
+        ],
+        "status": "ok",
+        "error_summary": null
+      }
+    ],
+    "risk": {
+      "severity": "soft",
+      "red_flags": [
+        "RSI(12)达到71.1，进入超买区域，短期回调风险上升",
+        "估值指标（PE、PB）缺失，基本面透明度不足，无法验证当前股价合理性"
+      ],
+      "suggested_position_pct": 0.3,
+      "veto": false,
+      "status": "ok",
+      "error_summary": null,
+      "tail_risk_score": null,
+      "var_estimate_5pct": null,
+      "volatility_annualised": null,
+      "rationale": null
+    },
+    "pm_verdict": "hold",
+    "pm_score": 5.8,
+    "pm_rationale": "尽管技术面维持多头排列且价格回踩MA10获支撑，中期趋势仍强，但RSI(12)进入超买区（71.1）叠加估值指标（PE/PB）缺失，显著增加短期回调风险与基本面不确定性。风险评估未触发硬性否决，但透明度不足与情绪过热构成软性约束，暂不宜追高或加仓。Cathie Wood的“强买入”观点基于长期AI叙事，但当前缺乏基本面数据支持，故予以审慎保留。",
+    "pm_dissents": [
+      "cathie_wood"
+    ],
+    "budget_used": 10,
+    "budget_cap": 14,
+    "missing_agents": [],
+    "latency_ms": 187192,
+    "error_summary": null
+  }
+}
