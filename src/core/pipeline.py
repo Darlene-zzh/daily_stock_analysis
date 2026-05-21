@@ -535,6 +535,14 @@ class StockAnalysisPipeline:
                         self.analyzer._try_inject_zh_translations(result, code)
                     except Exception:
                         pass  # 翻译失败不影响主流程
+                # Phase 2 — attach FactBundle BEFORE action_plan LLM call so the
+                # action_plan prompt + sanitizer can consume candidates.
+                try:
+                    self._attach_fact_bundle(result, code)
+                except Exception as fb_exc:
+                    logger.warning(
+                        f"[{code}] FactBundle 附加失败，dashboard 未变更: {fb_exc}"
+                    )
                 # action_plan_items 二阶兜底：先用聚焦 LLM 调用（成本价/三维数据感知），
                 # LLM 失败再退到 dashboard-only 合成
                 if hasattr(self.analyzer, '_try_inject_action_plan_items'):
@@ -1736,15 +1744,8 @@ class StockAnalysisPipeline:
                     f"[{code}] 分析完成: {result.operation_advice}, "
                     f"评分 {result.sentiment_score}"
                 )
-
-                # === Phase 1 — Attach FactBundle to dashboard (non-disruptive) ===
-                # Wrap in try/except: any failure logs and continues; dashboard untouched.
-                try:
-                    self._attach_fact_bundle(result, code)
-                except Exception as fb_exc:
-                    logger.warning(
-                        f"[{code}] FactBundle 附加失败，dashboard 未变更: {fb_exc}"
-                    )
+                # Phase 2: FactBundle is attached pre-injection inside
+                # _analyze_single_stock_internal; no post-hoc attach needed.
 
                 # 单股推送模式（#55）：每分析完一只股票立即推送
                 if single_stock_notify:
