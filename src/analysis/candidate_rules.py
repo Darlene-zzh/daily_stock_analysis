@@ -233,4 +233,72 @@ def compute_candidates(facts: List[FactRecord]) -> List[CandidateLevel]:
                 tier="discipline_anchor",
             ))
 
+    # ---- Rule: prev_swing_high (take_profit) ----
+    swing_high = _get_value(facts, "technical.swing_high_20d")
+    if swing_high is not None and swing_high > current:
+        add(_make_candidate(
+            next_idx("exit"),
+            direction="take_profit", price=swing_high, current=current,
+            label="前 20 日波段高点",
+            basis_fact_id="technical.swing_high_20d",
+            basis_rule="prev_swing_high",
+            applicable_strategies=["swing_trade"],
+        ))
+
+    # ---- Rule: prev_swing_low (stop_loss) ----
+    swing_low = _get_value(facts, "technical.swing_low_20d")
+    if swing_low is not None and swing_low < current:
+        add(_make_candidate(
+            next_idx("stop"),
+            direction="stop_loss", price=swing_low, current=current,
+            label="前 20 日波段低点",
+            basis_fact_id="technical.swing_low_20d",
+            basis_rule="prev_swing_low",
+            applicable_strategies=["swing_trade", "stepped_profit_taking"],
+        ))
+
+    # ---- Rule: fib_extension_1272 / 1618 (take_profit) ----
+    if swing_high is not None and swing_low is not None and swing_high > swing_low:
+        span = swing_high - swing_low
+        for fib_ratio, rule_name, strategies in [
+            (0.272, "fib_extension_1272", ["swing_trade"]),
+            (0.618, "fib_extension_1618", ["stepped_profit_taking"]),
+        ]:
+            price = swing_high + fib_ratio * span
+            if price > current:
+                add(_make_candidate(
+                    next_idx("exit"),
+                    direction="take_profit", price=round(price, 2), current=current,
+                    label=f"Fib {1 + fib_ratio:.3f} 延伸",
+                    basis_fact_id="technical.swing_high_20d",
+                    basis_rule=rule_name,
+                    applicable_strategies=strategies,
+                ))
+
+    # ---- Rule: qlib_top_decile_buy (entry) ----
+    qlib_rank = _get_value(facts, "quant.qlib_rank")
+    if qlib_rank is not None and qlib_rank > 0.9:
+        trend = _get_value(facts, "technical.trend_score")
+        if trend is None or trend >= 50:
+            add(_make_candidate(
+                next_idx("entry"),
+                direction="entry", price=round(current, 2), current=current,
+                label="Qlib 顶 10% 即时入场",
+                basis_fact_id="quant.qlib_rank",
+                basis_rule="qlib_top_decile_buy",
+                applicable_strategies=["long_term_hold"],
+            ))
+
+    # ---- Rule: chip_avg_cost (entry, A-share) ----
+    chip_cost = _get_value(facts, "chip.avg_cost")
+    if chip_cost is not None and chip_cost <= current:
+        add(_make_candidate(
+            next_idx("entry"),
+            direction="entry", price=chip_cost, current=current,
+            label="市场平均成本回踩",
+            basis_fact_id="chip.avg_cost",
+            basis_rule="chip_avg_cost",
+            applicable_strategies=["long_term_hold", "swing_trade", "stepped_profit_taking"],
+        ))
+
     return candidates

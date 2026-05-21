@@ -181,3 +181,62 @@ def test_no_avg_cost_no_anchor_candidates():
     facts = [_fact("technical.current_price", 200.0)]
     cands = compute_candidates(facts)
     assert not any(c.basis_rule.startswith("cost_") for c in cands)
+
+
+def test_fib_extension_requires_swing_pair():
+    facts = [
+        _fact("technical.current_price", 223.47),
+        _fact("technical.swing_low_20d", 200.0),
+        _fact("technical.swing_high_20d", 220.0),
+    ]
+    cands = compute_candidates(facts)
+    fib1272 = [c for c in cands if c.basis_rule == "fib_extension_1272"]
+    fib1618 = [c for c in cands if c.basis_rule == "fib_extension_1618"]
+    assert len(fib1272) == 1
+    assert len(fib1618) == 1
+    assert abs(fib1272[0].price - 225.44) < 0.01
+
+
+def test_prev_swing_high_and_low():
+    facts = [
+        _fact("technical.current_price", 223.47),
+        _fact("technical.swing_high_20d", 230.0),
+        _fact("technical.swing_low_20d", 210.0),
+    ]
+    cands = compute_candidates(facts)
+    sh = [c for c in cands if c.basis_rule == "prev_swing_high"]
+    sl = [c for c in cands if c.basis_rule == "prev_swing_low"]
+    assert len(sh) == 1 and sh[0].direction == "take_profit"
+    assert len(sl) == 1 and sl[0].direction == "stop_loss"
+
+
+def test_qlib_top_decile_buy_only_when_rank_high():
+    facts = [
+        _fact("technical.current_price", 223.47),
+        _fact("quant.qlib_rank", 0.95, type_="quant"),
+        _fact("technical.trend_score", 75),
+    ]
+    cands = compute_candidates(facts)
+    qe = [c for c in cands if c.basis_rule == "qlib_top_decile_buy"]
+    assert len(qe) == 1
+    assert qe[0].direction == "entry"
+
+
+def test_qlib_top_decile_buy_skipped_when_rank_low():
+    facts = [
+        _fact("technical.current_price", 223.47),
+        _fact("quant.qlib_rank", 0.5, type_="quant"),
+    ]
+    cands = compute_candidates(facts)
+    assert not any(c.basis_rule == "qlib_top_decile_buy" for c in cands)
+
+
+def test_chip_avg_cost_entry_a_share():
+    facts = [
+        _fact("technical.current_price", 50.0),
+        _fact("chip.avg_cost", 45.0, type_="chip"),
+    ]
+    cands = compute_candidates(facts)
+    chip_entries = [c for c in cands if c.basis_rule == "chip_avg_cost"]
+    assert len(chip_entries) == 1
+    assert chip_entries[0].direction == "entry"
