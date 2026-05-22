@@ -2465,6 +2465,41 @@ intelligence 区块新增字段示例（仅供格式参考，实际内容由你�
             sanitized = self._sanitize_action_plan_items(
                 upstream_items, portfolio_context_block, code, strategy=upstream_strategy
             )
+            # Phase 2: tag survivors as LLM-provenance; if sanitizer emptied the
+            # list (e.g. legacy upstream items missing candidate_id), fall back
+            # to candidate-based synthesizer so the user still sees a real plan.
+            for it in sanitized:
+                if isinstance(it, dict) and "provenance" not in it:
+                    it["provenance"] = "llm"
+            if not sanitized and fact_bundle and isinstance(fact_bundle, dict):
+                try:
+                    from src.analysis.facts import FactBundle, FactRecord, CandidateLevel
+                    from src.analysis.synthesizer import synthesize_from_candidates
+                    bundle_obj = FactBundle(
+                        as_of=fact_bundle.get("as_of", ""),
+                        market=fact_bundle.get("market", "us"),
+                        stock_code=fact_bundle.get("stock_code", ""),
+                        facts=[FactRecord(**f) for f in fact_bundle.get("facts", [])],
+                        candidates=[
+                            CandidateLevel(**c)
+                            for c in fact_bundle.get("candidates", [])
+                        ],
+                    )
+                    sanitized = synthesize_from_candidates(
+                        bundle_obj.candidates,
+                        strategy=upstream_strategy,
+                        facts=bundle_obj.facts,
+                    )
+                    logger.info(
+                        "[action_plan] upstream sanitizer empty -> synthesized "
+                        "%d items for %s/%s",
+                        len(sanitized), code, upstream_strategy,
+                    )
+                except Exception as exc:
+                    logger.warning(
+                        "[action_plan] upstream synthesize fallback failed for %s: %s",
+                        code, exc,
+                    )
             core["action_plan_items"] = sanitized
             if isinstance(core.get("strategy_choices"), list):
                 core["strategy_choices"] = self._sanitize_strategy_choices(
