@@ -53,3 +53,20 @@ def test_empty_refs_returns_empty_list():
 
 def test_no_bundle_returns_empty_list():
     assert _render_evidence_footnotes(["technical.resistance"], None) == []
+
+
+def test_history_service_helper_byte_equal_with_notification():
+    """[[repo-dual-renderers]] gotcha guard: both renderers MUST emit the same
+    footnote block for the same input."""
+    from src.notification import _render_evidence_footnotes as notif_render
+    from src.services.history_service import _render_evidence_footnotes as hist_render
+
+    refs = ["technical.resistance", "technical.rsi_12", "committee.pm_verdict"]
+    bundle = _bundle()
+    assert notif_render(refs, bundle) == hist_render(refs, bundle)
+
+
+def test_history_service_helper_handles_empty_inputs():
+    from src.services.history_service import _render_evidence_footnotes as hist_render
+    assert hist_render([], _bundle()) == []
+    assert hist_render(["technical.rsi_12"], None) == []

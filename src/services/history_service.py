@@ -36,6 +36,68 @@ if TYPE_CHECKING:
 logger = logging.getLogger(__name__)
 
 
+_SUPERSCRIPT_DIGITS = str.maketrans("0123456789", "⁰¹²³⁴⁵⁶⁷⁸⁹")
+
+
+def _to_superscript(n: int) -> str:
+    """Render an integer as Unicode superscript digits."""
+    return str(n).translate(_SUPERSCRIPT_DIGITS)
+
+
+def _resolve_fact(fact_id: str, fact_bundle):
+    """Find a fact or candidate record by id in the bundle dict shape."""
+    if not isinstance(fact_bundle, dict):
+        return None
+    for f in fact_bundle.get("facts") or []:
+        if isinstance(f, dict) and f.get("id") == fact_id:
+            return f
+    for c in fact_bundle.get("candidates") or []:
+        if isinstance(c, dict) and c.get("id") == fact_id:
+            return c
+    return None
+
+
+def _format_fact_footnote(fact: dict) -> str:
+    """One-line summary for the footnote block."""
+    label = fact.get("label", "")
+    display = fact.get("display_value", "")
+    extra = fact.get("extra") or {}
+    suffix = ""
+    if isinstance(extra, dict):
+        for key in ("zone", "role", "severity"):
+            v = extra.get(key)
+            if v not in (None, "", False):
+                suffix = f" ({v})"
+                break
+    return f"`[{fact.get('id', '')}]` {label} = {display}{suffix}"
+
+
+def _render_evidence_footnotes(evidence_refs: list, fact_bundle) -> list:
+    """Render the 证据脚注 block. Dedups refs preserving first-occurrence order.
+
+    Returns an empty list when no refs OR no bundle — caller emits nothing.
+    """
+    if not evidence_refs or not fact_bundle:
+        return []
+    seen: set = set()
+    deduped: list = []
+    for r in evidence_refs:
+        if isinstance(r, str) and r and r not in seen:
+            seen.add(r)
+            deduped.append(r)
+    if not deduped:
+        return []
+    lines: list = ["**证据脚注**"]
+    for i, fid in enumerate(deduped, start=1):
+        sup = _to_superscript(i)
+        fact = _resolve_fact(fid, fact_bundle)
+        if fact is None:
+            lines.append(f"{sup} `[{fid}]` (引用未在 FactBundle 中找到)")
+        else:
+            lines.append(f"{sup} {_format_fact_footnote(fact)}")
+    return lines
+
+
 def _render_action_plan_items(items: list) -> list:
     """Render action_plan_items as markdown lines replacing the position-advice table.
 
