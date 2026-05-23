@@ -1245,8 +1245,27 @@ class HistoryService:
             core.get("action_plan_items") if isinstance(core.get("action_plan_items"), list)
             else None
         )
+        fact_bundle = (
+            dashboard.get("fact_bundle") if isinstance(dashboard, dict) else None
+        )
         if action_plan_items:
-            report_lines.extend(_render_action_plan_items(action_plan_items))
+            report_lines.extend(
+                _render_action_plan_items(action_plan_items, fact_bundle=fact_bundle)
+            )
+            # Phase 3: emit Wikipedia-style footnote block under the action plan
+            if fact_bundle:
+                collected_refs: list = []
+                for it in action_plan_items[:4]:
+                    for r in (it.get("evidence_refs") or []):
+                        if isinstance(r, str) and r and r not in collected_refs:
+                            collected_refs.append(r)
+                footnote_lines = _render_evidence_footnotes(
+                    collected_refs, fact_bundle,
+                )
+                if footnote_lines:
+                    report_lines.append("---")
+                    report_lines.extend(footnote_lines)
+                    report_lines.append("")
         elif pos_advice:
             match = getattr(result, "portfolio_match", None)
             no_pos_text = pos_advice.get(
