@@ -98,11 +98,19 @@ def _render_evidence_footnotes(evidence_refs: list, fact_bundle) -> list:
     return lines
 
 
-def _render_action_plan_items(items: list) -> list:
+def _render_action_plan_items(items: list, fact_bundle=None) -> list:
     """Render action_plan_items as markdown lines replacing the position-advice table.
 
     Returns a list of markdown strings ending with a trailing empty string.
     Direction emojis: buy=⬆️ sell=⬇️ stop_loss=🛑 take_profit=🎯
+
+    Phase 3: when `fact_bundle` is supplied, attaches Wikipedia-style footnote
+    superscripts (¹²³) to lines whose evidence_refs match by type, and emits a
+    🤖 代码兜底 badge for items with `provenance == "synthesized"`.
+
+    Mirror of `src/notification.py::_render_action_plan_items`. The parity test
+    `tests/test_renderer_parity_phase3.py` guards against drift between these
+    two copies. [[repo-dual-renderers]]
     """
     _DIRECTION_EMOJI = {
         "buy": "⬆️",
@@ -117,6 +125,24 @@ def _render_action_plan_items(items: list) -> list:
         "take_profit": "止盈",
     }
     _ORDINALS = ["①", "②", "③", "④", "⑤"]
+
+    # Phase 3: number each evidence_ref globally across items so the footnote
+    # block at the end has a stable 1..N numbering.
+    ref_to_num: dict = {}
+    next_num = [1]
+
+    def _num_for(ref_id: str) -> str:
+        if ref_id not in ref_to_num:
+            ref_to_num[ref_id] = next_num[0]
+            next_num[0] += 1
+        return _to_superscript(ref_to_num[ref_id])
+
+    def _pick_ref(refs: list, prefix: str, used: set):
+        for r in refs:
+            if isinstance(r, str) and r.startswith(prefix) and r not in used:
+                used.add(r)
+                return r
+        return None
 
     lines = ["### 📋 持仓操作计划", ""]
     for idx, item in enumerate(items[:4]):
@@ -135,21 +161,31 @@ def _render_action_plan_items(items: list) -> list:
         quant = item.get("quant_signal", "")
         inv_rule = item.get("invalidation_rule", "")
 
-        # Render so long as we have a trigger price.  We previously skipped
-        # rows with ``shares=0`` but the LLM frequently leaves ``shares`` at
-        # zero and only fills ``pct_of_position`` — the action is fully
-        # expressible from the pct alone, so dropping these rows hid the
-        # entire 持仓操作计划 table from the user.
         if not trigger_price:
             continue
 
-        # position sizing string
+        # Phase 3: assign refs to lines (only when fact_bundle present)
+        refs = item.get("evidence_refs") or [] if fact_bundle else []
+        if not isinstance(refs, list):
+            refs = []
+        used: set = set()
+        trigger_ref = refs[0] if refs else None
+        if trigger_ref:
+            used.add(trigger_ref)
+        tech_ref = _pick_ref(refs, "technical.", used)
+        fund_ref = _pick_ref(refs, "intel.", used)
+        quant_ref = _pick_ref(refs, "quant.", used) or _pick_ref(refs, "committee.", used)
+
+        for r in refs:
+            if r not in used and isinstance(r, str):
+                used.add(r)
+                _num_for(r)
+
         pos_str = ""
         if pct_pos is not None:
             pos_str = f"持仓 {pct_pos:.1f}%"
         if pct_eq:
             pos_str = f"{pos_str} / 权益 {pct_eq:.1f}%" if pos_str else f"权益 {pct_eq:.1f}%"
-        # Build the action string: prefer shares when known, else pct
         if shares:
             ops_str = f"{direction_zh} {shares} 股"
             if pos_str:
@@ -160,16 +196,22 @@ def _render_action_plan_items(items: list) -> list:
             ops_str = direction_zh
 
         lines.append(f"**{ordinal} {emoji} {direction_zh}**（优先级 {priority}）— 触发价：${trigger_price:.2f}")
-        lines.append(f"- **触发**：{trigger_cond}")
+        sup_trig = _num_for(trigger_ref) if trigger_ref else ""
+        lines.append(f"- **触发**：{trigger_cond}{sup_trig}")
         lines.append(f"- **操作**：{ops_str}")
         if tech:
-            lines.append(f"- **技术面**：{tech}")
+            sup = _num_for(tech_ref) if tech_ref else ""
+            lines.append(f"- **技术面**：{tech}{sup}")
         if fund:
-            lines.append(f"- **基本面**：{fund}")
+            sup = _num_for(fund_ref) if fund_ref else ""
+            lines.append(f"- **基本面**：{fund}{sup}")
         if quant:
-            lines.append(f"- **量化**：{quant}")
+            sup = _num_for(quant_ref) if quant_ref else ""
+            lines.append(f"- **量化**：{quant}{sup}")
         if inv_rule:
             lines.append(f"- **失效**：{inv_rule}")
+        if fact_bundle and item.get("provenance") == "synthesized":
+            lines.append("- 🤖 *代码兜底*")
         lines.append("")
     return lines
 
