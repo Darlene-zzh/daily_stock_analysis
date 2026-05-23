@@ -2434,13 +2434,15 @@ intelligence 区块新增字段示例（仅供格式参考，实际内容由你�
             return
         core = result.dashboard.get("core_conclusion") or {}
 
-        # Phase 2: stash FactBundle + current price so `_sanitize_action_plan_items`
-        # (called by both the upstream-strategy branch AND the LLM branch below) can
-        # route to the v2 candidate-anchored sanitizer.
+        # Phase 2 (post-race-hotfix): resolve FactBundle + current price as
+        # LOCAL variables. They are passed explicitly to every
+        # `_sanitize_action_plan_items` call site. NEVER stash on `self` —
+        # `self.analyzer` is shared across ThreadPoolExecutor workers and a
+        # stash would let one stock's bundle leak into another stock's
+        # sanitizer. See [[repo-phase-2-sanitizer-race]].
         fact_bundle = result.dashboard.get("fact_bundle") if isinstance(
             result.dashboard, dict
         ) else None
-        self._fact_bundle_for_sanitize = fact_bundle
         current_price = None
         try:
             persp_local = result.dashboard.get("data_perspective") or {}
@@ -2448,7 +2450,6 @@ intelligence 区块新增字段示例（仅供格式参考，实际内容由你�
             current_price = float(cp) if cp is not None else None
         except (TypeError, ValueError):
             current_price = None
-        self._current_price_for_sanitize = current_price
 
         # Phase 1: If an upstream layer (e.g. agent-mode synthesis) already filled
         # recommended_strategy + action_plan_items, the LLM call below should be
@@ -2463,7 +2464,10 @@ intelligence 区块新增字段示例（仅供格式参考，实际内容由你�
             and isinstance(upstream_items, list) and upstream_items
         ):
             sanitized = self._sanitize_action_plan_items(
-                upstream_items, portfolio_context_block, code, strategy=upstream_strategy
+                upstream_items, portfolio_context_block, code,
+                strategy=upstream_strategy,
+                fact_bundle=fact_bundle,
+                current_price=current_price,
             )
             # Phase 2: tag survivors as LLM-provenance; if sanitizer emptied the
             # list (e.g. legacy upstream items missing candidate_id), fall back
@@ -2509,9 +2513,6 @@ intelligence 区块新增字段示例（仅供格式参考，实际内容由你�
                 core, sanitized, portfolio_context_block
             )
             result.dashboard["core_conclusion"] = core
-            # Phase 2: clear stashed bundle so the next stock starts fresh
-            self._fact_bundle_for_sanitize = None
-            self._current_price_for_sanitize = None
             return
 
         battle = result.dashboard.get("battle_plan") or {}
@@ -2578,7 +2579,12 @@ intelligence 区块新增字段示例（仅供格式参考，实际内容由你�
         if not isinstance(items, list):
             items = []
         strategy = parsed.get("recommended_strategy") if isinstance(parsed.get("recommended_strategy"), str) else None
-        items = self._sanitize_action_plan_items(items, portfolio_context_block, code, strategy=strategy)
+        items = self._sanitize_action_plan_items(
+            items, portfolio_context_block, code,
+            strategy=strategy,
+            fact_bundle=fact_bundle,
+            current_price=current_price,
+        )
 
         # Phase 2: tag survivors as LLM-provenance; if sanitizer emptied the list,
         # fall back to candidate-based synthesizer so the user still sees a real plan.
@@ -2640,9 +2646,6 @@ intelligence 区块新增字段示例（仅供格式参考，实际内容由你�
         self._recompute_position_outcome_summary(
             core_out, items or [], portfolio_context_block
         )
-        # Phase 2: clear stashed bundle so the next stock starts fresh
-        self._fact_bundle_for_sanitize = None
-        self._current_price_for_sanitize = None
 
     _STRATEGY_FORBIDDEN_DIRECTIONS = {
         "stepped_profit_taking": {"buy"},
@@ -2852,16 +2855,25 @@ intelligence 区块新增字段示例（仅供格式参考，实际内容由你�
         portfolio_context_block: Optional[str],
         code: str,
         strategy: Optional[str] = None,
+        *,
+        fact_bundle: Optional[dict] = None,
+        current_price: Optional[float] = None,
     ) -> list:
         """Apply post-LLM sanitization.
 
-        Phase 2: when a FactBundle is stashed on the agent (set by
-        `_try_inject_action_plan_items` before calling sanitize), route through
-        the v2 candidate-anchored 9-check pipeline. Otherwise fall back to the
-        legacy cost-basis path so old callers / test fixtures keep working.
+        Phase 2 (post-race-hotfix): when `fact_bundle` is passed explicitly,
+        route through the v2 candidate-anchored 9-check pipeline. Otherwise
+        fall back to the legacy cost-basis path so old callers / test fixtures
+        keep working.
+
+        Per [[repo-phase-2-sanitizer-race]]: the original Phase 2 implementation
+        read the bundle from `self._fact_bundle_for_sanitize` — an instance
+        attribute on a shared `GeminiAnalyzer` singleton. Under the pipeline's
+        `ThreadPoolExecutor`, one stock's stash overwrote another's, causing
+        cross-stock sanitizer corruption. The bundle MUST be passed through as
+        an explicit parameter; no instance-level stash is permitted.
         """
-        bundle_dict = getattr(self, "_fact_bundle_for_sanitize", None)
-        current_price = getattr(self, "_current_price_for_sanitize", None)
+        bundle_dict = fact_bundle
         if bundle_dict and isinstance(bundle_dict, dict):
             try:
                 from src.analysis.facts import FactBundle, FactRecord, CandidateLevel

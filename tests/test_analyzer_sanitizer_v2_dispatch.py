@@ -27,11 +27,13 @@ def _bundle_dict_with_candidate():
     }
 
 
-def test_sanitizer_routes_to_v2_when_bundle_present():
-    """Item with unknown candidate_id is dropped — proof v2 ran."""
+def test_sanitizer_routes_to_v2_when_bundle_kwarg_passed():
+    """Item with unknown candidate_id is dropped — proof v2 ran.
+
+    Post-hotfix ([[repo-phase-2-sanitizer-race]]): bundle is passed explicitly,
+    not stashed on the instance.
+    """
     agent = GeminiAnalyzer.__new__(GeminiAnalyzer)
-    agent._fact_bundle_for_sanitize = _bundle_dict_with_candidate()
-    agent._current_price_for_sanitize = 223.47
     items = [
         {"candidate_id": "candidate.exit.1", "trigger_price": 226.13,
          "direction": "take_profit", "priority": 1,
@@ -43,6 +45,8 @@ def test_sanitizer_routes_to_v2_when_bundle_present():
     out = GeminiAnalyzer._sanitize_action_plan_items(
         agent, items, portfolio_context_block=None, code="NVDA",
         strategy="swing_trade",
+        fact_bundle=_bundle_dict_with_candidate(),
+        current_price=223.47,
     )
     cids = [it.get("candidate_id") for it in out]
     assert "candidate.exit.1" in cids
@@ -50,10 +54,8 @@ def test_sanitizer_routes_to_v2_when_bundle_present():
 
 
 def test_sanitizer_falls_back_to_legacy_without_bundle():
-    """Without a bundle attached, behavior is the legacy cost-basis path."""
+    """Without a bundle kwarg, behavior is the legacy cost-basis path."""
     agent = GeminiAnalyzer.__new__(GeminiAnalyzer)
-    agent._fact_bundle_for_sanitize = None
-    agent._current_price_for_sanitize = None
     items = [
         {"trigger_price": 100.0, "trigger_condition": "x",
          "direction": "take_profit", "priority": 1},
