@@ -967,6 +967,15 @@ class StockAnalysisPipeline:
                         self.analyzer._try_inject_zh_translations(result, code)
                     except Exception:
                         pass
+                # Phase 2 — attach FactBundle BEFORE action_plan LLM call so the
+                # action_plan prompt + sanitizer can consume candidates. Mirrors
+                # the non-agent path at line ~540. Critical for [[repo-agent-mode-bypass]].
+                try:
+                    self._attach_fact_bundle(result, code)
+                except Exception as fb_exc:
+                    logger.warning(
+                        f"[{code}] FactBundle 附加失败，dashboard 未变更: {fb_exc}"
+                    )
                 if hasattr(self.analyzer, '_try_inject_action_plan_items'):
                     try:
                         self.analyzer._try_inject_action_plan_items(
