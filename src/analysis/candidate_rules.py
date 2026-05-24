@@ -1,9 +1,19 @@
 """Candidate price-level computation rules.
 
-23 rules across entry / exit / take_profit / stop_loss directions.
+20 rules across entry / exit / take_profit / stop_loss directions.
 Each rule produces 0 or 1 CandidateLevel from the FactBundle.
 
-See docs/superpowers/specs/2026-05-21-evidence-grounded-decision-pipeline-design.md
+Implemented rules (the names match `basis_rule` on emitted candidates):
+  resistance_touch, ma20_breakdown, ma10_pullback, support_test,
+  atr_2x_below_current, atr_3x_below_current, resistance_plus_atr,
+  r_multiple_2r, r_multiple_3r, psychological_round,
+  cost_plus_5pct, cost_plus_12pct, cost_plus_20pct, cost_minus_10pct,
+  prev_swing_high, prev_swing_low, fib_extension_1272, fib_extension_1618,
+  qlib_top_decile_buy, chip_avg_cost.
+
+Spec lists 23 candidates total. The remaining 3 (support_breakdown,
+ma20_pullback, breakout_retest) are deferred to a follow-up — see
+docs/superpowers/specs/2026-05-21-evidence-grounded-decision-pipeline-design.md
 Section A "Candidate 生成规则".
 """
 from __future__ import annotations

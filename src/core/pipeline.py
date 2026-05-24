@@ -86,6 +86,7 @@ class StockAnalysisPipeline:
         progress_callback: Optional[Callable[[int, str], None]] = None,
         portfolio_context_block: Optional[str] = None,
         portfolio_match: Optional[str] = None,
+        portfolio_context: Optional[Dict[str, Any]] = None,
         reflection_context_block: Optional[str] = None,
         quant_context_block: Optional[str] = None,
     ):
@@ -116,6 +117,14 @@ class StockAnalysisPipeline:
         # position-advice table.  None disables the filter — renderers
         # fall back to the two-row default for backward compatibility.
         self.portfolio_match = portfolio_match
+        # Phase 2 (PR #10 review fix): structured portfolio context dict
+        # consumed by ``_attach_fact_bundle`` so ``src/analysis/extractors/
+        # portfolio.py`` emits real portfolio.* facts. ``portfolio_context_block``
+        # is the rendered Markdown for the LLM prompt; ``portfolio_context``
+        # is the raw structured data for the FactBundle pipeline. Callers
+        # who only have the block (legacy path) pass None here and the
+        # extractor short-circuits — backward compatible.
+        self.portfolio_context = portfolio_context
         # Adaptive strategy classification (feat/action-plan-items): cached
         # SentimentDimensions from the most recent get_social_context() call,
         # surfaced into dashboard.intelligence so the renderer can populate
@@ -1855,13 +1864,20 @@ class StockAnalysisPipeline:
             except Exception as exc:
                 logger.debug(f"[facts_builder] {code} chip fetch failed: {exc}")
 
-        # Portfolio context: Phase 1 attaches without it; Phase 2 wires the real context.
-        # If the analyzer/service has stashed it on the result, use it; otherwise None.
-        portfolio_context = None
-        try:
-            portfolio_context = getattr(result, "portfolio_context", None)
-        except Exception:
-            portfolio_context = None
+        # Portfolio context: Phase 2 wires the structured dict through the
+        # pipeline (``self.portfolio_context``, populated by
+        # ``src/services/analysis_service.py`` when a ``portfolio_account_id``
+        # was supplied). Falls back to a stash on ``result.portfolio_context``
+        # for callers that prefer the legacy side-channel — when both are
+        # None, the portfolio extractor short-circuits and emits zero facts,
+        # which is the correct degradation for callers without account
+        # context.
+        portfolio_context = self.portfolio_context
+        if portfolio_context is None:
+            try:
+                portfolio_context = getattr(result, "portfolio_context", None)
+            except Exception:
+                portfolio_context = None
 
         bundle = build_fact_bundle(
             stock_code=code, market=market,

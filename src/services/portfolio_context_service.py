@@ -155,6 +155,31 @@ class PortfolioContextResult:
             "total_equity": self.total_equity,
         }
 
+    def to_fact_bundle_dict(self) -> Dict[str, Any]:
+        """Translate this result into the dict shape consumed by
+        ``src/analysis/extractors/portfolio.py``.
+
+        Field names differ from ``to_dict()`` deliberately: the extractor
+        reads ``match_state`` / ``holding_shares`` / ``unrealized_pnl_amount`` /
+        ``currency``, not ``is_held`` / ``quantity`` / ``unrealized_pnl_base`` /
+        ``position_currency``. Position-specific fields are only populated
+        when ``is_held`` is true — the extractor short-circuits on a single
+        ``portfolio.position_match`` fact otherwise.
+        """
+        return {
+            "match_state": "held" if self.is_held else "not_held",
+            "holding_shares": self.quantity if self.is_held else None,
+            "avg_cost": self.avg_cost if self.is_held else None,
+            "currency": self.position_currency,
+            "unrealized_pnl_pct": self.unrealized_pnl_pct if self.is_held else None,
+            "unrealized_pnl_amount": (
+                self.unrealized_pnl_base if self.is_held else None
+            ),
+            "base_currency": self.base_currency,
+            "total_equity": self.total_equity,
+            "first_buy_date": self.first_buy_date,
+        }
+
 
 class PortfolioContextService:
     """Compose a per-(account, symbol) context block for the LLM analyzer."""
