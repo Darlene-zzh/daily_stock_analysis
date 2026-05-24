@@ -259,6 +259,11 @@ def test_portfolio_avg_cost_inflated_should_be_filtered():
     ]
     cands = compute_candidates(facts)
     cost_anchors = [c for c in cands if c.basis_rule.startswith("cost_plus_")]
+    # Guard against vacuous-all XPASS: all([]) returns True, so if a future
+    # refactor stops emitting these candidates, this test would XPASS for the
+    # wrong reason and strict=True would break the suite. The paired pin test
+    # above already verifies all 3 emit today.
+    assert len(cost_anchors) == 3
     assert all(c.tier == "filtered" for c in cost_anchors)
 
 
@@ -435,3 +440,310 @@ def test_chip_avg_cost_legit_retest_stays_primary():
     chip_cands = [c for c in cands if c.basis_rule == "chip_avg_cost"]
     assert len(chip_cands) == 1
     assert chip_cands[0].tier == "primary"
+
+
+# ===========================================================================
+# Group D — technical.support zero / negative (positivity ghost)
+# ===========================================================================
+# `candidate_rules.py:116-126` gates on `sup <= current` but never checks
+# positivity. Mirror of the chip.avg_cost ghost in Group C: zero or negative
+# support prices pass the guard and emit an entry candidate at $0 or negative.
+# Same root failure mode (anchoring a buy order to a nonsense price), same
+# aspirational fix (positivity check at the extractor or rules layer).
+
+_SUPPORT_GATE_REASON = (
+    "technical.support positivity gate not yet implemented. "
+    "candidate_rules.py:116-126 guards only `sup <= current`. Zero or "
+    "negative values indicate upstream data corruption and the candidate "
+    "must be tier='filtered'."
+)
+
+
+def test_support_zero_emits_entry_at_zero_today():
+    """technical.support = 0 passes the `<= current` guard and emits a
+    support_test entry candidate at price 0. Regression guard."""
+    facts = [
+        _fact("technical.current_price", 140.0),
+        _fact("technical.support", 0.0),
+    ]
+    cands = compute_candidates(facts)
+    sup_cands = [c for c in cands if c.basis_rule == "support_test"]
+    assert len(sup_cands) == 1
+    assert sup_cands[0].price == 0.0
+    assert sup_cands[0].tier == "primary"
+
+
+def test_support_negative_emits_entry_at_negative_today():
+    """technical.support = -10 passes (-10 <= 140) and emits a
+    negative-priced entry. Sign-flip / corrupt-source regression guard."""
+    facts = [
+        _fact("technical.current_price", 140.0),
+        _fact("technical.support", -10.0),
+    ]
+    cands = compute_candidates(facts)
+    sup_cands = [c for c in cands if c.basis_rule == "support_test"]
+    assert len(sup_cands) == 1
+    assert sup_cands[0].price == -10.0
+    assert sup_cands[0].tier == "primary"
+
+
+@pytest.mark.xfail(strict=True, reason=_SUPPORT_GATE_REASON)
+def test_support_zero_should_be_filtered():
+    """Aspirational: technical.support == 0 is corrupt; must be filtered."""
+    facts = [
+        _fact("technical.current_price", 140.0),
+        _fact("technical.support", 0.0),
+    ]
+    cands = compute_candidates(facts)
+    sup_cands = [c for c in cands if c.basis_rule == "support_test"]
+    assert len(sup_cands) == 1
+    assert sup_cands[0].tier == "filtered"
+
+
+@pytest.mark.xfail(strict=True, reason=_SUPPORT_GATE_REASON)
+def test_support_negative_should_be_filtered():
+    """Aspirational: negative support is corrupt; must be filtered."""
+    facts = [
+        _fact("technical.current_price", 140.0),
+        _fact("technical.support", -10.0),
+    ]
+    cands = compute_candidates(facts)
+    sup_cands = [c for c in cands if c.basis_rule == "support_test"]
+    assert len(sup_cands) == 1
+    assert sup_cands[0].tier == "filtered"
+
+
+def test_support_legit_retest_stays_primary():
+    """A real technical.support = $130 on a stock at $140 (legitimate -7%
+    retest) must stay `primary`. Pins floor: the eventual positivity gate
+    must NOT trip on normal pullback levels."""
+    facts = [
+        _fact("technical.current_price", 140.0),
+        _fact("technical.support", 130.0),
+    ]
+    cands = compute_candidates(facts)
+    sup_cands = [c for c in cands if c.basis_rule == "support_test"]
+    assert len(sup_cands) == 1
+    assert sup_cands[0].tier == "primary"
+
+
+# ===========================================================================
+# Group F — technical.atr_14 unguarded ghosts (zero / negative / inflated)
+# ===========================================================================
+# `candidate_rules.py:128-151` is the most permissive guard in the file:
+# both `atr_2x_below_current` and `atr_3x_below_current` emit unconditionally
+# when `atr is not None`. There is no positivity check, no upper bound, no
+# polarity sanity. Three distinct ghost shapes:
+#
+#   * `atr = 0` → stop_loss collapses to `current` itself (zero protection
+#     stop; would never trigger, but the action plan still anchors to it)
+#   * `atr = -50` → stop_loss = current - 2*(-50) = current + 100, *above*
+#     current — polarity reversed. Sanitizer Check #5 (direction polarity)
+#     would refuse it, but rules layer still emits.
+#   * `atr = 99999` → stop_loss at a hugely negative price, AND cascades into
+#     the R-multiple targets via the `stop_ref = current - 2*atr` fallback
+#     (line 168-169), producing absurd take_profit prices.
+#
+# Aspirational gate: ATR must be positive AND within a reasonable range of
+# current price (e.g. `0 < atr < current` — a stock can't have ATR larger
+# than its own price under any sane definition).
+
+_ATR_GATE_REASON = (
+    "technical.atr_14 sanity gate not yet implemented. candidate_rules.py"
+    ":128-151 emits stop_loss candidates whenever `atr is not None` with no "
+    "positivity, magnitude, or polarity check. Aspirational: atr must be "
+    "positive and bounded (< current) or the resulting candidates must be "
+    "tier='filtered'."
+)
+
+
+def test_atr_zero_emits_stop_loss_at_current_today():
+    """atr_14 = 0 produces an atr_2x stop_loss at exactly `current` —
+    a useless stop that never triggers, but still emitted today."""
+    facts = [
+        _fact("technical.current_price", 140.0),
+        _fact("technical.atr_14", 0.0),
+    ]
+    cands = compute_candidates(facts)
+    atr2x = [c for c in cands if c.basis_rule == "atr_2x_below_current"]
+    assert len(atr2x) == 1
+    assert atr2x[0].price == 140.0
+    assert atr2x[0].tier == "primary"
+
+
+def test_atr_negative_emits_stop_loss_above_current_today():
+    """atr_14 = -50 (sign-flip corruption) produces stop_loss = current -
+    2*(-50) = 240, ABOVE current. Direction polarity is reversed at the
+    rules layer; sanitizer Check #5 would refuse it downstream, but the
+    rules-layer test pins that nothing stops the emission here today."""
+    facts = [
+        _fact("technical.current_price", 140.0),
+        _fact("technical.atr_14", -50.0),
+    ]
+    cands = compute_candidates(facts)
+    atr2x = [c for c in cands if c.basis_rule == "atr_2x_below_current"]
+    assert len(atr2x) == 1
+    assert atr2x[0].price == 240.0  # > current — polarity reversed
+    assert atr2x[0].tier == "primary"
+
+
+def test_atr_inflated_emits_negative_priced_stop_loss_today():
+    """atr_14 = 99999 produces atr_2x stop_loss at current - 199998 =
+    -199858 — a deeply negative price. Cascades into R-multiple targets
+    via the stop_ref fallback (candidate_rules.py:168-169) producing absurd
+    take_profit prices too."""
+    facts = [
+        _fact("technical.current_price", 140.0),
+        _fact("technical.atr_14", 99999.0),
+    ]
+    cands = compute_candidates(facts)
+    atr2x = [c for c in cands if c.basis_rule == "atr_2x_below_current"]
+    assert len(atr2x) == 1
+    assert atr2x[0].price < -100000
+
+
+@pytest.mark.xfail(strict=True, reason=_ATR_GATE_REASON)
+def test_atr_zero_should_be_filtered():
+    """Aspirational: ATR == 0 means no volatility signal; stop candidates
+    derived from it are meaningless and must be filtered."""
+    facts = [
+        _fact("technical.current_price", 140.0),
+        _fact("technical.atr_14", 0.0),
+    ]
+    cands = compute_candidates(facts)
+    atr_cands = [c for c in cands if c.basis_fact_id == "technical.atr_14"]
+    assert len(atr_cands) >= 1
+    assert all(c.tier == "filtered" for c in atr_cands)
+
+
+@pytest.mark.xfail(strict=True, reason=_ATR_GATE_REASON)
+def test_atr_negative_should_be_filtered():
+    """Aspirational: negative ATR is data corruption; rules layer must not
+    emit polarity-reversed candidates regardless of downstream sanitizer."""
+    facts = [
+        _fact("technical.current_price", 140.0),
+        _fact("technical.atr_14", -50.0),
+    ]
+    cands = compute_candidates(facts)
+    atr_cands = [c for c in cands if c.basis_fact_id == "technical.atr_14"]
+    assert len(atr_cands) >= 1
+    assert all(c.tier == "filtered" for c in atr_cands)
+
+
+@pytest.mark.xfail(strict=True, reason=_ATR_GATE_REASON)
+def test_atr_inflated_should_be_filtered():
+    """Aspirational: ATR larger than current price is implausible by any
+    sane definition; must be filtered before cascading into R-multiple."""
+    facts = [
+        _fact("technical.current_price", 140.0),
+        _fact("technical.atr_14", 99999.0),
+    ]
+    cands = compute_candidates(facts)
+    atr_cands = [c for c in cands if c.basis_fact_id == "technical.atr_14"]
+    assert len(atr_cands) >= 1
+    assert all(c.tier == "filtered" for c in atr_cands)
+
+
+def test_atr_legit_value_stays_primary():
+    """A real ATR = $5 on a $140 stock (~3.5% daily range, realistic for
+    a liquid large-cap) produces stop_loss at $130 / $125 — both `primary`
+    tier. Pins floor: the gate must catch zero/negative/huge but NOT
+    normal ATR values."""
+    facts = [
+        _fact("technical.current_price", 140.0),
+        _fact("technical.atr_14", 5.0),
+    ]
+    cands = compute_candidates(facts)
+    atr2x = [c for c in cands if c.basis_rule == "atr_2x_below_current"]
+    atr3x = [c for c in cands if c.basis_rule == "atr_3x_below_current"]
+    assert len(atr2x) == 1 and len(atr3x) == 1
+    assert atr2x[0].price == 130.0  # 140 - 2*5
+    assert atr3x[0].price == 125.0  # 140 - 3*5
+    assert atr2x[0].tier == "primary"
+    assert atr3x[0].tier == "primary"
+
+
+# ===========================================================================
+# Group G — technical.ma10 / ma20 positivity ghosts
+# ===========================================================================
+# `candidate_rules.py:92-114` has two rules: `ma20_breakdown` (stop_loss
+# when ma20 < current) and `ma10_pullback` (entry when ma10 <= current).
+# Neither checks positivity. Zero or negative moving averages — possible
+# from broken data or a sign flip — pass through and produce candidates
+# at nonsense prices. Same shape as Group C and Group D, applied to the
+# moving-average surfaces.
+
+_MA_GATE_REASON = (
+    "technical.ma10/ma20 positivity gate not yet implemented. "
+    "candidate_rules.py:92-114 only checks inequality vs current. Zero or "
+    "negative moving averages indicate upstream corruption and the "
+    "resulting candidates must be tier='filtered'."
+)
+
+
+def test_ma20_zero_emits_stop_loss_at_zero_today():
+    """ma20 = 0 passes `0 < current` and emits ma20_breakdown stop_loss at
+    $0. Pin against future silent removal."""
+    facts = [
+        _fact("technical.current_price", 140.0),
+        _fact("technical.ma20", 0.0),
+    ]
+    cands = compute_candidates(facts)
+    ma20_cands = [c for c in cands if c.basis_rule == "ma20_breakdown"]
+    assert len(ma20_cands) == 1
+    assert ma20_cands[0].price == 0.0
+    assert ma20_cands[0].tier == "primary"
+
+
+def test_ma10_negative_emits_entry_at_negative_today():
+    """ma10 = -5 passes -5 <= current and emits ma10_pullback entry at -$5.
+    Sign-flip regression guard."""
+    facts = [
+        _fact("technical.current_price", 140.0),
+        _fact("technical.ma10", -5.0),
+    ]
+    cands = compute_candidates(facts)
+    ma10_cands = [c for c in cands if c.basis_rule == "ma10_pullback"]
+    assert len(ma10_cands) == 1
+    assert ma10_cands[0].price == -5.0
+    assert ma10_cands[0].tier == "primary"
+
+
+@pytest.mark.xfail(strict=True, reason=_MA_GATE_REASON)
+def test_ma20_zero_should_be_filtered():
+    """Aspirational: ma20 == 0 is corrupt; stop candidate must be filtered."""
+    facts = [
+        _fact("technical.current_price", 140.0),
+        _fact("technical.ma20", 0.0),
+    ]
+    cands = compute_candidates(facts)
+    ma20_cands = [c for c in cands if c.basis_rule == "ma20_breakdown"]
+    assert len(ma20_cands) == 1
+    assert ma20_cands[0].tier == "filtered"
+
+
+@pytest.mark.xfail(strict=True, reason=_MA_GATE_REASON)
+def test_ma10_negative_should_be_filtered():
+    """Aspirational: negative ma10 is a sign-flip ghost; must be filtered."""
+    facts = [
+        _fact("technical.current_price", 140.0),
+        _fact("technical.ma10", -5.0),
+    ]
+    cands = compute_candidates(facts)
+    ma10_cands = [c for c in cands if c.basis_rule == "ma10_pullback"]
+    assert len(ma10_cands) == 1
+    assert ma10_cands[0].tier == "filtered"
+
+
+def test_ma_legit_below_current_stays_primary():
+    """A real ma20 = $130 on a stock at $140 (legitimate trend pullback
+    level) must stay `primary`. Pins floor: the gate must catch
+    zero/negative but NOT normal MA values below current price."""
+    facts = [
+        _fact("technical.current_price", 140.0),
+        _fact("technical.ma20", 130.0),
+    ]
+    cands = compute_candidates(facts)
+    ma20_cands = [c for c in cands if c.basis_rule == "ma20_breakdown"]
+    assert len(ma20_cands) == 1
+    assert ma20_cands[0].tier == "primary"
