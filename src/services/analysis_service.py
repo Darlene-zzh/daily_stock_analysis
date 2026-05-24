@@ -113,6 +113,7 @@ class AnalysisService:
                     return cached
 
             # 如果通过 task_queue 异步路径传来 portfolio_account_id 而没有 block，自动构建
+            portfolio_context_dict: Optional[Dict[str, Any]] = None
             if portfolio_account_id is not None and portfolio_context_block is None:
                 try:
                     from src.report_language import normalize_report_language
@@ -129,6 +130,13 @@ class AnalysisService:
                         )
                         portfolio_context_block = render_portfolio_context_block(_ctx, language=_lang)
                         portfolio_match = "held" if _ctx.is_held else "not_held"
+                        # Phase 2 (PR #10 review fix): also pass the structured
+                        # dict to the pipeline so FactBundle's portfolio.*
+                        # extractor produces non-empty facts. Without this the
+                        # extractor short-circuited on None and silently
+                        # emitted zero portfolio facts even when the user had
+                        # wired an account_id.
+                        portfolio_context_dict = _ctx.to_fact_bundle_dict()
                 except Exception as _exc:
                     logger.warning("portfolio_account_id 上下文构建失败: %s", _exc)
 
@@ -200,6 +208,7 @@ class AnalysisService:
                 progress_callback=progress_callback,
                 portfolio_context_block=portfolio_context_block,
                 portfolio_match=portfolio_match,
+                portfolio_context=portfolio_context_dict,
                 reflection_context_block=reflection_context_block,
                 quant_context_block=quant_context_block,
             )
