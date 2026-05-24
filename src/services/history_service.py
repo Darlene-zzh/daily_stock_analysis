@@ -161,6 +161,11 @@ def _render_action_plan_items(items: list, fact_bundle=None) -> list:
         quant = item.get("quant_signal", "")
         inv_rule = item.get("invalidation_rule", "")
 
+        # Render so long as we have a trigger price.  We previously skipped
+        # rows with ``shares=0`` but the LLM frequently leaves ``shares`` at
+        # zero and only fills ``pct_of_position`` — the action is fully
+        # expressible from the pct alone, so dropping these rows hid the
+        # entire 持仓操作计划 table from the user.
         if not trigger_price:
             continue
 
@@ -168,24 +173,35 @@ def _render_action_plan_items(items: list, fact_bundle=None) -> list:
         refs = item.get("evidence_refs") or [] if fact_bundle else []
         if not isinstance(refs, list):
             refs = []
+
+        # Eagerly number every evidence_ref in insertion order BEFORE picking
+        # named slots. The inline counter then matches the footnote block,
+        # which numbers `collected_refs` in evidence_refs order at the caller.
+        # If we let `_num_for` fire only when a slot is picked, an orphan ref
+        # (e.g., committee.* when a quant.* also exists) would either steal a
+        # low number via post-hoc pre-registration or get skipped entirely —
+        # both break inline-vs-footnote alignment.
+        for r in refs:
+            if isinstance(r, str) and r:
+                _num_for(r)
+
         used: set = set()
         trigger_ref = refs[0] if refs else None
         if trigger_ref:
             used.add(trigger_ref)
         tech_ref = _pick_ref(refs, "technical.", used)
         fund_ref = _pick_ref(refs, "intel.", used)
+        # quant slot accepts both quant.* and committee.* (committee anchors are
+        # what synthesizer + sanitizer autofill emit when basis is technical)
         quant_ref = _pick_ref(refs, "quant.", used) or _pick_ref(refs, "committee.", used)
 
-        for r in refs:
-            if r not in used and isinstance(r, str):
-                used.add(r)
-                _num_for(r)
-
+        # position sizing string
         pos_str = ""
         if pct_pos is not None:
             pos_str = f"持仓 {pct_pos:.1f}%"
         if pct_eq:
             pos_str = f"{pos_str} / 权益 {pct_eq:.1f}%" if pos_str else f"权益 {pct_eq:.1f}%"
+        # Build the action string: prefer shares when known, else pct
         if shares:
             ops_str = f"{direction_zh} {shares} 股"
             if pos_str:
@@ -1255,7 +1271,13 @@ class HistoryService:
             # Phase 3: emit Wikipedia-style footnote block under the action plan
             if fact_bundle:
                 collected_refs: list = []
+                # Mirror the renderer's skip-if-no-trigger-price guard:
+                # items the renderer doesn't emit must not leak their refs
+                # into the footnote block, or the footnote shows numbered
+                # entries that have no inline citation anywhere in the body.
                 for it in action_plan_items[:4]:
+                    if not it.get("trigger_price"):
+                        continue
                     for r in (it.get("evidence_refs") or []):
                         if isinstance(r, str) and r and r not in collected_refs:
                             collected_refs.append(r)
