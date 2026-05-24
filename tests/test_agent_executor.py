@@ -230,9 +230,13 @@ class TestAgentExecutor(unittest.TestCase):
         registry = _make_registry_with_echo()
         adapter = _make_mock_adapter()
 
-        # Always return tool calls, never final text
+        # Always return tool calls, never final text. Use empty content so
+        # the salvage path in run_agent_loop finds no assistant text to
+        # recover — without that, salvage would surface "Still working."
+        # and the downstream JSON parser would shadow the real "max steps"
+        # error. See src/agent/runner.py::_salvage_assistant_text.
         tool_response = LLMResponse(
-            content="Still working.",
+            content="",
             tool_calls=[
                 ToolCall(id="c1", name="echo", arguments={"message": "loop"}),
             ],
