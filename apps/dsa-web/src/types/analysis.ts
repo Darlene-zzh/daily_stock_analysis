@@ -144,6 +144,19 @@ export interface ActionPlanItem {
   invalidationRule: string;
   /** 1 = highest priority; renumbered contiguously post-filter (1..N, N ≤ 4). */
   priority: number;
+  // Phase 2 evidence-grounding fields (all optional, additive). API
+  // response is camelCased at the boundary (see src/api/utils.ts), so
+  // these stay camelCase even though the Python source emits snake_case.
+  /** FactBundle CandidateLevel id this action plan item resolves to. */
+  candidateId?: string | null;
+  /** Fact ids supporting this item (technical/quant/committee/intel). */
+  evidenceRefs?: string[];
+  /** Optional narrative paragraph (synthesizer-emitted code fallback). */
+  narrative?: string | null;
+  /** Tier inherited from the resolved CandidateLevel (when candidate-anchored). */
+  tier?: CandidateTier;
+  /** Where this item originated: LLM emission vs synthesizer fallback. */
+  provenance?: 'llm' | 'synthesized' | null;
 }
 
 /** One candidate strategy in the strategy comparison table. */
@@ -511,3 +524,68 @@ export const getSentimentColor = (score: number): string => {
   if (score <= 80) return '#22c55e'; // green-500
   return '#10b981'; // emerald-500
 };
+
+// ============================================================
+// Phase 1 FactBundle types (consumed in Phase 4+ frontend)
+//
+// Mirror src/analysis/facts.py. Snake_case is preserved at the wire
+// boundary — the backend emits `dashboard.fact_bundle` via
+// `dataclasses.asdict` and we MUST NOT run camelcase-keys over it, or
+// the frontend's references would drift from the Phase 3 backend
+// renderers (src/notification.py, src/services/history_service.py).
+// See src/core/pipeline.py:1876-1882 for the wire shape.
+// ============================================================
+
+export type FactType =
+  | 'technical'
+  | 'committee'
+  | 'intel'
+  | 'portfolio'
+  | 'quant'
+  | 'flow'
+  | 'chip'
+  | 'candidate';
+
+export interface FactRecord {
+  id: string;
+  type: string; // FactType but kept loose for forward-compat
+  label: string;
+  value: unknown;
+  display_value: string;
+  unit?: string | null;
+  source?: string;
+  confidence?: number | null;
+  as_of?: string | null;
+  extra?: Record<string, unknown>;
+}
+
+export type CandidateDirection =
+  | 'entry'
+  | 'exit'
+  | 'stop'
+  | 'take_profit'
+  | 'stop_loss';
+
+export type CandidateTier =
+  | 'primary'
+  | 'secondary'
+  | 'discipline_anchor'
+  | 'filtered';
+
+export interface CandidateLevel extends FactRecord {
+  direction: CandidateDirection;
+  price: number;
+  basis_fact_id: string;
+  basis_rule: string;
+  applicable_strategies: string[];
+  tier: CandidateTier;
+  distance_pct_from_current: number;
+}
+
+export interface FactBundle {
+  as_of: string;
+  market: 'a' | 'hk' | 'us';
+  stock_code: string;
+  facts: FactRecord[];
+  candidates: CandidateLevel[];
+}

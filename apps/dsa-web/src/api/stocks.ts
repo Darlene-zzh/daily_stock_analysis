@@ -12,6 +12,14 @@ export type ExtractFromImageResponse = {
   rawText?: string;
 };
 
+export type QuoteResponse = {
+  stockCode: string;
+  stockName: string | null;
+  currentPrice: number;
+  changePercent: number | null;
+  asOf: string; // ISO timestamp
+};
+
 export const stocksApi = {
   async extractFromImage(file: File): Promise<ExtractFromImageResponse> {
     const formData = new FormData();
@@ -50,5 +58,26 @@ export const stocksApi = {
       return { codes: data.codes ?? [], items: data.items };
     }
     throw new Error('请提供文件或粘贴文本');
+  },
+
+  async getQuote(stockCode: string): Promise<QuoteResponse> {
+    const response = await apiClient.get(`/api/v1/stocks/${stockCode}/quote`);
+    const data = response.data as {
+      stock_code?: string;
+      stock_name?: string | null;
+      current_price?: number;
+      change_percent?: number | null;
+      update_time?: string;
+    };
+    if (typeof data.current_price !== 'number') {
+      throw new Error(`getQuote(${stockCode}): missing current_price in response`);
+    }
+    return {
+      stockCode: data.stock_code ?? stockCode,
+      stockName: data.stock_name ?? null,
+      currentPrice: data.current_price,
+      changePercent: data.change_percent ?? null,
+      asOf: data.update_time ?? new Date().toISOString(),
+    };
   },
 };
