@@ -69,11 +69,77 @@ if TYPE_CHECKING:
     from src.analyzer import AnalysisResult
 
 
-def _render_action_plan_items(items: list) -> list:
+_SUPERSCRIPT_DIGITS = str.maketrans("0123456789", "⁰¹²³⁴⁵⁶⁷⁸⁹")
+
+
+def _to_superscript(n: int) -> str:
+    """Render an integer as Unicode superscript digits."""
+    return str(n).translate(_SUPERSCRIPT_DIGITS)
+
+
+def _resolve_fact(fact_id: str, fact_bundle):
+    """Find a fact or candidate record by id in the bundle dict shape."""
+    if not isinstance(fact_bundle, dict):
+        return None
+    for f in fact_bundle.get("facts") or []:
+        if isinstance(f, dict) and f.get("id") == fact_id:
+            return f
+    for c in fact_bundle.get("candidates") or []:
+        if isinstance(c, dict) and c.get("id") == fact_id:
+            return c
+    return None
+
+
+def _format_fact_footnote(fact: dict) -> str:
+    """One-line summary for the footnote block."""
+    label = fact.get("label", "")
+    display = fact.get("display_value", "")
+    extra = fact.get("extra") or {}
+    suffix = ""
+    if isinstance(extra, dict):
+        for key in ("zone", "role", "severity"):
+            v = extra.get(key)
+            if v not in (None, "", False):
+                suffix = f" ({v})"
+                break
+    return f"`[{fact.get('id', '')}]` {label} = {display}{suffix}"
+
+
+def _render_evidence_footnotes(evidence_refs: list, fact_bundle) -> list:
+    """Render the 证据脚注 block. Dedups refs preserving first-occurrence order.
+
+    Returns an empty list when no refs OR no bundle — caller emits nothing.
+    """
+    if not evidence_refs or not fact_bundle:
+        return []
+    seen: set = set()
+    deduped: list = []
+    for r in evidence_refs:
+        if isinstance(r, str) and r and r not in seen:
+            seen.add(r)
+            deduped.append(r)
+    if not deduped:
+        return []
+    lines: list = ["**证据脚注**"]
+    for i, fid in enumerate(deduped, start=1):
+        sup = _to_superscript(i)
+        fact = _resolve_fact(fid, fact_bundle)
+        if fact is None:
+            lines.append(f"{sup} `[{fid}]` (引用未在 FactBundle 中找到)")
+        else:
+            lines.append(f"{sup} {_format_fact_footnote(fact)}")
+    return lines
+
+
+def _render_action_plan_items(items: list, fact_bundle=None) -> list:
     """Render action_plan_items as markdown lines replacing the position-advice table.
 
     Returns a list of markdown strings ending with a trailing empty string.
     Direction emojis: buy=⬆️ sell=⬇️ stop_loss=🛑 take_profit=🎯
+
+    Phase 3: when `fact_bundle` is supplied, attaches Wikipedia-style footnote
+    superscripts (¹²³) to lines whose evidence_refs match by type, and emits a
+    🤖 代码兜底 badge for items with `provenance == "synthesized"`.
     """
     _DIRECTION_EMOJI = {
         "buy": "⬆️",
@@ -88,6 +154,24 @@ def _render_action_plan_items(items: list) -> list:
         "take_profit": "止盈",
     }
     _ORDINALS = ["①", "②", "③", "④", "⑤"]
+
+    # Phase 3: number each evidence_ref globally across items so the footnote
+    # block at the end has a stable 1..N numbering.
+    ref_to_num: dict = {}
+    next_num = [1]
+
+    def _num_for(ref_id: str) -> str:
+        if ref_id not in ref_to_num:
+            ref_to_num[ref_id] = next_num[0]
+            next_num[0] += 1
+        return _to_superscript(ref_to_num[ref_id])
+
+    def _pick_ref(refs: list, prefix: str, used: set):
+        for r in refs:
+            if isinstance(r, str) and r.startswith(prefix) and r not in used:
+                used.add(r)
+                return r
+        return None
 
     lines = ["### 📋 持仓操作计划", ""]
     for idx, item in enumerate(items[:4]):
@@ -114,6 +198,32 @@ def _render_action_plan_items(items: list) -> list:
         if not trigger_price:
             continue
 
+        # Phase 3: assign refs to lines (only when fact_bundle present)
+        refs = item.get("evidence_refs") or [] if fact_bundle else []
+        if not isinstance(refs, list):
+            refs = []
+
+        # Eagerly number every evidence_ref in insertion order BEFORE picking
+        # named slots. The inline counter then matches the footnote block,
+        # which numbers `collected_refs` in evidence_refs order at the caller.
+        # If we let `_num_for` fire only when a slot is picked, an orphan ref
+        # (e.g., committee.* when a quant.* also exists) would either steal a
+        # low number via post-hoc pre-registration or get skipped entirely —
+        # both break inline-vs-footnote alignment.
+        for r in refs:
+            if isinstance(r, str) and r:
+                _num_for(r)
+
+        used: set = set()
+        trigger_ref = refs[0] if refs else None
+        if trigger_ref:
+            used.add(trigger_ref)
+        tech_ref = _pick_ref(refs, "technical.", used)
+        fund_ref = _pick_ref(refs, "intel.", used)
+        # quant slot accepts both quant.* and committee.* (committee anchors are
+        # what synthesizer + sanitizer autofill emit when basis is technical)
+        quant_ref = _pick_ref(refs, "quant.", used) or _pick_ref(refs, "committee.", used)
+
         # position sizing string
         pos_str = ""
         if pct_pos is not None:
@@ -131,16 +241,22 @@ def _render_action_plan_items(items: list) -> list:
             ops_str = direction_zh
 
         lines.append(f"**{ordinal} {emoji} {direction_zh}**（优先级 {priority}）— 触发价：${trigger_price:.2f}")
-        lines.append(f"- **触发**：{trigger_cond}")
+        sup_trig = _num_for(trigger_ref) if trigger_ref else ""
+        lines.append(f"- **触发**：{trigger_cond}{sup_trig}")
         lines.append(f"- **操作**：{ops_str}")
         if tech:
-            lines.append(f"- **技术面**：{tech}")
+            sup = _num_for(tech_ref) if tech_ref else ""
+            lines.append(f"- **技术面**：{tech}{sup}")
         if fund:
-            lines.append(f"- **基本面**：{fund}")
+            sup = _num_for(fund_ref) if fund_ref else ""
+            lines.append(f"- **基本面**：{fund}{sup}")
         if quant:
-            lines.append(f"- **量化**：{quant}")
+            sup = _num_for(quant_ref) if quant_ref else ""
+            lines.append(f"- **量化**：{quant}{sup}")
         if inv_rule:
             lines.append(f"- **失效**：{inv_rule}")
+        if fact_bundle and item.get("provenance") == "synthesized":
+            lines.append("- 🤖 *代码兜底*")
         lines.append("")
     return lines
 
@@ -1524,8 +1640,35 @@ class NotificationService(
                     core.get("action_plan_items") if isinstance(core.get("action_plan_items"), list)
                     else None
                 )
+                fact_bundle = (
+                    dashboard.get("fact_bundle") if isinstance(dashboard, dict) else None
+                )
                 if action_plan_items:
-                    report_lines.extend(_render_action_plan_items(action_plan_items))
+                    report_lines.extend(
+                        _render_action_plan_items(action_plan_items, fact_bundle=fact_bundle)
+                    )
+                    # Phase 3: emit Wikipedia-style footnote block under the
+                    # action plan when any item supplied evidence_refs.
+                    if fact_bundle:
+                        collected_refs: list = []
+                        # Mirror the renderer's skip-if-no-trigger-price guard:
+                        # items the renderer doesn't emit must not leak their
+                        # refs into the footnote block, or the footnote shows
+                        # numbered entries that have no inline citation
+                        # anywhere in the body.
+                        for it in action_plan_items[:4]:
+                            if not it.get("trigger_price"):
+                                continue
+                            for r in (it.get("evidence_refs") or []):
+                                if isinstance(r, str) and r and r not in collected_refs:
+                                    collected_refs.append(r)
+                        footnote_lines = _render_evidence_footnotes(
+                            collected_refs, fact_bundle,
+                        )
+                        if footnote_lines:
+                            report_lines.append("---")
+                            report_lines.extend(footnote_lines)
+                            report_lines.append("")
                 elif pos_advice:
                     match = getattr(result, "portfolio_match", None)
                     no_pos_text = pos_advice.get(
