@@ -190,3 +190,248 @@ def test_legitimate_30pct_swing_target_is_primary_tier_today():
     rt = [c for c in cands if c.basis_rule == "resistance_touch"]
     assert len(rt) == 1
     assert rt[0].tier == "primary"
+
+
+# ===========================================================================
+# Group A — portfolio.avg_cost extreme values (cost-anchor ghosts)
+# ===========================================================================
+# `candidate_rules.py:205-234` gates only on `avg_cost > 0`. A broker CSV
+# import bug that shifts the decimal point — a real failure mode for the
+# Trading 212 importer landed in PR #10 — can produce:
+#   * avg_cost = 99999 on a $140 stock → cost_plus_5/12/20% all way > current,
+#     all 3 emit as `discipline_anchor` (line 221), anchoring the action plan
+#     to $100k+ take_profit prices
+#   * avg_cost = 0.01 on a $140 stock → cost_minus_10pct = $0.009 < current,
+#     emits as `discipline_anchor` stop_loss (line 233) at sub-cent magnitude
+#
+# Aspirational gate: any cost-anchor whose |distance_pct_from_current| is
+# implausibly large (handoff memo suggests >50% as the threshold) should be
+# tagged `tier='filtered'` so the sanitizer drops it at the boundary.
+
+_PORTFOLIO_GATE_REASON = (
+    "Portfolio cost-anchor magnitude gate not yet implemented. "
+    "candidate_rules.py:205-234 guards only `avg_cost > 0`; nothing bounds "
+    "the resulting take_profit / stop_loss away from ghost magnitudes. "
+    "Same xfail flip mechanics as the technical ghost-resistance test above."
+)
+
+
+def test_portfolio_avg_cost_inflated_take_profit_is_recorded_today():
+    """A 700x-inflated avg_cost (decimal-shift broker bug) emits all three
+    cost-anchor take_profit candidates at inflated prices today. Regression
+    guard: if rule logic ever stops emitting these without an explicit gate,
+    this test catches the silent change."""
+    facts = [
+        _fact("technical.current_price", 140.0),
+        _fact("portfolio.avg_cost", 99999.0, type_="portfolio", label="成本均价"),
+    ]
+    cands = compute_candidates(facts)
+    cost_anchors = [c for c in cands if c.basis_rule.startswith("cost_plus_")]
+    assert len(cost_anchors) == 3  # +5%, +12%, +20%
+    assert all(c.price > 100000 for c in cost_anchors)
+    assert all(c.tier == "discipline_anchor" for c in cost_anchors)
+
+
+def test_portfolio_avg_cost_tiny_value_stop_loss_is_recorded_today():
+    """A 14000x-deflated avg_cost (reverse decimal-shift) emits a sub-cent
+    cost_minus_10pct stop_loss today. The cost_plus_* candidates skip the
+    `price > current` check and don't emit — only the stop path leaks."""
+    facts = [
+        _fact("technical.current_price", 140.0),
+        _fact("portfolio.avg_cost", 0.01, type_="portfolio", label="成本均价"),
+    ]
+    cands = compute_candidates(facts)
+    stop_anchors = [c for c in cands if c.basis_rule == "cost_minus_10pct"]
+    assert len(stop_anchors) == 1
+    assert stop_anchors[0].price < 0.05  # 0.01 * 0.9 = 0.009
+    assert stop_anchors[0].tier == "discipline_anchor"
+
+
+@pytest.mark.xfail(strict=True, reason=_PORTFOLIO_GATE_REASON)
+def test_portfolio_avg_cost_inflated_should_be_filtered():
+    """Aspirational: 700x-inflated cost anchors must be `filtered`, not
+    `discipline_anchor`. Spec follow-up should add a magnitude gate either in
+    candidate_rules (preferred — keeps sanitizer simple) or as a new
+    sanitizer check parallel to Check #5."""
+    facts = [
+        _fact("technical.current_price", 140.0),
+        _fact("portfolio.avg_cost", 99999.0, type_="portfolio", label="成本均价"),
+    ]
+    cands = compute_candidates(facts)
+    cost_anchors = [c for c in cands if c.basis_rule.startswith("cost_plus_")]
+    assert all(c.tier == "filtered" for c in cost_anchors)
+
+
+@pytest.mark.xfail(strict=True, reason=_PORTFOLIO_GATE_REASON)
+def test_portfolio_avg_cost_tiny_stop_loss_should_be_filtered():
+    """Aspirational: a sub-cent stop_loss is a ghost; must be filtered."""
+    facts = [
+        _fact("technical.current_price", 140.0),
+        _fact("portfolio.avg_cost", 0.01, type_="portfolio", label="成本均价"),
+    ]
+    cands = compute_candidates(facts)
+    stop_anchors = [c for c in cands if c.basis_rule == "cost_minus_10pct"]
+    assert len(stop_anchors) == 1
+    assert stop_anchors[0].tier == "filtered"
+
+
+def test_portfolio_avg_cost_underwater_holder_stays_discipline_anchor():
+    """An avg_cost of $120 on a stock at $100 (20% underwater holder) is a
+    realistic position — cost_plus_* anchors above $100 must keep
+    `discipline_anchor` tier. Pins the floor for the eventual gate: the
+    magnitude threshold must NOT trip on plausible drawdowns or normal
+    profit-taking anchors."""
+    facts = [
+        _fact("technical.current_price", 100.0),
+        _fact("portfolio.avg_cost", 120.0, type_="portfolio", label="成本均价"),
+    ]
+    cands = compute_candidates(facts)
+    cost_anchors = [c for c in cands if c.basis_rule.startswith("cost_plus_")]
+    # 120*1.05=126>100, 120*1.12=134.4>100, 120*1.20=144>100 → all three emit
+    assert len(cost_anchors) == 3
+    assert all(c.tier == "discipline_anchor" for c in cost_anchors)
+
+
+# ===========================================================================
+# Group B — quant.qlib_rank > 1.0 (corrupt percentile signal)
+# ===========================================================================
+# `candidate_rules.py:279-290` gates on `qlib_rank > 0.9` but has no upper
+# bound. `quant.qlib_rank` is defined as a cross-sectional percentile in
+# (0, 1] — any value > 1.0 is corrupt upstream data (qlib pipeline glitch,
+# wrong scaling factor, etc.). The price itself isn't ghost (it's `current`),
+# but the *signal source* is corrupt, and the action plan would still tell
+# the user "Qlib 顶 10% 即时入场" off a broken metric.
+
+_QLIB_GATE_REASON = (
+    "qlib_rank upper-bound gate not yet implemented. quant.qlib_rank is a "
+    "percentile in (0, 1] by spec — values > 1.0 indicate upstream data "
+    "corruption and the candidate must be tier='filtered'. Fix can live in "
+    "the extractor (reject the fact) or in candidate_rules (filter the "
+    "candidate)."
+)
+
+
+def test_qlib_rank_above_one_emits_entry_candidate_today():
+    """A corrupt qlib_rank=1.5 still emits a qlib_top_decile_buy entry today
+    (passes the `> 0.9` guard, no upper bound). Regression guard: documents
+    the current gap so a future fix is forced to flip the xfail below."""
+    facts = [
+        _fact("technical.current_price", 140.0),
+        _fact("quant.qlib_rank", 1.5, type_="quant", label="Qlib 截面分位"),
+    ]
+    cands = compute_candidates(facts)
+    qlib_cands = [c for c in cands if c.basis_rule == "qlib_top_decile_buy"]
+    assert len(qlib_cands) == 1
+    assert qlib_cands[0].tier == "primary"
+
+
+@pytest.mark.xfail(strict=True, reason=_QLIB_GATE_REASON)
+def test_qlib_rank_above_one_should_be_filtered():
+    """Aspirational: qlib_rank > 1.0 is corrupt; candidate must be filtered."""
+    facts = [
+        _fact("technical.current_price", 140.0),
+        _fact("quant.qlib_rank", 1.5, type_="quant", label="Qlib 截面分位"),
+    ]
+    cands = compute_candidates(facts)
+    qlib_cands = [c for c in cands if c.basis_rule == "qlib_top_decile_buy"]
+    assert len(qlib_cands) == 1
+    assert qlib_cands[0].tier == "filtered"
+
+
+def test_qlib_rank_legit_top_decile_stays_primary():
+    """A real qlib_rank=0.95 (legitimate top 5%) must keep `primary` tier.
+    Pins floor for the gate: it must trigger on > 1.0 but NOT on valid
+    percentiles inside (0.9, 1.0]."""
+    facts = [
+        _fact("technical.current_price", 140.0),
+        _fact("quant.qlib_rank", 0.95, type_="quant", label="Qlib 截面分位"),
+    ]
+    cands = compute_candidates(facts)
+    qlib_cands = [c for c in cands if c.basis_rule == "qlib_top_decile_buy"]
+    assert len(qlib_cands) == 1
+    assert qlib_cands[0].tier == "primary"
+
+
+# ===========================================================================
+# Group C — chip.avg_cost zero / negative (sign-flip ghost)
+# ===========================================================================
+# `candidate_rules.py:292-302` gates on `chip_cost <= current` but never
+# checks positivity. A zero or negative value — possible from broken Tushare
+# response or sign flip in the chip extractor — passes the guard and emits
+# an "entry" candidate at price 0 or negative. Anchoring buy orders to a
+# zero price is exactly the failure mode this whole sanity layer exists to
+# catch.
+
+_CHIP_GATE_REASON = (
+    "chip_avg_cost positivity gate not yet implemented. candidate_rules.py"
+    ":292-302 only checks `chip_cost <= current`. Zero or negative values "
+    "indicate upstream data corruption and must be tier='filtered'."
+)
+
+
+def test_chip_avg_cost_zero_emits_entry_at_zero_today():
+    """chip.avg_cost = 0 passes the `<= current` guard and emits an entry
+    candidate at price 0. Regression guard."""
+    facts = [
+        _fact("technical.current_price", 140.0),
+        _fact("chip.avg_cost", 0.0, type_="chip", label="市场平均成本"),
+    ]
+    cands = compute_candidates(facts)
+    chip_cands = [c for c in cands if c.basis_rule == "chip_avg_cost"]
+    assert len(chip_cands) == 1
+    assert chip_cands[0].price == 0.0
+    assert chip_cands[0].tier == "primary"
+
+
+def test_chip_avg_cost_negative_emits_entry_at_negative_today():
+    """chip.avg_cost = -5 passes (-5 <= 140) and emits a negative-priced
+    entry candidate. Regression guard for the sign-flip case."""
+    facts = [
+        _fact("technical.current_price", 140.0),
+        _fact("chip.avg_cost", -5.0, type_="chip", label="市场平均成本"),
+    ]
+    cands = compute_candidates(facts)
+    chip_cands = [c for c in cands if c.basis_rule == "chip_avg_cost"]
+    assert len(chip_cands) == 1
+    assert chip_cands[0].price == -5.0
+    assert chip_cands[0].tier == "primary"
+
+
+@pytest.mark.xfail(strict=True, reason=_CHIP_GATE_REASON)
+def test_chip_avg_cost_zero_should_be_filtered():
+    """Aspirational: chip.avg_cost == 0 is corrupt; candidate must be filtered."""
+    facts = [
+        _fact("technical.current_price", 140.0),
+        _fact("chip.avg_cost", 0.0, type_="chip", label="市场平均成本"),
+    ]
+    cands = compute_candidates(facts)
+    chip_cands = [c for c in cands if c.basis_rule == "chip_avg_cost"]
+    assert len(chip_cands) == 1
+    assert chip_cands[0].tier == "filtered"
+
+
+@pytest.mark.xfail(strict=True, reason=_CHIP_GATE_REASON)
+def test_chip_avg_cost_negative_should_be_filtered():
+    """Aspirational: negative chip avg_cost is a sign-flip ghost; filter."""
+    facts = [
+        _fact("technical.current_price", 140.0),
+        _fact("chip.avg_cost", -5.0, type_="chip", label="市场平均成本"),
+    ]
+    cands = compute_candidates(facts)
+    chip_cands = [c for c in cands if c.basis_rule == "chip_avg_cost"]
+    assert len(chip_cands) == 1
+    assert chip_cands[0].tier == "filtered"
+
+
+def test_chip_avg_cost_legit_retest_stays_primary():
+    """A real chip.avg_cost = $133 on a stock at $140 (legitimate -5% retest
+    of market average cost) must stay `primary`. Pins floor: the gate must
+    catch zero/negative but NOT normal retests within sensible ranges."""
+    facts = [
+        _fact("technical.current_price", 140.0),
+        _fact("chip.avg_cost", 133.0, type_="chip", label="市场平均成本"),
+    ]
+    cands = compute_candidates(facts)
+    chip_cands = [c for c in cands if c.basis_rule == "chip_avg_cost"]
+    assert len(chip_cands) == 1
+    assert chip_cands[0].tier == "primary"
