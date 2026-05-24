@@ -1875,8 +1875,24 @@ class GeminiAnalyzer:
                 .replace("{default_skill_policy_section}", default_skill_policy_section)
                 .replace("{skills_section}", skills_section)
             )
+        intelligence_requirement = """
+
+## intelligence 区块必填字段（CRITICAL）
+
+无论是否有相关数据，`intelligence` 对象必须同时包含以下 5 个字段（无数据时按下表填占位值，不要省略字段）：
+
+| 字段 | 类型 | 无数据时占位 |
+|---|---|---|
+| `latest_news` | string | `""`（空字符串） |
+| `risk_alerts` | array of strings | `[]`（空列表） |
+| `positive_catalysts` | array of strings | `[]`（空列表） |
+| `earnings_outlook` | string | `""`（空字符串） |
+| `sentiment_summary` | string | `""`（空字符串） |
+
+省略任何字段都会被后端拦截为不合规输出。
+"""
         if lang == "en":
-            return base_prompt + """
+            return base_prompt + intelligence_requirement + """
 
 ## Output Language (highest priority)
 
@@ -1935,7 +1951,7 @@ intelligence 区块新增字段示例（仅供格式参考，实际内容由你�
 "earnings_outlook_zh": "业绩预期的中文翻译"
 ```
 """
-        return base_prompt + zh_suffix
+        return base_prompt + intelligence_requirement + zh_suffix
 
     def _has_channel_config(self, config: Config) -> bool:
         """Check if multi-channel config (channels / YAML / legacy model_list) is active."""
@@ -2418,6 +2434,23 @@ intelligence 区块新增字段示例（仅供格式参考，实际内容由你�
             return
         core = result.dashboard.get("core_conclusion") or {}
 
+        # Phase 2 (post-race-hotfix): resolve FactBundle + current price as
+        # LOCAL variables. They are passed explicitly to every
+        # `_sanitize_action_plan_items` call site. NEVER stash on `self` —
+        # `self.analyzer` is shared across ThreadPoolExecutor workers and a
+        # stash would let one stock's bundle leak into another stock's
+        # sanitizer. See [[repo-phase-2-sanitizer-race]].
+        fact_bundle = result.dashboard.get("fact_bundle") if isinstance(
+            result.dashboard, dict
+        ) else None
+        current_price = None
+        try:
+            persp_local = result.dashboard.get("data_perspective") or {}
+            cp = (persp_local.get("price_position") or {}).get("current_price")
+            current_price = float(cp) if cp is not None else None
+        except (TypeError, ValueError):
+            current_price = None
+
         # Phase 1: If an upstream layer (e.g. agent-mode synthesis) already filled
         # recommended_strategy + action_plan_items, the LLM call below should be
         # skipped — but we MUST still sanitize the upstream output and recompute
@@ -2431,8 +2464,46 @@ intelligence 区块新增字段示例（仅供格式参考，实际内容由你�
             and isinstance(upstream_items, list) and upstream_items
         ):
             sanitized = self._sanitize_action_plan_items(
-                upstream_items, portfolio_context_block, code, strategy=upstream_strategy
+                upstream_items, portfolio_context_block, code,
+                strategy=upstream_strategy,
+                fact_bundle=fact_bundle,
+                current_price=current_price,
             )
+            # Phase 2: tag survivors as LLM-provenance; if sanitizer emptied the
+            # list (e.g. legacy upstream items missing candidate_id), fall back
+            # to candidate-based synthesizer so the user still sees a real plan.
+            for it in sanitized:
+                if isinstance(it, dict) and "provenance" not in it:
+                    it["provenance"] = "llm"
+            if not sanitized and fact_bundle and isinstance(fact_bundle, dict):
+                try:
+                    from src.analysis.facts import FactBundle, FactRecord, CandidateLevel
+                    from src.analysis.synthesizer import synthesize_from_candidates
+                    bundle_obj = FactBundle(
+                        as_of=fact_bundle.get("as_of", ""),
+                        market=fact_bundle.get("market", "us"),
+                        stock_code=fact_bundle.get("stock_code", ""),
+                        facts=[FactRecord(**f) for f in fact_bundle.get("facts", [])],
+                        candidates=[
+                            CandidateLevel(**c)
+                            for c in fact_bundle.get("candidates", [])
+                        ],
+                    )
+                    sanitized = synthesize_from_candidates(
+                        bundle_obj.candidates,
+                        strategy=upstream_strategy,
+                        facts=bundle_obj.facts,
+                    )
+                    logger.info(
+                        "[action_plan] upstream sanitizer empty -> synthesized "
+                        "%d items for %s/%s",
+                        len(sanitized), code, upstream_strategy,
+                    )
+                except Exception as exc:
+                    logger.warning(
+                        "[action_plan] upstream synthesize fallback failed for %s: %s",
+                        code, exc,
+                    )
             core["action_plan_items"] = sanitized
             if isinstance(core.get("strategy_choices"), list):
                 core["strategy_choices"] = self._sanitize_strategy_choices(
@@ -2483,6 +2554,7 @@ intelligence 区块新增字段示例（仅供格式参考，实际内容由你�
             portfolio_context_block=portfolio_context_block,
             sentiment_dimensions=sentiment_dims,
             compact_dashboard=compact_input,
+            fact_bundle=fact_bundle,
         )
 
         raw = self.generate_text(prompt, max_tokens=3072, temperature=0.3)
@@ -2507,7 +2579,48 @@ intelligence 区块新增字段示例（仅供格式参考，实际内容由你�
         if not isinstance(items, list):
             items = []
         strategy = parsed.get("recommended_strategy") if isinstance(parsed.get("recommended_strategy"), str) else None
-        items = self._sanitize_action_plan_items(items, portfolio_context_block, code, strategy=strategy)
+        items = self._sanitize_action_plan_items(
+            items, portfolio_context_block, code,
+            strategy=strategy,
+            fact_bundle=fact_bundle,
+            current_price=current_price,
+        )
+
+        # Phase 2: tag survivors as LLM-provenance; if sanitizer emptied the list,
+        # fall back to candidate-based synthesizer so the user still sees a real plan.
+        for it in items:
+            if isinstance(it, dict) and "provenance" not in it:
+                it["provenance"] = "llm"
+
+        if not items and fact_bundle and isinstance(fact_bundle, dict):
+            try:
+                from src.analysis.facts import FactBundle, FactRecord, CandidateLevel
+                from src.analysis.synthesizer import synthesize_from_candidates
+                bundle_obj = FactBundle(
+                    as_of=fact_bundle.get("as_of", ""),
+                    market=fact_bundle.get("market", "us"),
+                    stock_code=fact_bundle.get("stock_code", ""),
+                    facts=[FactRecord(**f) for f in fact_bundle.get("facts", [])],
+                    candidates=[
+                        CandidateLevel(**c)
+                        for c in fact_bundle.get("candidates", [])
+                    ],
+                )
+                fallback_strategy = strategy or "swing_trade"
+                items = synthesize_from_candidates(
+                    bundle_obj.candidates,
+                    strategy=fallback_strategy,
+                    facts=bundle_obj.facts,
+                )
+                logger.info(
+                    "[action_plan] sanitizer empty -> synthesized %d items "
+                    "from candidates for %s/%s", len(items), code, fallback_strategy,
+                )
+            except Exception as exc:
+                logger.warning(
+                    "[action_plan] synthesize_from_candidates failed for %s: %s",
+                    code, exc,
+                )
 
         # Inject all fields atomically
         if not isinstance(result.dashboard.get("core_conclusion"), dict):
@@ -2742,13 +2855,49 @@ intelligence 区块新增字段示例（仅供格式参考，实际内容由你�
         portfolio_context_block: Optional[str],
         code: str,
         strategy: Optional[str] = None,
+        *,
+        fact_bundle: Optional[dict] = None,
+        current_price: Optional[float] = None,
     ) -> list:
-        """Apply cost-basis sanitization + per-strategy template enforcement.
+        """Apply post-LLM sanitization.
 
-        Per spec: stepped_profit_taking forbids buy; wait_and_see caps at 1 item;
-        long_term_hold requires a cost-based real stop_loss at avg_cost × 0.9 — if
-        missing we synthesize one.
+        Phase 2 (post-race-hotfix): when `fact_bundle` is passed explicitly,
+        route through the v2 candidate-anchored 9-check pipeline. Otherwise
+        fall back to the legacy cost-basis path so old callers / test fixtures
+        keep working.
+
+        Per [[repo-phase-2-sanitizer-race]]: the original Phase 2 implementation
+        read the bundle from `self._fact_bundle_for_sanitize` — an instance
+        attribute on a shared `GeminiAnalyzer` singleton. Under the pipeline's
+        `ThreadPoolExecutor`, one stock's stash overwrote another's, causing
+        cross-stock sanitizer corruption. The bundle MUST be passed through as
+        an explicit parameter; no instance-level stash is permitted.
         """
+        bundle_dict = fact_bundle
+        if bundle_dict and isinstance(bundle_dict, dict):
+            try:
+                from src.analysis.facts import FactBundle, FactRecord, CandidateLevel
+                from src.analysis.sanitizer_v2 import sanitize_with_candidates
+                bundle = FactBundle(
+                    as_of=bundle_dict.get("as_of", ""),
+                    market=bundle_dict.get("market", "us"),
+                    stock_code=bundle_dict.get("stock_code", ""),
+                    facts=[FactRecord(**f) for f in bundle_dict.get("facts", [])],
+                    candidates=[
+                        CandidateLevel(**c)
+                        for c in bundle_dict.get("candidates", [])
+                    ],
+                )
+                return sanitize_with_candidates(
+                    items, bundle, strategy=strategy, current_price=current_price,
+                )
+            except Exception as exc:
+                logger.warning(
+                    "[sanitizer_v2] fallback to legacy due to error: %s", exc,
+                )
+                # fall through to legacy
+
+        # Legacy cost-basis path (unchanged from Phase 1)
         from src.services.portfolio_context_service import _parse_portfolio_facts
         avg_cost = _parse_portfolio_facts(portfolio_context_block or "").get("avg_cost")
         forbidden = self._STRATEGY_FORBIDDEN_DIRECTIONS.get(strategy or "", set())

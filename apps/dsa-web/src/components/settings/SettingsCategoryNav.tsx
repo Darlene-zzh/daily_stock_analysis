@@ -1,5 +1,5 @@
 import type React from 'react';
-import { Badge } from '../common';
+import { Badge } from '../common/Badge';
 import { getCategoryDescriptionZh, getCategoryTitleZh } from '../../utils/systemConfigI18n';
 import type { SystemConfigCategorySchema, SystemConfigItem } from '../../types/systemConfig';
 import { cn } from '../../utils/cn';

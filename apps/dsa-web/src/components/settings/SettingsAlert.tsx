@@ -1,5 +1,6 @@
 import type React from 'react';
-import { Button, InlineAlert } from '../common';
+import { Button } from '../common/Button';
+import { InlineAlert } from '../common/InlineAlert';
 import { cn } from '../../utils/cn';
 
 interface SettingsAlertProps {

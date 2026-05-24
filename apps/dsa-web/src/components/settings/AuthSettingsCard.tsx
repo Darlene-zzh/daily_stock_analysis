@@ -2,8 +2,11 @@ import type React from 'react';
 import { useEffect, useMemo, useState } from 'react';
 import { authApi } from '../../api/auth';
 import { getParsedApiError, isParsedApiError, type ParsedApiError } from '../../api/error';
-import { useAuth } from '../../hooks';
-import { Badge, Button, Input, Checkbox } from '../common';
+import { useAuth } from '../../hooks/useAuth';
+import { Badge } from '../common/Badge';
+import { Button } from '../common/Button';
+import { Input } from '../common/Input';
+import { Checkbox } from '../common/Checkbox';
 import { SettingsAlert } from './SettingsAlert';
 import { SettingsSectionCard } from './SettingsSectionCard';
 

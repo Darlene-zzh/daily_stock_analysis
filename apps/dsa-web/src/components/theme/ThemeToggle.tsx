@@ -79,7 +79,7 @@ export const ThemeToggle: React.FC<ThemeToggleProps> = ({
         aria-expanded={open}
         aria-label="切换主题"
       >
-        <TriggerIcon className={cn('shrink-0', isNavVariant ? 'h-5 w-5' : 'h-4 w-4')} />
+        <TriggerIcon className={cn('shrink-0', isNavVariant ? 'size-5' : 'size-4')} />
         {isNavVariant ? (
           collapsed ? null : <span className="truncate text-[1.02rem] font-medium">主题</span>
         ) : (
@@ -118,10 +118,10 @@ export const ThemeToggle: React.FC<ThemeToggleProps> = ({
                 )}
               >
                 <span className="flex items-center gap-2">
-                  <Icon className="h-4 w-4" />
+                  <Icon className="size-4" />
                   {label}
                 </span>
-                {isActive ? <Check className="h-4 w-4 text-cyan" /> : null}
+                {isActive ? <Check className="size-4 text-cyan" /> : null}
               </button>
             );
           })}

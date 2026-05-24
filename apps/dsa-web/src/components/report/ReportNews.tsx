@@ -2,8 +2,10 @@ import type React from 'react';
 import { useState, useEffect, useCallback } from 'react';
 import type { ParsedApiError } from '../../api/error';
 import { getParsedApiError } from '../../api/error';
-import { ApiErrorAlert, Card } from '../common';
-import { DashboardPanelHeader, DashboardStateBlock } from '../dashboard';
+import { ApiErrorAlert } from '../common/ApiErrorAlert';
+import { Card } from '../common/Card';
+import { DashboardPanelHeader } from '../dashboard/DashboardPanelHeader';
+import { DashboardStateBlock } from '../dashboard/DashboardStateBlock';
 import { historyApi } from '../../api/history';
 import type { NewsIntelItem, ReportLanguage } from '../../types/analysis';
 import { getReportText, normalizeReportLanguage } from '../../utils/reportLanguage';
@@ -60,7 +62,7 @@ export const ReportNews: React.FC<ReportNewsProps> = ({ recordId, limit = 8, lan
         actions={(
           <div className="flex items-center gap-2">
             {isLoading ? (
-              <div className="home-spinner h-3.5 w-3.5 animate-spin border-2" aria-hidden="true" />
+              <div className="home-spinner size-3.5 animate-spin border-2" aria-hidden="true" />
             ) : null}
             <button
               type="button"
@@ -97,7 +99,7 @@ export const ReportNews: React.FC<ReportNewsProps> = ({ recordId, limit = 8, lan
           title={text.noNews}
           description={text.noNewsDescription}
           icon={(
-            <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <svg className="size-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M19 14l-7-7m0 0l-7 7m7-7v18" />
             </svg>
           )}
@@ -131,7 +133,7 @@ export const ReportNews: React.FC<ReportNewsProps> = ({ recordId, limit = 8, lan
                     aria-label={text.openLink}
                   >
                     {text.openLink}
-                    <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <svg className="size-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                       <path
                         strokeLinecap="round"
                         strokeLinejoin="round"

@@ -4,10 +4,17 @@ import Markdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import { cn } from '../utils/cn';
 import { agentApi } from '../api/agent';
-import { ApiErrorAlert, Badge, Button, ConfirmDialog, EmptyState, InlineAlert, ScrollArea, Tooltip } from '../components/common';
+import { ApiErrorAlert } from '../components/common/ApiErrorAlert';
+import { Badge } from '../components/common/Badge';
+import { Button } from '../components/common/Button';
+import { ConfirmDialog } from '../components/common/ConfirmDialog';
+import { EmptyState } from '../components/common/EmptyState';
+import { InlineAlert } from '../components/common/InlineAlert';
+import { ScrollArea } from '../components/common/ScrollArea';
+import { Tooltip } from '../components/common/Tooltip';
 import { getParsedApiError } from '../api/error';
 import type { SkillInfo } from '../api/agent';
-import { DashboardStateBlock } from '../components/dashboard';
+import { DashboardStateBlock } from '../components/dashboard/DashboardStateBlock';
 import {
   useAgentChatStore,
   type Message,
@@ -415,7 +422,7 @@ const ChatPage: React.FC = () => {
         className="flex items-center gap-2 text-xs text-muted-text hover:text-secondary-text transition-colors mb-2 w-full text-left"
       >
         <svg
-          className={`w-3 h-3 transition-transform flex-shrink-0 ${isExpanded ? 'rotate-90' : ''}`}
+          className={`size-3 transition-transform flex-shrink-0 ${isExpanded ? 'rotate-90' : ''}`}
           fill="none"
           stroke="currentColor"
           viewBox="0 0 24 24"
@@ -476,7 +483,7 @@ const ChatPage: React.FC = () => {
     <>
       <div className="flex items-center justify-between border-b border-white/5 bg-white/2 p-3.5">
         <h2 className="text-sm font-semibold text-cyan uppercase tracking-[0.2em] flex items-center gap-2">
-          <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <svg className="size-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
           </svg>
           历史对话
@@ -487,7 +494,7 @@ const ChatPage: React.FC = () => {
           aria-label="开启新对话"
         >
           <svg
-            className="w-4 h-4"
+            className="size-4"
             fill="none"
             stroke="currentColor"
             viewBox="0 0 24 24"
@@ -554,7 +561,7 @@ const ChatPage: React.FC = () => {
                   aria-label={`删除对话 ${s.title}`}
                 >
                   <svg
-                    className="w-3.5 h-3.5"
+                    className="size-3.5"
                     fill="none"
                     stroke="currentColor"
                     viewBox="0 0 24 24"
@@ -617,14 +624,14 @@ const ChatPage: React.FC = () => {
       <div className="flex h-full min-w-0 flex-1 flex-col overflow-hidden">
         <header className="mb-4 flex-shrink-0 space-y-3">
           <div className="flex items-start justify-between gap-4">
-            <h1 className="text-2xl font-bold text-foreground flex items-center gap-2">
+            <h1 className="text-2xl font-semibold text-foreground flex items-center gap-2">
               <button
                 onClick={() => setSidebarOpen(true)}
                 className="md:hidden p-1.5 -ml-1 rounded-lg hover:bg-hover transition-colors text-secondary-text hover:text-foreground"
                 aria-label="历史对话"
               >
                 <svg
-                  className="w-5 h-5"
+                  className="size-5"
                   fill="none"
                   stroke="currentColor"
                   viewBox="0 0 24 24"
@@ -638,7 +645,7 @@ const ChatPage: React.FC = () => {
                 </svg>
               </button>
               <svg
-                className="w-6 h-6 text-cyan"
+                className="size-6 text-cyan"
                 fill="none"
                 stroke="currentColor"
                 viewBox="0 0 24 24"
@@ -663,7 +670,7 @@ const ChatPage: React.FC = () => {
                       aria-label="导出会话为 Markdown 文件"
                     >
                       <svg
-                        className="w-4 h-4"
+                        className="size-4"
                         fill="none"
                         stroke="currentColor"
                         viewBox="0 0 24 24"
@@ -707,7 +714,7 @@ const ChatPage: React.FC = () => {
                     >
                       {sending ? (
                         <svg
-                          className="w-4 h-4 animate-spin"
+                          className="size-4 animate-spin"
                           fill="none"
                           viewBox="0 0 24 24"
                         >
@@ -727,7 +734,7 @@ const ChatPage: React.FC = () => {
                         </svg>
                       ) : (
                         <svg
-                          className="w-4 h-4"
+                          className="size-4"
                           fill="none"
                           stroke="currentColor"
                           viewBox="0 0 24 24"
@@ -777,7 +784,7 @@ const ChatPage: React.FC = () => {
                   className="max-w-2xl border-dashed bg-card/55"
                   icon={(
                     <svg
-                      className="h-8 w-8"
+                      className="size-8"
                       fill="none"
                       stroke="currentColor"
                       viewBox="0 0 24 24"
@@ -815,7 +822,7 @@ const ChatPage: React.FC = () => {
                 >
                   <div
                     className={cn(
-                      'flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-[10px] font-bold shadow-sm transition-all',
+                      'flex size-8 shrink-0 items-center justify-center rounded-full text-[10px] font-bold shadow-sm transition-all',
                       msg.role === 'user' ? 'chat-avatar-user' : 'chat-avatar-ai'
                     )}
                   >
@@ -831,7 +838,7 @@ const ChatPage: React.FC = () => {
                       <div className="mb-2">
                         <Badge variant="info" className="chat-skill-badge shadow-none" aria-label={`技能 ${skillLabel}`}>
                           <svg
-                            className="w-3 h-3"
+                            className="size-3"
                             fill="none"
                             stroke="currentColor"
                             viewBox="0 0 24 24"
@@ -898,12 +905,12 @@ const ChatPage: React.FC = () => {
 
             {loading && (
               <div className="flex gap-4">
-                <div className="w-8 h-8 rounded-full bg-elevated text-foreground flex items-center justify-center flex-shrink-0 text-xs font-bold">
+                <div className="size-8 rounded-full bg-elevated text-foreground flex items-center justify-center flex-shrink-0 text-xs font-bold">
                   AI
                 </div>
                 <div className="min-w-[200px] max-w-[min(100%,48rem)] overflow-hidden rounded-2xl rounded-tl-sm border border-white/6 bg-card/72 px-5 py-4">
                   <div className="flex items-center gap-2.5 text-sm text-secondary-text">
-                    <div className="relative w-4 h-4 flex-shrink-0">
+                    <div className="relative size-4 flex-shrink-0">
                       <div className="absolute inset-0 rounded-full border-2 border-cyan/20" />
                       <div className="absolute inset-0 rounded-full border-2 border-cyan border-t-transparent animate-spin" />
                     </div>
@@ -930,7 +937,7 @@ const ChatPage: React.FC = () => {
                 aria-label="查看最新消息"
               >
                 <svg
-                  className="h-3.5 w-3.5"
+                  className="size-3.5"
                   fill="none"
                   stroke="currentColor"
                   viewBox="0 0 24 24"

@@ -1,8 +1,11 @@
 import type React from 'react';
 import { useRef, useCallback, useEffect, useId } from 'react';
 import type { HistoryItem } from '../../types/analysis';
-import { Badge, Button, ScrollArea } from '../common';
-import { DashboardPanelHeader, DashboardStateBlock } from '../dashboard';
+import { Badge } from '../common/Badge';
+import { Button } from '../common/Button';
+import { ScrollArea } from '../common/ScrollArea';
+import { DashboardPanelHeader } from '../dashboard/DashboardPanelHeader';
+import { DashboardStateBlock } from '../dashboard/DashboardStateBlock';
 import { HistoryListItem } from './HistoryListItem';
 
 interface HistoryListProps {
@@ -97,7 +100,7 @@ export const HistoryList: React.FC<HistoryListProps> = ({
             title="历史分析"
             titleClassName="text-sm font-medium"
             leading={(
-              <svg className="h-4 w-4 text-primary" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <svg className="size-4 text-primary" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
               </svg>
             )}
@@ -125,7 +128,7 @@ export const HistoryList: React.FC<HistoryListProps> = ({
                   onChange={onToggleSelectAll}
                   disabled={isDeleting}
                   aria-label="全选当前已加载历史记录"
-                  className="history-select-all-checkbox h-3.5 w-3.5 cursor-pointer bg-transparent accent-primary focus:ring-primary/30 disabled:opacity-50"
+                  className="history-select-all-checkbox size-3.5 cursor-pointer bg-transparent accent-primary focus:ring-primary/30 disabled:opacity-50"
                 />
                 <span className="text-[11px] text-muted-text select-none">全选当前</span>
               </label>
@@ -154,7 +157,7 @@ export const HistoryList: React.FC<HistoryListProps> = ({
             title="暂无历史分析记录"
             description="完成首次分析后，这里会保留最近结果。"
             icon={(
-              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <svg className="size-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
               </svg>
             )}
@@ -177,7 +180,7 @@ export const HistoryList: React.FC<HistoryListProps> = ({
             
             {isLoadingMore && (
               <div className="flex justify-center py-4">
-                <div className="home-spinner h-5 w-5 animate-spin border-2" />
+                <div className="home-spinner size-5 animate-spin border-2" />
               </div>
             )}
 

@@ -2,13 +2,14 @@ import type React from 'react';
 import { useState, useEffect } from 'react';
 import { motion, useMotionValue, useTransform, useSpring } from "motion/react";
 import { Lock, Loader2, Cpu, TrendingUp, Network, ShieldCheck } from "lucide-react";
-import { Button, Input, ParticleBackground } from '../components/common';
+import { Button } from '../components/common/Button';
+import { Input } from '../components/common/Input';
+import { ParticleBackground } from '../components/common/ParticleBackground';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import type { ParsedApiError } from '../api/error';
 import { isParsedApiError } from '../api/error';
-import { useAuth } from '../hooks';
-import { SettingsAlert } from '../components/settings';
-
+import { useAuth } from '../hooks/useAuth';
+import { SettingsAlert } from '../components/settings/SettingsAlert';
 const LoginPage: React.FC = () => {
   const { login, passwordSet, setupState } = useAuth();
   const navigate = useNavigate();
@@ -82,14 +83,14 @@ const LoginPage: React.FC = () => {
           x: useTransform(smoothX, [-0.5, 0.5], [-50, 50]),
           y: useTransform(smoothY, [-0.5, 0.5], [-50, 50]),
         }}
-        className="absolute left-[20%] top-[20%] -z-10 h-[300px] w-[300px] -translate-x-1/2 -translate-y-1/2 rounded-full bg-[var(--login-accent-glow)] blur-[100px]"
+        className="absolute left-[20%] top-[20%] -z-10 size-[300px] -translate-x-1/2 -translate-y-1/2 rounded-full bg-[var(--login-accent-glow)] blur-[100px]"
       />
       <motion.div
         style={{
           x: useTransform(smoothX, [-0.5, 0.5], [60, -60]),
           y: useTransform(smoothY, [-0.5, 0.5], [60, -60]),
         }}
-        className="absolute right-[20%] bottom-[10%] -z-10 h-[400px] w-[400px] translate-x-1/2 translate-y-1/2 rounded-full bg-emerald-600/10 blur-[120px]"
+        className="absolute right-[20%] bottom-[10%] -z-10 size-[400px] translate-x-1/2 translate-y-1/2 rounded-full bg-emerald-600/10 blur-[120px]"
       />
 
       <div className="sm:mx-auto sm:w-full sm:max-w-md relative z-10">
@@ -108,18 +109,18 @@ const LoginPage: React.FC = () => {
             }}
             className="pointer-events-none absolute -top-[20vh] -z-10 opacity-80"
           >
-            <div className="relative flex h-[120vh] w-[120vh] items-center justify-center rounded-full border border-[var(--login-accent-soft)] bg-gradient-to-br from-[var(--login-accent-soft)] to-[hsl(214_100%_20%_/_0.18)] shadow-[inset_0_0_200px_var(--login-accent-glow)] blur-[4px]">
-              <Cpu className="h-[70vh] w-[70vh] text-[hsl(200_80%_22%_/_0.4)] brightness-50" />
-              <TrendingUp className="absolute h-[25vh] w-[25vh] translate-x-[15vh] translate-y-[15vh] text-emerald-900/30 brightness-50" />
+            <div className="relative flex size-[120vh] items-center justify-center rounded-full border border-[var(--login-accent-soft)] bg-gradient-to-br from-[var(--login-accent-soft)] to-[hsl(214_100%_20%_/_0.18)] shadow-[inset_0_0_200px_var(--login-accent-glow)] blur-[4px]">
+              <Cpu className="size-[70vh] text-[hsl(200_80%_22%_/_0.4)] brightness-50" />
+              <TrendingUp className="absolute size-[25vh] translate-x-[15vh] translate-y-[15vh] text-emerald-900/30 brightness-50" />
             </div>
           </motion.div>
 
           <div className="mt-8 flex flex-col items-center">
-            <h2 className="text-4xl font-extrabold tracking-tighter text-[var(--login-text-primary)] sm:text-6xl">
+            <h2 className="text-4xl font-semibold tracking-tighter text-[var(--login-text-primary)] sm:text-6xl">
               <span className="bg-gradient-to-r from-[var(--login-text-primary)] via-[var(--login-text-primary)] to-[var(--login-text-secondary)] bg-clip-text text-transparent">DAILY </span>
               <span className="bg-gradient-to-r from-[var(--login-brand-start)] to-[var(--login-brand-end)] bg-clip-text text-transparent drop-shadow-[0_0_20px_var(--login-accent-glow)]">STOCK</span>
             </h2>
-            <h3 className="mt-1 text-xl font-bold uppercase tracking-[0.5em] text-[var(--login-text-muted)]">
+            <h3 className="mt-1 text-xl font-semibold uppercase tracking-[0.5em] text-[var(--login-text-muted)]">
               Analysis Engine
             </h3>
           </div>
@@ -130,7 +131,7 @@ const LoginPage: React.FC = () => {
             transition={{ delay: 0.3 }}
             className="mt-6 flex items-center gap-2 rounded-full border border-[var(--login-accent-border)] bg-[var(--login-accent-soft)] px-3 py-1 text-[10px] font-medium text-[var(--login-accent-text)] backdrop-blur-sm"
           >
-            <Network className="h-3 w-3" />
+            <Network className="size-3" />
             <span>V3.X QUANTITATIVE SYSTEM</span>
           </motion.div>
         </motion.div>
@@ -146,19 +147,19 @@ const LoginPage: React.FC = () => {
 
           <div className="pointer-events-auto relative flex flex-col overflow-hidden rounded-3xl border border-[var(--login-border-card)] bg-[var(--login-bg-card)]/80 p-8 shadow-2xl backdrop-blur-xl">
             {/* Inner corner glow */}
-            <div className="absolute -right-20 -top-20 h-40 w-40 rounded-full bg-[var(--login-accent-soft)] blur-[50px]" />
-            <div className="absolute -bottom-20 -left-20 h-40 w-40 rounded-full bg-blue-600/10 blur-[50px]" />
+            <div className="absolute -right-20 -top-20 size-40 rounded-full bg-[var(--login-accent-soft)] blur-[50px]" />
+            <div className="absolute -bottom-20 -left-20 size-40 rounded-full bg-blue-600/10 blur-[50px]" />
 
             <div className="mb-8">
-              <h1 className="flex items-center gap-2 text-2xl font-bold tracking-tight text-[var(--login-text-primary)]">
+              <h1 className="flex items-center gap-2 text-2xl font-semibold tracking-tight text-[var(--login-text-primary)]">
                 {isFirstTime ? (
                   <>
-                    <ShieldCheck className="h-6 w-6 text-emerald-400" />
+                    <ShieldCheck className="size-6 text-emerald-400" />
                     <span>设置初始密码</span>
                   </>
                 ) : (
                   <>
-                    <Lock className="h-5 w-5 text-[var(--login-accent-text)]" />
+                    <Lock className="size-5 text-[var(--login-accent-text)]" />
                     <span>管理员登录</span>
                   </>
                 )}
@@ -229,7 +230,7 @@ const LoginPage: React.FC = () => {
                 <div className="relative z-10 flex items-center justify-center gap-2">
                   {isSubmitting ? (
                     <>
-                      <Loader2 className="h-4 w-4 animate-spin" />
+                      <Loader2 className="size-4 animate-spin" />
                       <span>{isFirstTime ? '初始化中...' : '正在建立连接...'}</span>
                     </>
                   ) : (

@@ -7,15 +7,20 @@ import { analysisApi } from '../api/analysis';
 import { portfolioApi } from '../api/portfolio';
 import { systemConfigApi } from '../api/systemConfig';
 import type { PortfolioAccountItem } from '../types/portfolio';
-import { ApiErrorAlert, ConfirmDialog, Button, InlineAlert } from '../components/common';
+import { ApiErrorAlert } from '../components/common/ApiErrorAlert';
+import { ConfirmDialog } from '../components/common/ConfirmDialog';
+import { Button } from '../components/common/Button';
+import { InlineAlert } from '../components/common/InlineAlert';
 import { CommitteeOptIn } from '../components/committee/CommitteeOptIn';
-import { DashboardStateBlock } from '../components/dashboard';
-import { StockAutocomplete } from '../components/StockAutocomplete';
-import { HistoryList } from '../components/history';
-import { ReportMarkdown, ReportSummary } from '../components/report';
-import { TaskPanel } from '../components/tasks';
+import { DashboardStateBlock } from '../components/dashboard/DashboardStateBlock';
+import { StockAutocomplete } from '../components/StockAutocomplete/StockAutocomplete';
+import { HistoryList } from '../components/history/HistoryList';
+import { ReportMarkdown } from '../components/report/ReportMarkdown';
+import { ReportSummary } from '../components/report/ReportSummary';
+import { TaskPanel } from '../components/tasks/TaskPanel';
 import { PortfolioHeatmapTreemap } from '../components/portfolio/PortfolioHeatmapTreemap';
-import { useDashboardLifecycle, useHomeDashboardState } from '../hooks';
+import { useDashboardLifecycle } from '../hooks/useDashboardLifecycle';
+import { useHomeDashboardState } from '../hooks/useHomeDashboardState';
 import type { SetupStatusResponse } from '../types/systemConfig';
 import { getReportText, normalizeReportLanguage } from '../utils/reportLanguage';
 
@@ -418,7 +423,7 @@ const HomePage: React.FC = () => {
       className="flex h-[calc(100vh-5rem)] w-full flex-col overflow-hidden md:flex-row sm:h-[calc(100vh-5.5rem)] lg:h-[calc(100vh-2rem)]"
     >
       <div className="flex-1 flex flex-col min-h-0 min-w-0 max-w-full lg:max-w-6xl mx-auto w-full">
-        <header className="flex min-w-0 flex-shrink-0 items-center overflow-hidden px-3 py-3 md:px-4 md:py-4">
+        <header className="flex min-w-0 flex-shrink-0 items-center overflow-hidden p-3 md:p-4">
           <div className="flex min-w-0 flex-1 flex-col gap-2.5 md:flex-row md:items-center">
             <div className="flex min-w-0 flex-1 items-center gap-2.5">
               <button
@@ -426,7 +431,7 @@ const HomePage: React.FC = () => {
                 className="md:hidden -ml-1 flex-shrink-0 rounded-lg p-1.5 text-secondary-text transition-colors hover:bg-hover hover:text-foreground"
                 aria-label="历史记录"
               >
-                <svg className="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <svg className="size-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 12h16M4 18h16" />
                 </svg>
               </button>
@@ -468,7 +473,7 @@ const HomePage: React.FC = () => {
                   type="checkbox"
                   checked={notify}
                   onChange={(e) => setNotify(e.target.checked)}
-                  className="h-3.5 w-3.5 rounded border-border accent-primary"
+                  className="size-3.5 rounded border-border accent-primary"
                 />
                 推送通知
               </label>
@@ -481,7 +486,7 @@ const HomePage: React.FC = () => {
                 onClick={() => void handleTriggerMarketReview()}
                 className="h-10 flex-1 whitespace-nowrap md:flex-none"
               >
-                <BarChart3 className="h-4 w-4" aria-hidden="true" />
+                <BarChart3 className="size-4" aria-hidden="true" />
                 大盘复盘
               </Button>
               <button
@@ -492,7 +497,7 @@ const HomePage: React.FC = () => {
               >
                 {isAnalyzing ? (
                   <>
-                    <svg className="h-3.5 w-3.5 animate-spin" fill="none" viewBox="0 0 24 24">
+                    <svg className="size-3.5 animate-spin" fill="none" viewBox="0 0 24 24">
                       <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
                       <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" />
                     </svg>
@@ -606,7 +611,7 @@ const HomePage: React.FC = () => {
             ) : null}
 
             {marketReviewReport ? (
-              <div className="mb-3 rounded-xl border border-subtle bg-surface/70 px-3 py-3 text-xs text-secondary-text shadow-sm">
+              <div className="mb-3 rounded-xl border border-subtle bg-surface/70 p-3 text-xs text-secondary-text shadow-sm">
                 <div className="mb-2 flex items-center justify-between gap-2">
                   <p className="font-semibold text-foreground">大盘复盘报告</p>
                   <button
@@ -647,7 +652,7 @@ const HomePage: React.FC = () => {
                     disabled={isAnalyzing || selectedReport.meta.id === undefined}
                     onClick={handleReanalyze}
                   >
-                    <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <svg className="size-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
                     </svg>
                     {reportText.reanalyze}
@@ -658,7 +663,7 @@ const HomePage: React.FC = () => {
                     disabled={selectedReport.meta.id === undefined}
                     onClick={handleAskFollowUp}
                   >
-                    <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <svg className="size-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z" />
                     </svg>
                     追问 AI
@@ -669,7 +674,7 @@ const HomePage: React.FC = () => {
                     disabled={selectedReport.meta.id === undefined}
                     onClick={openMarkdownDrawer}
                   >
-                    <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <svg className="size-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
                     </svg>
                     {reportText.fullReport}

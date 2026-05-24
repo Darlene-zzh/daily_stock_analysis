@@ -1,6 +1,8 @@
 import type React from 'react';
-import { Badge, Card, StatusDot } from '../common';
-import { DashboardPanelHeader } from '../dashboard';
+import { Badge } from '../common/Badge';
+import { Card } from '../common/Card';
+import { StatusDot } from '../common/StatusDot';
+import { DashboardPanelHeader } from '../dashboard/DashboardPanelHeader';
 import type { TaskInfo } from '../../types/analysis';
 
 /**
@@ -26,9 +28,9 @@ const TaskItem: React.FC<TaskItemProps> = ({ task }) => {
       {/* 状态图标 */}
       <div className="shrink-0">
         {isProcessing ? (
-          <StatusDot tone="info" pulse className="h-2.5 w-2.5" aria-label="任务进行中" />
+          <StatusDot tone="info" pulse className="size-2.5" aria-label="任务进行中" />
         ) : isPending ? (
-          <StatusDot tone="neutral" className="h-2.5 w-2.5" aria-label="任务等待中" />
+          <StatusDot tone="neutral" className="size-2.5" aria-label="任务等待中" />
         ) : null}
       </div>
 
@@ -67,7 +69,7 @@ const TaskItem: React.FC<TaskItemProps> = ({ task }) => {
           className="min-w-[4.75rem] justify-center gap-1.5 shadow-none"
           aria-label={`任务状态：${statusLabel}`}
         >
-          <StatusDot tone={statusTone} pulse={isProcessing} className="h-1.5 w-1.5" />
+          <StatusDot tone={statusTone} pulse={isProcessing} className="size-1.5" />
           {statusLabel}
         </Badge>
       </div>
@@ -118,13 +120,13 @@ export const TaskPanel: React.FC<TaskPanelProps> = ({
       padding="none"
       className={`home-panel-card overflow-hidden ${className}`}
     >
-      <div className="border-b border-subtle px-3 py-3">
+      <div className="border-b border-subtle p-3">
         <DashboardPanelHeader
           className="mb-0"
           title={title}
           titleClassName="text-sm font-medium"
           leading={(
-            <svg className="h-4 w-4 text-cyan" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <svg className="size-4 text-cyan" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path
                 strokeLinecap="round"
                 strokeLinejoin="round"
@@ -138,13 +140,13 @@ export const TaskPanel: React.FC<TaskPanelProps> = ({
             <div className="flex items-center gap-2 text-xs text-muted-text">
               {processingCount > 0 && (
                 <span className="flex items-center gap-1">
-                  <StatusDot tone="info" pulse className="h-1.5 w-1.5" aria-label="进行中任务" />
+                  <StatusDot tone="info" pulse className="size-1.5" aria-label="进行中任务" />
                   {processingCount} 进行中
                 </span>
               )}
               {pendingCount > 0 ? (
                 <span className="flex items-center gap-1">
-                  <StatusDot tone="neutral" className="h-1.5 w-1.5" aria-label="等待中任务" />
+                  <StatusDot tone="neutral" className="size-1.5" aria-label="等待中任务" />
                   {pendingCount} 等待中
                 </span>
               ) : null}

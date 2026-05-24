@@ -36,12 +36,18 @@ from __future__ import annotations
 import json
 import logging
 import time
+from concurrent.futures import ThreadPoolExecutor, TimeoutError as FuturesTimeoutError, as_completed
 from dataclasses import dataclass, field
-from typing import Any, Callable, Dict, List, Optional, TypedDict
+from typing import Any, Callable, Dict, List, Optional, Tuple, TypedDict
 
 from src.agent.agents.bull_researcher import BearResearcher, BullResearcher
 from src.agent.agents.master_personas import DEFAULT_PERSONA_ORDER, get_persona_class
-from src.agent.budget import LLMCallBudget, compute_effective_cap, resolve_timeout_s
+from src.agent.budget import (
+    LLMCallBudget,
+    compute_effective_cap,
+    resolve_masters_parallel,
+    resolve_timeout_s,
+)
 from src.agent.committee_checkpointer import (
     checkpoint_enabled as _checkpoint_enabled,
     clear_checkpoint as _clear_checkpoint,
@@ -70,6 +76,33 @@ from src.schemas.committee_schema import (
 )
 
 logger = logging.getLogger(__name__)
+
+
+# ============================================================
+# Bilingual output — committee prompts append this suffix when the
+# caller's AgentContext has report_language == "zh". JSON keys and
+# enum values stay English (so parsers don't break); only the
+# user-facing free-text fields switch to Simplified Chinese.
+#
+# Symmetric with src/analyzer.py's main-prompt zh_suffix (2026-05-15
+# bilingual feature) — but scoped to the committee narrative (debate,
+# master lenses, risk red_flags, PM rationale).
+# ============================================================
+COMMITTEE_LANGUAGE_SUFFIX_ZH = """
+
+## 输出语言（最高优先级）
+
+- 所有 JSON 键名保持英文不变。
+- 所有 verdict / side / severity / status 等枚举值保持英文（如 `strong_buy` / `buy` / `hold` / `avoid` / `short` / `bull` / `bear` / `none` / `soft` / `hard` / `ok` / `failed` / `partial`）。
+- persona ID 保持英文（如 `warren_buffett` / `michael_burry` / `cathie_wood` / `nassim_taleb`）。
+- 数值字段（`score` / `round_index` / `confidence` / `suggested_position_pct` / `budget_used` / `budget_cap`）保持原始类型。
+- 所有面向用户的人类可读自由文本字段必须使用简体中文，包括但不限于：
+  `headline` / `rationale` / `key_evidence` 各项 / `counter_view` / `thesis` /
+  `claim` / `evidence` 各项 / `rebuttal_to` /
+  `red_flags` 各项 /
+  `pm_rationale` / `pm_dissents` 各项的描述部分 / `error_summary`。
+- 翻译时忠实于原英文 prompt 要求的分析角度，不要扩写或二次分析。
+"""
 
 
 # ---------------------------------------------------------------------------- #
@@ -239,14 +272,69 @@ class InvestmentCommitteeOrchestrator:
                 self._bear_node(state)
                 self._snapshot(state)
 
-        # Master fan-out (deterministic order = serial for now;
-        # parallelisation hook can plug into LangGraph later)
-        for persona_id in DEFAULT_PERSONA_ORDER:
-            if self._past_deadline(state):
-                break
-            if not self._has_completed_master(state, persona_id):
-                self._master_node(state, persona_id)
+        # Master fan-out — serial by default; parallel opt-in via
+        # INVESTMENT_COMMITTEE_MASTERS_PARALLEL=true (paid-tier only).
+        # Free-tier RPM buckets shared across personas trip 429 cascades
+        # when parallel, so the default stays serial.
+        if resolve_masters_parallel() and not self._past_deadline(state):
+            pending = [
+                p for p in DEFAULT_PERSONA_ORDER
+                if not self._has_completed_master(state, p)
+            ]
+            if pending:
+                remaining_s = max(0.1, state["deadline"] - time.time())
+                with ThreadPoolExecutor(
+                    max_workers=len(pending), thread_name_prefix="committee-master",
+                ) as ex:
+                    fut_to_pid = {
+                        ex.submit(self._master_node_isolated, p): p for p in pending
+                    }
+                    try:
+                        for fut in as_completed(fut_to_pid, timeout=remaining_s):
+                            persona_id = fut_to_pid[fut]
+                            opinion_dict, is_missing = fut.result()
+                            state["masters"].append(opinion_dict)
+                            if is_missing:
+                                node = f"master_{persona_id}"
+                                if node not in state["missing_agents"]:
+                                    state["missing_agents"].append(node)
+                    except FuturesTimeoutError:
+                        state["timed_out"] = True
+                        completed_ids = {
+                            fut_to_pid[f] for f in fut_to_pid if f.done()
+                        }
+                        for p in pending:
+                            if p in completed_ids:
+                                continue
+                            node = f"master_{p}"
+                            if node in state["missing_agents"]:
+                                continue
+                            fb = failed_master_opinion(
+                                p, error_summary="deadline reached during parallel fan-out",
+                            )
+                            state["masters"].append(fb.model_dump())
+                            state["missing_agents"].append(node)
                 self._snapshot(state)
+        else:
+            # Serial path — Phase C semantics unchanged
+            for persona_id in DEFAULT_PERSONA_ORDER:
+                if self._past_deadline(state):
+                    for remaining in DEFAULT_PERSONA_ORDER:
+                        if self._has_completed_master(state, remaining):
+                            continue
+                        node = f"master_{remaining}"
+                        if node in state["missing_agents"]:
+                            continue
+                        fb = failed_master_opinion(
+                            remaining,
+                            error_summary="deadline reached before invocation",
+                        )
+                        state["masters"].append(fb.model_dump())
+                        state["missing_agents"].append(node)
+                    break
+                if not self._has_completed_master(state, persona_id):
+                    self._master_node(state, persona_id)
+                    self._snapshot(state)
 
         # Risk node
         if not self._past_deadline(state):
@@ -457,6 +545,24 @@ class InvestmentCommitteeOrchestrator:
         return graph
 
     # ----------------------------------------------------------------- #
+    # Helper — output language
+    # ----------------------------------------------------------------- #
+
+    def _language_prefix(self) -> str:
+        """Return the Chinese-output instruction PREFIX when ctx requests zh.
+
+        Prepended to system prompts (not appended) — leading directives
+        are followed more reliably by smaller LLM fallbacks (Cerebras
+        llama, Groq, mini models) which often skim past trailing rules.
+        Returns empty string for non-zh contexts so existing English
+        behavior is byte-identical.
+        """
+        lang = (getattr(self.ctx, "report_language", "zh") or "zh").lower()
+        if lang.startswith("zh"):
+            return COMMITTEE_LANGUAGE_SUFFIX_ZH + "\n\n"
+        return ""
+
+    # ----------------------------------------------------------------- #
     # Helper — deadline & retry contract
     # ----------------------------------------------------------------- #
 
@@ -520,7 +626,7 @@ class InvestmentCommitteeOrchestrator:
         try:
             parsed: DebateExchange = self._call_llm_with_retry(
                 node_name=node,
-                system_prompt=BullResearcher.system_prompt(),
+                system_prompt=self._language_prefix() + BullResearcher.system_prompt(),
                 user_message=BullResearcher.build_user_message(
                     self.ctx,
                     round_index=round_idx,
@@ -560,7 +666,7 @@ class InvestmentCommitteeOrchestrator:
         try:
             parsed: DebateExchange = self._call_llm_with_retry(
                 node_name=node,
-                system_prompt=BearResearcher.system_prompt(),
+                system_prompt=self._language_prefix() + BearResearcher.system_prompt(),
                 user_message=BearResearcher.build_user_message(
                     self.ctx,
                     round_index=round_idx,
@@ -603,7 +709,7 @@ class InvestmentCommitteeOrchestrator:
         try:
             parsed: MasterOpinion = self._call_llm_with_retry(
                 node_name=f"master_{persona_id}",
-                system_prompt=persona_cls.system_prompt(self.ctx),
+                system_prompt=self._language_prefix() + persona_cls.system_prompt(self.ctx),
                 user_message=persona_cls.build_user_message(
                     self.ctx,
                     report_json=self.report_json,
@@ -629,6 +735,48 @@ class InvestmentCommitteeOrchestrator:
             state["masters"].append(fb.model_dump())
             state["missing_agents"].append(f"master_{persona_id}")
         return state
+
+    def _master_node_isolated(self, persona_id: str) -> Tuple[Dict[str, Any], bool]:
+        """Run a single master persona without mutating shared state.
+
+        Returns ``(opinion_dict, is_missing)``:
+        - ``opinion_dict``: MasterOpinion as dict (status=ok or status=failed)
+        - ``is_missing``: True if this persona should be added to missing_agents
+
+        Used by the parallel fan-out path in ``run()`` so multiple master
+        invocations can race without lock contention on state. The serial
+        path still uses ``_master_node`` for back-compat with checkpoints.
+        """
+        try:
+            persona_cls = get_persona_class(persona_id)
+        except KeyError:
+            logger.error("[committee] unknown persona %s — skipping", persona_id)
+            fb = failed_master_opinion(persona_id, error_summary="unknown persona id")
+            return fb.model_dump(), True
+
+        try:
+            parsed: MasterOpinion = self._call_llm_with_retry(
+                node_name=f"master_{persona_id}",
+                system_prompt=self._language_prefix() + persona_cls.system_prompt(self.ctx),
+                user_message=persona_cls.build_user_message(
+                    self.ctx, report_json=self.report_json,
+                ),
+                parse=parse_master_opinion_strict,
+                schema_example=MASTER_OPINION_SCHEMA_EXAMPLE,
+            )
+            return parsed.model_dump(), False
+        except BudgetExhausted as exc:
+            fb = failed_master_opinion(persona_id, error_summary=f"budget exhausted at {exc.node}")
+            fb_dict = fb.model_dump()
+            fb_dict["status"] = "budget_exhausted"
+            return fb_dict, True
+        except CommitteeSchemaError as exc:
+            fb = failed_master_opinion(persona_id, error_summary=str(exc)[:500])
+            return fb.model_dump(), True
+        except Exception as exc:
+            logger.error("[committee] master %s crashed: %s", persona_id, exc, exc_info=True)
+            fb = failed_master_opinion(persona_id, error_summary=f"unexpected: {exc}")
+            return fb.model_dump(), True
 
     def _risk_node(self, state: CommitteeState) -> Optional[CommitteeState]:
         risk_sys = (
@@ -663,7 +811,7 @@ class InvestmentCommitteeOrchestrator:
         try:
             parsed: RiskAssessment = self._call_llm_with_retry(
                 node_name="risk",
-                system_prompt=risk_sys,
+                system_prompt=self._language_prefix() + risk_sys,
                 user_message=risk_user,
                 parse=parse_risk_assessment_strict,
                 schema_example=RISK_ASSESSMENT_SCHEMA_EXAMPLE,
@@ -739,7 +887,7 @@ class InvestmentCommitteeOrchestrator:
         try:
             parsed: CommitteeMinutes = self._call_llm_with_retry(
                 node_name="pm",
-                system_prompt=pm_sys,
+                system_prompt=self._language_prefix() + pm_sys,
                 user_message=pm_user,
                 parse=parse_committee_minutes_strict,
                 schema_example=COMMITTEE_MINUTES_PM_SCHEMA_EXAMPLE,

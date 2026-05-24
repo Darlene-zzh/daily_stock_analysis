@@ -1,5 +1,5 @@
 import type React from 'react';
-import { Badge } from '../common';
+import { Badge } from '../common/Badge';
 import type { HistoryItem } from '../../types/analysis';
 import { getSentimentColor } from '../../types/analysis';
 import { formatDateTime } from '../../utils/format';
@@ -54,7 +54,7 @@ export const HistoryListItem: React.FC<HistoryListItemProps> = ({
           checked={isChecked}
           onChange={() => onToggleChecked(item.id)}
           disabled={isDeleting}
-          className="h-3.5 w-3.5 cursor-pointer rounded border-subtle-hover bg-transparent accent-primary focus:ring-primary/30 disabled:opacity-50"
+          className="size-3.5 cursor-pointer rounded border-subtle-hover bg-transparent accent-primary focus:ring-primary/30 disabled:opacity-50"
         />
       </div>
       <button
@@ -105,7 +105,7 @@ export const HistoryListItem: React.FC<HistoryListItemProps> = ({
               <span className="text-[11px] text-secondary-text font-mono">
                 {item.stockCode}
               </span>
-              <span className="w-1 h-1 rounded-full bg-subtle-hover" />
+              <span className="size-1 rounded-full bg-subtle-hover" />
               <span className="text-[11px] text-muted-text">
                 {formatDateTime(item.createdAt)}
               </span>

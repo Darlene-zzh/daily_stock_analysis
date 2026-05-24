@@ -38,17 +38,17 @@ export const Shell: React.FC<ShellProps> = ({ children }) => {
         <button
           type="button"
           onClick={() => setMobileOpen(true)}
-          className="pointer-events-auto inline-flex h-10 w-10 items-center justify-center rounded-xl border border-border/70 bg-card/85 text-secondary-text shadow-soft-card backdrop-blur-md transition-colors hover:bg-hover hover:text-foreground"
+          className="pointer-events-auto inline-flex size-10 items-center justify-center rounded-xl border border-border/70 bg-card/85 text-secondary-text shadow-soft-card backdrop-blur-md transition-colors hover:bg-hover hover:text-foreground"
           aria-label="打开导航菜单"
         >
-          <Menu className="h-5 w-5" />
+          <Menu className="size-5" />
         </button>
         <div className="pointer-events-auto">
           <ThemeToggle />
         </div>
       </div>
 
-      <div className="mx-auto flex min-h-screen w-full max-w-[1680px] px-3 py-3 sm:px-4 sm:py-4 lg:px-5">
+      <div className="mx-auto flex min-h-screen w-full max-w-[1680px] p-3 sm:p-4 lg:px-5">
         <aside
           className={cn(
             'sticky top-3 z-40 hidden shrink-0 overflow-visible rounded-[1.5rem] border border-[var(--shell-sidebar-border)] bg-card/72 p-2 shadow-soft-card backdrop-blur-sm transition-[width] duration-200 lg:flex',

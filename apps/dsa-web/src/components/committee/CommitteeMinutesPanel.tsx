@@ -50,6 +50,27 @@ const labelVerdict = (
   return VERDICT_LABEL[verdict][language];
 };
 
+/**
+ * Map a committee master's error_summary to a short human-readable
+ * absent reason tag. Falls back to the first 30 chars when no
+ * pattern matches.
+ */
+function shortAbsentReason(
+  errorSummary: string | null | undefined,
+  language: ReportLanguage,
+): string | null {
+  if (!errorSummary) return null;
+  const s = errorSummary.toLowerCase();
+  const zh = language === 'zh';
+  if (s.includes('deadline')) return zh ? '超时跳过' : 'deadline';
+  if (s.includes('schema') || s.includes('parse') || s.includes('critical field')) {
+    return zh ? '解析失败' : 'parse error';
+  }
+  if (s.includes('budget')) return zh ? '预算超支' : 'budget';
+  if (s.includes('unexpected')) return zh ? '运行异常' : 'crash';
+  return errorSummary.slice(0, 30);
+}
+
 // ---------- subcomponents --------------------------------------------------
 
 interface StatusBannerProps {
@@ -295,7 +316,7 @@ const LensCard: React.FC<LensCardProps> = ({
       <div className="flex items-center gap-2">
         <span
           aria-hidden="true"
-          className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-xs font-bold text-white"
+          className="flex size-8 shrink-0 items-center justify-center rounded-full text-xs font-bold text-white"
           style={{ backgroundColor: display.avatarColor }}
         >
           {display.avatarInitials}
@@ -307,12 +328,26 @@ const LensCard: React.FC<LensCardProps> = ({
           ) : null}
         </div>
         {isAbsent ? (
-          <span
-            data-testid={`committee-lens-absent-${personaId}`}
-            className="rounded-full border border-subtle px-2 py-0.5 text-[11px] uppercase tracking-wide text-secondary-text"
-          >
-            {language === 'en' ? 'absent' : '缺席'}
-          </span>
+          <div className="flex items-center gap-1">
+            <span
+              data-testid={`committee-lens-absent-${personaId}`}
+              className="rounded-full border border-subtle px-2 py-0.5 text-[11px] uppercase tracking-wide text-secondary-text"
+            >
+              {language === 'en' ? 'absent' : '缺席'}
+            </span>
+            {(() => {
+              const reason = shortAbsentReason(opinion?.errorSummary, language);
+              return reason ? (
+                <span
+                  data-testid={`committee-lens-reason-${personaId}`}
+                  className="text-[11px] text-muted-text"
+                  title={opinion?.errorSummary ?? ''}
+                >
+                  {reason}
+                </span>
+              ) : null;
+            })()}
+          </div>
         ) : opinion?.verdict ? (
           <span
             className={

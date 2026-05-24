@@ -155,6 +155,31 @@ class PortfolioContextResult:
             "total_equity": self.total_equity,
         }
 
+    def to_fact_bundle_dict(self) -> Dict[str, Any]:
+        """Translate this result into the dict shape consumed by
+        ``src/analysis/extractors/portfolio.py``.
+
+        Field names differ from ``to_dict()`` deliberately: the extractor
+        reads ``match_state`` / ``holding_shares`` / ``unrealized_pnl_amount`` /
+        ``currency``, not ``is_held`` / ``quantity`` / ``unrealized_pnl_base`` /
+        ``position_currency``. Position-specific fields are only populated
+        when ``is_held`` is true — the extractor short-circuits on a single
+        ``portfolio.position_match`` fact otherwise.
+        """
+        return {
+            "match_state": "held" if self.is_held else "not_held",
+            "holding_shares": self.quantity if self.is_held else None,
+            "avg_cost": self.avg_cost if self.is_held else None,
+            "currency": self.position_currency,
+            "unrealized_pnl_pct": self.unrealized_pnl_pct if self.is_held else None,
+            "unrealized_pnl_amount": (
+                self.unrealized_pnl_base if self.is_held else None
+            ),
+            "base_currency": self.base_currency,
+            "total_equity": self.total_equity,
+            "first_buy_date": self.first_buy_date,
+        }
+
 
 class PortfolioContextService:
     """Compose a per-(account, symbol) context block for the LLM analyzer."""
@@ -545,12 +570,17 @@ def build_strategy_classify_prompt(
     portfolio_context_block: Optional[str],
     sentiment_dimensions: Optional[Dict[str, Any]],
     compact_dashboard: Dict[str, Any],
+    fact_bundle: Optional[Dict[str, Any]] = None,
 ) -> str:
     """Compose the strategy-classification + action-plan-generation prompt.
 
     Universal: runs for all stocks (with or without portfolio). When portfolio is
     absent, cost-based rules switch to current-price relative rules. When sentiment
     is absent (e.g. A/HK stocks), the sentiment section degrades to text-only signal.
+
+    Phase 2: when `fact_bundle` is provided (a dict matching FactBundle JSON
+    shape), append a facts table + candidates menu + output contract so the LLM
+    grounds its action_plan_items in concrete fact_ids and candidate_ids.
     """
     has_portfolio = bool(portfolio_context_block and portfolio_context_block.strip())
     parts = [STRATEGY_CLASSIFY_INSTRUCTION_ZH]
@@ -570,13 +600,52 @@ def build_strategy_classify_prompt(
         compact_dashboard, ensure_ascii=False, indent=2, default=str,
     ))
 
+    if fact_bundle:
+        # Lazy-import to avoid cyclic dependency (analysis -> services).
+        from src.analysis.facts import FactBundle, FactRecord, CandidateLevel
+        from src.analysis.prompt_blocks import (
+            format_facts_table, format_candidates_menu, OUTPUT_CONTRACT_ZH,
+        )
+
+        try:
+            bundle = FactBundle(
+                as_of=fact_bundle.get("as_of", ""),
+                market=fact_bundle.get("market", "us"),
+                stock_code=fact_bundle.get("stock_code", ""),
+                facts=[FactRecord(**f) for f in fact_bundle.get("facts", [])],
+                candidates=[CandidateLevel(**c) for c in fact_bundle.get("candidates", [])],
+            )
+            parts.append("\n" + format_facts_table(bundle))
+            parts.append("\n" + format_candidates_menu(bundle))
+            parts.append("\n" + OUTPUT_CONTRACT_ZH)
+        except Exception:
+            # Defensive: never break the legacy prompt if the bundle shape is off.
+            pass
+
     parts.append(
         "\n## 输出\n仅输出合法 JSON，顶层结构：\n"
         "{\n"
         '  "strategy_choices": [...],\n'
         '  "recommended_strategy": "<id>",\n'
         '  "strategy_thesis": "<100-200 字>",\n'
-        '  "action_plan_items": [...],\n'
+        '  "action_plan_items": [\n'
+        '    {\n'
+        '      "candidate_id": "candidate.exit.1",\n'
+        '      "trigger_price": 226.13,\n'
+        '      "direction": "take_profit",\n'
+        '      "shares": 0.23,\n'
+        '      "pct_of_position": 30.0,\n'
+        '      "technical_basis": "...",\n'
+        '      "fundamental_basis": "...",\n'
+        '      "quant_signal": "...",\n'
+        '      "invalidation_rule": "...",\n'
+        '      "priority": 1,\n'
+        '      "evidence_refs": ["technical.resistance", "committee.pm_verdict"],\n'
+        '      "narrative": "...",\n'
+        '      "tier": "primary",\n'
+        '      "provenance": "llm"\n'
+        '    }\n'
+        '  ],\n'
         '  "position_outcome_summary": {...}\n'
         "}\n"
         "不输出任何注释或代码块标记。"

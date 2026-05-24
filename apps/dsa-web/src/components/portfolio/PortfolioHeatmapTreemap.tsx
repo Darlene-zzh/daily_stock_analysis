@@ -6,7 +6,8 @@ import {
 } from 'recharts';
 import { portfolioApi } from '../../api/portfolio';
 import { getParsedApiError } from '../../api/error';
-import { Card, EmptyState } from '../common';
+import { Card } from '../common/Card';
+import { EmptyState } from '../common/EmptyState';
 import type { PortfolioPositionItem } from '../../types/portfolio';
 
 /**

@@ -4,7 +4,9 @@ import type {
   ReportMeta,
   ReportSummary as ReportSummaryType,
 } from '../../types/analysis';
-import { Badge, Card, ScoreGauge } from '../common';
+import { Badge } from '../common/Badge';
+import { Card } from '../common/Card';
+import { ScoreGauge } from '../common/ScoreGauge';
 import { formatDateTime } from '../../utils/format';
 import { getReportText, normalizeReportLanguage } from '../../utils/reportLanguage';
 
@@ -132,7 +134,7 @@ export const ReportOverview: React.FC<ReportOverviewProps> = ({
             <div className="flex items-start justify-between mb-5">
               <div className="flex-1">
                 <div className="flex items-center gap-3">
-                  <h2 className="text-[28px] font-bold leading-tight text-foreground">
+                  <h2 className="text-[28px] font-semibold leading-tight text-foreground">
                     {meta.stockName || meta.stockCode}
                   </h2>
                   {/* 价格和涨跌幅 */}
@@ -152,7 +154,7 @@ export const ReportOverview: React.FC<ReportOverviewProps> = ({
                     {meta.stockCode}
                   </span>
                   <span className="text-xs text-muted-text flex items-center gap-1">
-                    <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <svg className="size-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
                     </svg>
                     {formatDateTime(meta.createdAt)}
@@ -181,8 +183,8 @@ export const ReportOverview: React.FC<ReportOverviewProps> = ({
               style={{ ['--home-insight-tone' as string]: 'var(--home-strategy-buy)' }}
             >
               <div className="flex items-start gap-3">
-                <div className="home-insight-icon w-8 h-8 rounded-lg bg-success/10 flex items-center justify-center flex-shrink-0">
-                  <svg className="w-4 h-4 text-success" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <div className="home-insight-icon size-8 rounded-lg bg-success/10 flex items-center justify-center flex-shrink-0">
+                  <svg className="size-4 text-success" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4" />
                   </svg>
                 </div>
@@ -204,8 +206,8 @@ export const ReportOverview: React.FC<ReportOverviewProps> = ({
               style={{ ['--home-insight-tone' as string]: 'var(--home-strategy-take)' }}
             >
               <div className="flex items-start gap-3">
-                <div className="home-insight-icon w-8 h-8 rounded-lg bg-warning/10 flex items-center justify-center flex-shrink-0">
-                  <svg className="w-4 h-4 text-warning" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <div className="home-insight-icon size-8 rounded-lg bg-warning/10 flex items-center justify-center flex-shrink-0">
+                  <svg className="size-4 text-warning" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M13 7h8m0 0v8m0-8l-8 8-4-4-6 6" />
                   </svg>
                 </div>

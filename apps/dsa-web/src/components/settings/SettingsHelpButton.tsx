@@ -5,7 +5,7 @@ import { createPortal } from 'react-dom';
 import type { SystemConfigFieldSchema } from '../../types/systemConfig';
 import { getSettingsHelpContent } from '../../locales/settingsHelp';
 import { cn } from '../../utils/cn';
-import { Tooltip } from '../common';
+import { Tooltip } from '../common/Tooltip';
 
 interface SettingsHelpButtonProps {
   fieldKey: string;
@@ -59,7 +59,7 @@ function HelpList({ items }: { items?: string[] }) {
     <ul className="space-y-1.5 text-sm leading-6 text-secondary-text">
       {items.map((item) => (
         <li className="flex gap-2" key={item}>
-          <span className="mt-2 h-1.5 w-1.5 shrink-0 rounded-full bg-cyan/70" />
+          <span className="mt-2 size-1.5 shrink-0 rounded-full bg-cyan/70" />
           <span>{item}</span>
         </li>
       ))}
@@ -174,13 +174,13 @@ export const SettingsHelpButton: React.FC<SettingsHelpButtonProps> = ({
           <button
             ref={buttonRef}
             type="button"
-            className="inline-flex h-7 w-7 items-center justify-center rounded-lg border border-transparent text-muted-text transition-colors hover:border-[var(--settings-border)] hover:bg-[var(--settings-surface-hover)] hover:text-foreground focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-cyan/15"
+            className="inline-flex size-7 items-center justify-center rounded-lg border border-transparent text-muted-text transition-colors hover:border-[var(--settings-border)] hover:bg-[var(--settings-surface-hover)] hover:text-foreground focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-cyan/15"
             aria-label={`查看 ${title} 配置说明`}
             aria-expanded={open}
             aria-controls={open ? titleId : undefined}
             onClick={() => setOpen(true)}
           >
-            <CircleHelp aria-hidden="true" className="h-4 w-4" />
+            <CircleHelp aria-hidden="true" className="size-4" />
           </button>
         </span>
       </Tooltip>
@@ -223,14 +223,14 @@ export const SettingsHelpButton: React.FC<SettingsHelpButtonProps> = ({
                     ref={closeButtonRef}
                     type="button"
                     onClick={() => setOpen(false)}
-                    className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-xl border border-border/70 bg-card/80 text-secondary-text transition-colors hover:bg-hover hover:text-foreground focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-cyan/15"
+                    className="inline-flex size-9 shrink-0 items-center justify-center rounded-xl border border-border/70 bg-card/80 text-secondary-text transition-colors hover:bg-hover hover:text-foreground focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-cyan/15"
                     aria-label="关闭配置说明"
                   >
-                    <X aria-hidden="true" className="h-4 w-4" />
+                    <X aria-hidden="true" className="size-4" />
                   </button>
                 </div>
 
-                <div className="space-y-5 overflow-y-auto px-5 py-5">
+                <div className="space-y-5 overflow-y-auto p-5">
                   <HelpSection title="用途">
                     {help.usage ? <p className="text-sm leading-6 text-secondary-text">{help.usage}</p> : null}
                   </HelpSection>
@@ -263,7 +263,7 @@ export const SettingsHelpButton: React.FC<SettingsHelpButtonProps> = ({
                             target="_blank"
                           >
                             <span>{doc.label}</span>
-                            <ExternalLink aria-hidden="true" className="h-3.5 w-3.5" />
+                            <ExternalLink aria-hidden="true" className="size-3.5" />
                           </a>
                         ))}
                       </div>

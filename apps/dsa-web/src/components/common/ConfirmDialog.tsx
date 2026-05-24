@@ -1,4 +1,5 @@
 import type React from 'react';
+import { useEffect } from 'react';
 import { createPortal } from 'react-dom';
 
 interface ConfirmDialogProps {
@@ -26,16 +27,38 @@ export const ConfirmDialog: React.FC<ConfirmDialogProps> = ({
   onConfirm,
   onCancel,
 }) => {
+  // Escape closes the dialog — primary keyboard dismissal path.
+  useEffect(() => {
+    if (!isOpen) return;
+    const handleKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') onCancel();
+    };
+    document.addEventListener('keydown', handleKey);
+    return () => document.removeEventListener('keydown', handleKey);
+  }, [isOpen, onCancel]);
+
   if (!isOpen) return null;
+
+  // Backdrop click closes only when the click lands on the backdrop itself,
+  // not when it bubbles up from the dialog card. Avoids needing a separate
+  // onClick={stopPropagation} on the inner card (which jsx-a11y flags).
+  // Outer element is the dialog itself (role="dialog") rather than a <button>
+  // because nesting Cancel/Confirm <button>s inside an outer <button> would be
+  // invalid HTML and break the DOM.
+  const handleBackdropClick = (e: React.MouseEvent<HTMLDivElement>) => {
+    if (e.target === e.currentTarget) onCancel();
+  };
 
   const dialog = (
     <div
+      role="dialog"
+      aria-modal="true"
+      aria-label={title}
       className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm transition-all"
-      onClick={onCancel}
+      onClick={handleBackdropClick}
     >
       <div
         className="mx-4 w-full max-w-sm rounded-xl border border-border/70 bg-elevated p-6 shadow-2xl animate-in fade-in zoom-in duration-200"
-        onClick={(e) => e.stopPropagation()}
       >
         <h3 className="mb-2 text-lg font-medium text-foreground">{title}</h3>
         <p className="text-sm text-secondary-text mb-6 leading-relaxed">

@@ -1,8 +1,8 @@
 import type React from 'react';
 import { useEffect, useRef, useState } from 'react';
 import type { ReportDetails as ReportDetailsType, ReportLanguage } from '../../types/analysis';
-import { Card } from '../common';
-import { DashboardPanelHeader } from '../dashboard';
+import { Card } from '../common/Card';
+import { DashboardPanelHeader } from '../dashboard/DashboardPanelHeader';
 import { getReportText, normalizeReportLanguage } from '../../utils/reportLanguage';
 
 interface ReportDetailsProps {

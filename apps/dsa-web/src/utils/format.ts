@@ -1,15 +1,31 @@
+// Hoist Intl formatters to module scope so each call reuses one instance
+// instead of allocating a new formatter (cheap individually, but several
+// dozen allocations per locale lookup according to the Intl spec).
+
+const DATETIME_ZH = new Intl.DateTimeFormat('zh-CN', {
+  year: 'numeric',
+  month: '2-digit',
+  day: '2-digit',
+  hour: '2-digit',
+  minute: '2-digit',
+});
+
+const DATE_ZH = new Intl.DateTimeFormat('zh-CN', {
+  year: 'numeric',
+  month: '2-digit',
+  day: '2-digit',
+});
+
+const DATE_ISO_SHANGHAI = new Intl.DateTimeFormat('en-CA', {
+  timeZone: 'Asia/Shanghai',
+});
+
 export const formatDateTime = (value?: string): string => {
   if (!value) return '—';
   const date = new Date(value);
   if (Number.isNaN(date.getTime())) return value;
 
-  return new Intl.DateTimeFormat('zh-CN', {
-    year: 'numeric',
-    month: '2-digit',
-    day: '2-digit',
-    hour: '2-digit',
-    minute: '2-digit',
-  }).format(date);
+  return DATETIME_ZH.format(date);
 };
 
 export const formatDate = (value?: string): string => {
@@ -17,11 +33,7 @@ export const formatDate = (value?: string): string => {
   const date = new Date(value);
   if (Number.isNaN(date.getTime())) return value;
 
-  return new Intl.DateTimeFormat('zh-CN', {
-    year: 'numeric',
-    month: '2-digit',
-    day: '2-digit',
-  }).format(date);
+  return DATE_ZH.format(date);
 };
 
 export const toDateInputValue = (date: Date): string => {
@@ -39,7 +51,7 @@ export const toDateInputValue = (date: Date): string => {
 export const getRecentStartDate = (days: number): string => {
   const date = new Date();
   date.setDate(date.getDate() - days);
-  return new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Shanghai' }).format(date);
+  return DATE_ISO_SHANGHAI.format(date);
 };
 
 /**
@@ -48,7 +60,7 @@ export const getRecentStartDate = (days: number): string => {
  * which stores and filters timestamps in server local time (Asia/Shanghai).
  */
 export const getTodayInShanghai = (): string =>
-  new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Shanghai' }).format(new Date());
+  DATE_ISO_SHANGHAI.format(new Date());
 
 export const formatReportType = (value?: string): string => {
   if (!value) return '—';

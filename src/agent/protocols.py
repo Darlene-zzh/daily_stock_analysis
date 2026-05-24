@@ -71,6 +71,7 @@ class AgentContext:
     query: str = ""
     stock_code: str = ""
     stock_name: str = ""
+    report_language: str = "zh"  # "zh" | "en" — propagated to committee prompts for bilingual output
     session_id: str = ""
 
     # --- collected data (populated by data-fetching stages) ---

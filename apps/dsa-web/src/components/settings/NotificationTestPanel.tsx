@@ -8,7 +8,12 @@ import type {
   TestNotificationChannelResponse,
   SystemConfigUpdateItem,
 } from '../../types/systemConfig';
-import { ApiErrorAlert, Badge, Button, InlineAlert, Input, Select } from '../common';
+import { ApiErrorAlert } from '../common/ApiErrorAlert';
+import { Badge } from '../common/Badge';
+import { Button } from '../common/Button';
+import { InlineAlert } from '../common/InlineAlert';
+import { Input } from '../common/Input';
+import { Select } from '../common/Select';
 import { SettingsSectionCard } from './SettingsSectionCard';
 
 const CHANNEL_OPTIONS: Array<{ value: NotificationTestChannel; label: string }> = [
@@ -92,7 +97,7 @@ export const NotificationTestPanel: React.FC<NotificationTestPanelProps> = ({
           isLoading={isTesting}
           loadingText="测试中..."
         >
-          <Send className="h-4 w-4" />
+          <Send className="size-4" />
           发送测试
         </Button>
       )}

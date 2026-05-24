@@ -1,6 +1,9 @@
 import { useState } from 'react';
 import type React from 'react';
-import { Badge, Button, Select, Input } from '../common';
+import { Badge } from '../common/Badge';
+import { Button } from '../common/Button';
+import { Select } from '../common/Select';
+import { Input } from '../common/Input';
 import type { ConfigValidationIssue, SystemConfigFieldSchema, SystemConfigItem } from '../../types/systemConfig';
 import { getFieldDescriptionZh, getFieldTitleZh } from '../../utils/systemConfigI18n';
 import { cn } from '../../utils/cn';

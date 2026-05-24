@@ -77,7 +77,7 @@ export const CommitteeOptIn: React.FC<CommitteeOptInProps> = ({
           <span
             aria-hidden="true"
             className={
-              'inline-block h-2 w-2 rounded-full ' +
+              'inline-block size-2 rounded-full ' +
               (enabled ? 'bg-primary' : 'bg-subtle')
             }
           />
@@ -101,10 +101,11 @@ export const CommitteeOptIn: React.FC<CommitteeOptInProps> = ({
               type="checkbox"
               role="switch"
               checked={enabled}
+              aria-checked={enabled}
               disabled={disabled}
               onChange={(e) => onEnabledChange(e.target.checked)}
               aria-describedby={`${switchId}-hint`}
-              className="h-3.5 w-3.5 rounded border-border accent-primary"
+              className="size-3.5 rounded border-border accent-primary"
             />
             <span className="text-foreground">
               Convene the committee for this analysis
@@ -140,7 +141,7 @@ export const CommitteeOptIn: React.FC<CommitteeOptInProps> = ({
                       checked={rounds === value}
                       disabled={!enabled || disabled}
                       onChange={() => onRoundsChange(value)}
-                      className="h-3.5 w-3.5 accent-primary"
+                      className="size-3.5 accent-primary"
                     />
                     <span className="text-foreground">{value}</span>
                   </label>

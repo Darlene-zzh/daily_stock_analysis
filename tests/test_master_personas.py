@@ -275,3 +275,27 @@ def test_output_skeleton_has_all_required_keys(persona_cls):
         assert f'"{key}"' in skeleton_block
     # Sanity that the JSON example's persona literal matches the class id
     assert f'"persona": "{persona_cls.persona_id}"' in skeleton_block
+
+
+# --------------------------------------------------------------------------- #
+# G2 — TPM-budget cap on system_prompt size
+# --------------------------------------------------------------------------- #
+
+
+@pytest.mark.parametrize("persona_cls", PERSONA_CLASSES, ids=lambda c: c.persona_id)
+def test_persona_system_prompt_under_1400_chars(persona_cls):
+    """Slim master system prompts to <=1400 chars so 4-way parallel
+    fan-out (Phase I) and TPM-constrained channels (Cerebras free
+    tier ~40k TPM shared with debate prompts) have headroom.
+
+    Why: previously ~2100 chars per persona x 4 masters x retry =
+    ~17k chars system overhead per analysis. Slimming to ~1300
+    average brings it down to ~10k while preserving tenets,
+    scope guard, enum syntax, and all 8 schema fields.
+    """
+    ctx = _make_ctx()
+    prompt = persona_cls.system_prompt(ctx)
+    assert len(prompt) <= 1400, (
+        f"{persona_cls.__name__}.system_prompt is {len(prompt)} chars; "
+        "must be <= 1400 to keep TPM budget room"
+    )

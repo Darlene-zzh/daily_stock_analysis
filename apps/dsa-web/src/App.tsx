@@ -8,23 +8,24 @@ import LoginPage from './pages/LoginPage';
 import NotFoundPage from './pages/NotFoundPage';
 import ChatPage from './pages/ChatPage';
 import PortfolioPage from './pages/PortfolioPage';
-import { ApiErrorAlert, Shell } from './components/common';
+import { ApiErrorAlert } from './components/common/ApiErrorAlert';
+import { Shell } from './components/layout/Shell';
 import { AuthProvider, useAuth } from './contexts/AuthContext';
 import { useAgentChatStore } from './stores/agentChatStore';
 import './App.css';
 
 const AppContent: React.FC = () => {
-  const location = useLocation();
+  const { pathname, search } = useLocation();
   const { authEnabled, loggedIn, isLoading, loadError, refreshStatus } = useAuth();
 
   useEffect(() => {
-    useAgentChatStore.getState().setCurrentRoute(location.pathname);
-  }, [location.pathname]);
+    useAgentChatStore.getState().setCurrentRoute(pathname);
+  }, [pathname]);
 
   if (isLoading) {
     return (
       <div className="flex min-h-screen items-center justify-center bg-base">
-        <div className="h-8 w-8 animate-spin rounded-full border-2 border-cyan/20 border-t-cyan" />
+        <div className="size-8 animate-spin rounded-full border-2 border-cyan/20 border-t-cyan" />
       </div>
     );
   }
@@ -47,14 +48,14 @@ const AppContent: React.FC = () => {
   }
 
   if (authEnabled && !loggedIn) {
-    if (location.pathname === '/login') {
+    if (pathname === '/login') {
       return <LoginPage />;
     }
-    const redirect = encodeURIComponent(location.pathname + location.search);
+    const redirect = encodeURIComponent(pathname + search);
     return <Navigate to={`/login?redirect=${redirect}`} replace />;
   }
 
-  if (location.pathname === '/login') {
+  if (pathname === '/login') {
     return <Navigate to="/" replace />;
   }
 

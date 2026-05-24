@@ -1,21 +1,23 @@
 import type React from 'react';
 import { useEffect, useRef, useState } from 'react';
-import { useAuth, useSystemConfig } from '../hooks';
+import { useAuth } from '../hooks/useAuth';
+import { useSystemConfig } from '../hooks/useSystemConfig';
 import { createParsedApiError, getParsedApiError, type ParsedApiError } from '../api/error';
 import { systemConfigApi } from '../api/systemConfig';
-import { ApiErrorAlert, Button, ConfirmDialog, EmptyState } from '../components/common';
-import {
-  AuthSettingsCard,
-  ChangePasswordCard,
-  IntelligentImport,
-  LLMChannelEditor,
-  NotificationTestPanel,
-  SettingsCategoryNav,
-  SettingsAlert,
-  SettingsField,
-  SettingsLoading,
-  SettingsSectionCard,
-} from '../components/settings';
+import { ApiErrorAlert } from '../components/common/ApiErrorAlert';
+import { Button } from '../components/common/Button';
+import { ConfirmDialog } from '../components/common/ConfirmDialog';
+import { EmptyState } from '../components/common/EmptyState';
+import { AuthSettingsCard } from '../components/settings/AuthSettingsCard';
+import { ChangePasswordCard } from '../components/settings/ChangePasswordCard';
+import { IntelligentImport } from '../components/settings/IntelligentImport';
+import { LLMChannelEditor } from '../components/settings/LLMChannelEditor/LLMChannelEditor';
+import { NotificationTestPanel } from '../components/settings/NotificationTestPanel';
+import { SettingsCategoryNav } from '../components/settings/SettingsCategoryNav';
+import { SettingsAlert } from '../components/settings/SettingsAlert';
+import { SettingsField } from '../components/settings/SettingsField';
+import { SettingsLoading } from '../components/settings/SettingsLoading';
+import { SettingsSectionCard } from '../components/settings/SettingsSectionCard';
 import { WEB_BUILD_INFO } from '../utils/constants';
 import { getCategoryDescriptionZh } from '../utils/systemConfigI18n';
 import type { SystemConfigCategory } from '../types/systemConfig';
@@ -498,7 +500,7 @@ const SettingsPage: React.FC = () => {
 
   return (
     <div className="settings-page min-h-full px-4 pb-6 pt-4 md:px-6">
-      <div className="mb-5 rounded-[1.5rem] border settings-border bg-card/94 px-5 py-5 shadow-soft-card-strong backdrop-blur-sm">
+      <div className="mb-5 rounded-[1.5rem] border settings-border bg-card/94 p-5 shadow-soft-card-strong backdrop-blur-sm">
         <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
           <div>
             <h1 className="text-xl font-semibold tracking-tight text-foreground">系统设置</h1>
@@ -610,7 +612,7 @@ const SettingsPage: React.FC = () => {
                   重新执行前端构建或 Docker 镜像构建后，此处的构建标识和构建时间会更新，可用来确认当前页面资源是否已切换。
                 </p>
                 {canCheckDesktopUpdate ? (
-                  <div className="mt-4 space-y-3 rounded-2xl border settings-border bg-background/30 px-4 py-4">
+                  <div className="mt-4 space-y-3 rounded-2xl border settings-border bg-background/30 p-4">
                     <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
                       <div>
                         <p className="text-sm font-medium text-foreground">桌面端更新</p>

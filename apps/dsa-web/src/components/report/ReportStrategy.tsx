@@ -1,7 +1,7 @@
 import type React from 'react';
 import type { ReportLanguage, ReportStrategy as ReportStrategyType } from '../../types/analysis';
-import { Card } from '../common';
-import { DashboardPanelHeader } from '../dashboard';
+import { Card } from '../common/Card';
+import { DashboardPanelHeader } from '../dashboard/DashboardPanelHeader';
 import { getReportText, normalizeReportLanguage } from '../../utils/reportLanguage';
 
 interface ReportStrategyProps {

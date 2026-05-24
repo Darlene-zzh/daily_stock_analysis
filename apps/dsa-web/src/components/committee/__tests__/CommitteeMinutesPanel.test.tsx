@@ -147,6 +147,59 @@ describe('CommitteeMinutesPanel', () => {
     expect(screen.getByTestId('committee-lens-absent-nassim_taleb')).toHaveTextContent('absent');
   });
 
+  it('shows distinguishing absent reason for each failure mode', () => {
+    const partialWithReasons: CommitteeMinutes = {
+      ...fullMinutes,
+      status: 'partial',
+      missingAgents: ['michael_burry', 'cathie_wood', 'nassim_taleb'],
+      masters: [
+        fullMinutes.masters![0], // Buffett still ok
+        {
+          persona: 'michael_burry',
+          status: 'failed',
+          errorSummary: 'deadline reached before invocation',
+        },
+        {
+          persona: 'cathie_wood',
+          status: 'failed',
+          errorSummary: 'critical field score invalid',
+        },
+        {
+          persona: 'nassim_taleb',
+          status: 'failed',
+          errorSummary: 'budget exhausted at master_nassim_taleb',
+        },
+      ],
+    };
+
+    render(<CommitteeMinutesPanel committee={partialWithReasons} language="zh" />);
+
+    expect(screen.getByTestId('committee-lens-reason-michael_burry')).toHaveTextContent('超时跳过');
+    expect(screen.getByTestId('committee-lens-reason-cathie_wood')).toHaveTextContent('解析失败');
+    expect(screen.getByTestId('committee-lens-reason-nassim_taleb')).toHaveTextContent('预算超支');
+  });
+
+  it('shows English absent reasons in en mode', () => {
+    const partialWithReasons: CommitteeMinutes = {
+      ...fullMinutes,
+      status: 'partial',
+      missingAgents: ['michael_burry'],
+      masters: [
+        fullMinutes.masters![0],
+        {
+          persona: 'michael_burry',
+          status: 'failed',
+          errorSummary: 'deadline reached before invocation',
+        },
+        fullMinutes.masters![2],
+        fullMinutes.masters![3],
+      ],
+    };
+
+    render(<CommitteeMinutesPanel committee={partialWithReasons} language="en" />);
+    expect(screen.getByTestId('committee-lens-reason-michael_burry')).toHaveTextContent('deadline');
+  });
+
   it('suppresses the PM verdict card when status="failed"', () => {
     const failedMinutes: CommitteeMinutes = {
       ...fullMinutes,
