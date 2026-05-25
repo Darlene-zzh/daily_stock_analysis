@@ -42,7 +42,8 @@ function PlanItemRow({
     .filter(Boolean)
     .join(' / ');
 
-  const hasEvidence = (item.evidenceRefs?.length ?? 0) > 0;
+  const refs = item.evidenceRefs ?? [];
+  const hasEvidence = refs.length > 0;
   const hasNarrative = Boolean(item.narrative && item.narrative.trim());
   const hasLegacyBasis = Boolean(
     item.technicalBasis || item.fundamentalBasis || item.quantSignal || item.invalidationRule,
@@ -53,7 +54,7 @@ function PlanItemRow({
     <div className="rounded-lg border border-subtle bg-surface/40 p-3">
       {/* Header row */}
       <div className="flex flex-wrap items-start justify-between gap-2">
-        <div className="flex items-center gap-2">
+        <div className="flex flex-wrap items-center gap-2">
           <span className="text-sm font-medium text-foreground">
             {ordinal} {cfg.emoji}{' '}
             <span className={cfg.colorClass}>{cfg.label}</span>
@@ -132,7 +133,7 @@ function PlanItemRow({
           )}
           {hasEvidence && bundle && (
             <EvidenceExpansion
-              evidenceRefs={item.evidenceRefs!}
+              evidenceRefs={refs}
               bundle={bundle}
               groupBy="type"
               className="mt-1"

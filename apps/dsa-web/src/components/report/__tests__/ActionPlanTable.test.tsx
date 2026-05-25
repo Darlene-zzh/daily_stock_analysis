@@ -91,4 +91,30 @@ describe('ActionPlanTable — Phase 5 wire-in', () => {
     expect(screen.getByText('n')).toBeInTheDocument();
     expect(screen.queryByText(/技术（1）/)).not.toBeInTheDocument();
   });
+
+  it('hides the expand toggle entirely when item has no basis, narrative, or evidence', () => {
+    const bare: ActionPlanItem = {
+      ...baseItem(),
+      invalidationRule: '',
+      technicalBasis: '',
+      fundamentalBasis: '',
+      quantSignal: '',
+    };
+    render(<ActionPlanTable items={[bare]} />);
+    expect(screen.queryByText(/查看分析依据/)).not.toBeInTheDocument();
+  });
+
+  it('does NOT render EvidenceExpansion when evidenceRefs is an empty array (bundle present)', () => {
+    render(
+      <ActionPlanTable bundle={bundle} items={[baseItem({ evidenceRefs: [] })]} />,
+    );
+    // Toggle still shows because invalidationRule is set in baseItem
+    fireEvent.click(screen.getByText(/查看分析依据/));
+    expect(screen.queryByText(/技术（/)).not.toBeInTheDocument();
+  });
+
+  it('does NOT render 🤖 代码兜底 badge when provenance is llm', () => {
+    render(<ActionPlanTable items={[baseItem({ provenance: 'llm' })]} />);
+    expect(screen.queryByText(/代码兜底/)).not.toBeInTheDocument();
+  });
 });
