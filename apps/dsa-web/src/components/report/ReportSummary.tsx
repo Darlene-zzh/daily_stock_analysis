@@ -6,10 +6,9 @@ import { QuantContextPanel } from '../quant/QuantContextPanel';
 import { StructuredRiskCallout } from '../risk/StructuredRiskCallout';
 import { ReportOverview } from './ReportOverview';
 import { ActionPlanTable } from './ActionPlanTable';
-import { StrategySelector } from './StrategySelector';
-import { StrategyThesis } from './StrategyThesis';
+import { StrategyHeroCard } from './StrategyHeroCard';
 import { SentimentPanel } from './SentimentPanel';
-import { PositionOutcomeSummary } from './PositionOutcomeSummary';
+import { PositionFlowTimeline } from './PositionFlowTimeline';
 import { ReportStrategy } from './ReportStrategy';
 import { ReportNews } from './ReportNews';
 import { ReportDetails } from './ReportDetails';
@@ -128,34 +127,22 @@ export const ReportSummary: React.FC<ReportSummaryProps> = ({
           </div>
         )}
 
-      {/* 策略选择 — 4 个候选 + AI 推荐 + 论述 */}
+      {/* 策略英雄卡（推荐 + 备选 + 不适用） */}
       {report.dashboard?.coreConclusion?.strategyChoices &&
         report.dashboard.coreConclusion.strategyChoices.length > 0 && (
-          <div className="rounded-xl border border-subtle bg-card p-4 space-y-3">
-            <StrategySelector
-              choices={report.dashboard.coreConclusion.strategyChoices}
-              recommendedId={report.dashboard.coreConclusion.recommendedStrategy}
-            />
-            {report.dashboard.coreConclusion.strategyThesis && (
-              <StrategyThesis
-                // Task 8 will replace StrategyThesis with StrategyHeroCard which
-                // accepts the full union; until then, narrow to string so the
-                // legacy renderer keeps compiling.
-                thesis={
-                  typeof report.dashboard.coreConclusion.strategyThesis === 'string'
-                    ? report.dashboard.coreConclusion.strategyThesis
-                    : report.dashboard.coreConclusion.strategyThesis.text
-                }
-                recommendedLabel={undefined}
-              />
-            )}
-          </div>
+          <StrategyHeroCard
+            choices={report.dashboard.coreConclusion.strategyChoices}
+            recommendedId={report.dashboard.coreConclusion.recommendedStrategy}
+            thesis={report.dashboard.coreConclusion.strategyThesis}
+            bundle={factBundle}
+          />
         )}
 
-      {/* 仓位流水汇总 */}
+      {/* 仓位流水时间线 + 汇总 */}
       {report.dashboard?.coreConclusion?.positionOutcomeSummary && (
-        <PositionOutcomeSummary
+        <PositionFlowTimeline
           summary={report.dashboard.coreConclusion.positionOutcomeSummary}
+          triggers={report.dashboard.coreConclusion.actionPlanItems}
         />
       )}
 
