@@ -72,7 +72,6 @@ export const ReportSummary: React.FC<ReportSummaryProps> = ({
   const currentPriceFact = factBundle?.facts.find((f) => f.id === 'technical.current_price');
   const currentPrice = typeof currentPriceFact?.value === 'number' ? currentPriceFact.value : null;
   const priceMapLevels = buildPriceMapLevels(factBundle);
-  const showPriceMap = factBundle != null && currentPrice != null && currentPrice > 0 && priceMapLevels.length > 0;
 
   return (
     <div className="space-y-5 pb-8 animate-fade-in">
@@ -99,14 +98,17 @@ export const ReportSummary: React.FC<ReportSummaryProps> = ({
           }
         />
       )}
-      {showPriceMap && currentPrice != null && (
-        <PriceMapCard
-          stockCode={meta.stockCode}
-          currentPrice={currentPrice}
-          currentPriceAsOf={currentPriceFact?.as_of ?? factBundle!.as_of}
-          levels={priceMapLevels}
-        />
-      )}
+      {factBundle != null &&
+        currentPrice != null &&
+        currentPrice > 0 &&
+        priceMapLevels.length > 0 && (
+          <PriceMapCard
+            stockCode={meta.stockCode}
+            currentPrice={currentPrice}
+            currentPriceAsOf={currentPriceFact?.as_of ?? factBundle.as_of}
+            levels={priceMapLevels}
+          />
+        )}
       {/* 概览区（首屏） */}
       <ReportOverview
         meta={meta}

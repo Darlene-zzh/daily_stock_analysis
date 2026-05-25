@@ -26,7 +26,7 @@ const factBundle: FactBundle = {
   candidates: [],
 };
 
-function buildReport(opts: { withBundle: boolean }): AnalysisReport {
+function buildReport(opts: { dashboard?: AnalysisReport['dashboard'] }): AnalysisReport {
   return {
     meta: {
       id: 'rec-1',
@@ -36,19 +36,41 @@ function buildReport(opts: { withBundle: boolean }): AnalysisReport {
       generatedAt: '2026-05-25T00:00:00Z',
     } as unknown as AnalysisReport['meta'],
     summary: {} as AnalysisReport['summary'],
-    dashboard: opts.withBundle ? { factBundle } : undefined,
+    dashboard: opts.dashboard,
   };
 }
 
 describe('ReportSummary + PriceMapCard wire-in', () => {
   it('mounts PriceMapCard when a factBundle with current_price is present', () => {
-    render(<ReportSummary data={buildReport({ withBundle: true })} />);
+    render(<ReportSummary data={buildReport({ dashboard: { factBundle } })} />);
     expect(screen.getByTestId('overview')).toBeInTheDocument();
     expect(document.querySelector('[data-component="price-map-card"]')).not.toBeNull();
   });
 
-  it('does NOT mount PriceMapCard when factBundle is absent (legacy report)', () => {
-    render(<ReportSummary data={buildReport({ withBundle: false })} />);
+  it('does NOT mount PriceMapCard when dashboard itself is absent (legacy report)', () => {
+    render(<ReportSummary data={buildReport({ dashboard: undefined })} />);
+    expect(document.querySelector('[data-component="price-map-card"]')).toBeNull();
+  });
+
+  it('does NOT mount PriceMapCard when dashboard present but factBundle is undefined', () => {
+    render(<ReportSummary data={buildReport({ dashboard: { factBundle: undefined } })} />);
+    expect(document.querySelector('[data-component="price-map-card"]')).toBeNull();
+  });
+
+  it('does NOT mount PriceMapCard when factBundle has no facts (empty bundle)', () => {
+    const empty: FactBundle = { ...factBundle, facts: [], candidates: [] };
+    render(<ReportSummary data={buildReport({ dashboard: { factBundle: empty } })} />);
+    expect(document.querySelector('[data-component="price-map-card"]')).toBeNull();
+  });
+
+  it('does NOT mount PriceMapCard when current_price fact value is zero', () => {
+    const zeroPrice: FactBundle = {
+      ...factBundle,
+      facts: factBundle.facts.map((f) =>
+        f.id === 'technical.current_price' ? { ...f, value: 0, display_value: '$0.00' } : f,
+      ),
+    };
+    render(<ReportSummary data={buildReport({ dashboard: { factBundle: zeroPrice } })} />);
     expect(document.querySelector('[data-component="price-map-card"]')).toBeNull();
   });
 });
