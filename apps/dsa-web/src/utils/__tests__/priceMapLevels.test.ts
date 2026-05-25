@@ -32,22 +32,29 @@ const bundle: FactBundle = {
 };
 
 describe('buildPriceMapLevels', () => {
-  it('emits MA10/MA20/support/resistance facts with role+color', () => {
+  it('emits technical.support but NOT MAs (MA5/10/20 are meta-indicators)', () => {
     const out = buildPriceMapLevels(bundle);
-    const ma20 = out.find((l) => l.factId === 'technical.ma20');
-    expect(ma20).toMatchObject({ price: 213.4, label: 'MA20', role: 'ma', color: 'blue' });
-    const resistance = out.find((l) => l.factId === 'technical.resistance');
-    expect(resistance).toMatchObject({ role: 'resistance', color: 'orange' });
+    expect(out.find((l) => l.factId === 'technical.ma5')).toBeUndefined();
+    expect(out.find((l) => l.factId === 'technical.ma10')).toBeUndefined();
+    expect(out.find((l) => l.factId === 'technical.ma20')).toBeUndefined();
     const support = out.find((l) => l.factId === 'technical.support');
     expect(support).toMatchObject({ role: 'support', color: 'green' });
   });
 
-  it('emits primary-tier candidates with stop/target roles', () => {
+  it('emits primary-tier candidates with stop/target roles and short rule-based labels', () => {
     const out = buildPriceMapLevels(bundle);
     const stop = out.find((l) => l.factId === 'candidate.stop.1');
-    expect(stop).toMatchObject({ role: 'stop', color: 'red', price: 213.39 });
+    expect(stop).toMatchObject({ role: 'stop', color: 'red', price: 213.39, label: '跌破MA20' });
     const target = out.find((l) => l.factId === 'candidate.exit.1');
-    expect(target).toMatchObject({ role: 'target', color: 'green', price: 226.13 });
+    expect(target).toMatchObject({ role: 'target', color: 'green', price: 226.13, label: '阻力位' });
+  });
+
+  it('dedupes technical.resistance when a candidate already references it via basis_fact_id', () => {
+    // candidate.exit.1 has basis_fact_id='technical.resistance' → fact must be omitted
+    const out = buildPriceMapLevels(bundle);
+    expect(out.find((l) => l.factId === 'technical.resistance')).toBeUndefined();
+    // But the candidate IS present
+    expect(out.find((l) => l.factId === 'candidate.exit.1')).toBeDefined();
   });
 
   it('drops secondary and discipline_anchor candidates from the price map', () => {
@@ -85,15 +92,81 @@ describe('buildPriceMapLevels', () => {
     const noisy: FactBundle = {
       ...bundle,
       facts: [
-        { id: 'technical.ma10', type: 'technical', label: 'MA10', value: 'not-a-number', display_value: '—' },
-        { id: 'technical.ma20', type: 'technical', label: 'MA20', value: 0, display_value: '0' },
-        { id: 'technical.resistance', type: 'technical', label: '阻力位', value: 226.13, display_value: '$226.13' },
+        { id: 'technical.support', type: 'technical', label: '支撑', value: 'not-a-number', display_value: '—' },
+        { id: 'technical.resistance', type: 'technical', label: '阻力', value: 0, display_value: '0' },
       ],
-      candidates: [],
+      candidates: [],  // empty → no candidate dedupe; tests fact guard only
     };
     const out = buildPriceMapLevels(noisy);
-    expect(out.find((l) => l.factId === 'technical.ma10')).toBeUndefined();
-    expect(out.find((l) => l.factId === 'technical.ma20')).toBeUndefined();
-    expect(out.find((l) => l.factId === 'technical.resistance')).toMatchObject({ price: 226.13 });
+    expect(out.find((l) => l.factId === 'technical.support')).toBeUndefined();
+    expect(out.find((l) => l.factId === 'technical.resistance')).toBeUndefined();
+  });
+
+  it('dedupes two candidates at the same price (within 0.3%) keeping higher rule priority', () => {
+    // Real-world case: resistance_touch + prev_swing_high both land on 218.95.
+    // resistance_touch has rule priority 10, prev_swing_high has 12 → keep
+    // resistance_touch ("阻力位") and drop prev_swing_high ("前高").
+    const collision: FactBundle = {
+      ...bundle,
+      candidates: [
+        { id: 'candidate.exit.resistance', type: 'candidate', label: 'R', value: 218.95,
+          display_value: '$218.95', direction: 'take_profit', price: 218.95,
+          basis_fact_id: 'technical.resistance', basis_rule: 'resistance_touch',
+          applicable_strategies: ['swing_trade'], tier: 'primary', distance_pct_from_current: 1.0 },
+        { id: 'candidate.exit.prev_high', type: 'candidate', label: 'PH', value: 218.95,
+          display_value: '$218.95', direction: 'take_profit', price: 218.95,
+          basis_fact_id: 'technical.prev_high', basis_rule: 'prev_swing_high',
+          applicable_strategies: ['swing_trade'], tier: 'primary', distance_pct_from_current: 1.0 },
+      ],
+    };
+    const out = buildPriceMapLevels(collision);
+    const targets = out.filter((l) => l.role === 'target');
+    expect(targets).toHaveLength(1);
+    expect(targets[0].factId).toBe('candidate.exit.resistance');
+    expect(targets[0].label).toBe('阻力位');
+  });
+
+  it('drops technical.support when a candidate price is within 0.3% (visual dup)', () => {
+    // ma20_breakdown 185.24 + technical.support 185.21 → support should drop
+    // even though it has no basis_fact_id collision.
+    const closeFacts: FactBundle = {
+      as_of: '', market: 'us', stock_code: 'X',
+      facts: [
+        { id: 'technical.support', type: 'technical', label: '支撑位', value: 185.21,
+          display_value: '$185.21' },
+      ],
+      candidates: [
+        { id: 'candidate.stop.ma20', type: 'candidate', label: 'MA20', value: 185.24,
+          display_value: '$185.24', direction: 'stop_loss', price: 185.24,
+          basis_fact_id: 'technical.ma20', basis_rule: 'ma20_breakdown',
+          applicable_strategies: ['swing_trade'], tier: 'primary', distance_pct_from_current: -5 },
+      ],
+    };
+    const out = buildPriceMapLevels(closeFacts);
+    expect(out.find((l) => l.factId === 'technical.support')).toBeUndefined();
+    expect(out.find((l) => l.factId === 'candidate.stop.ma20')).toBeDefined();
+  });
+
+  it('caps stops to MAX_STOPS (2) closest to current price by |distance|', () => {
+    const manyStops: FactBundle = {
+      ...bundle,
+      candidates: [
+        { id: 'candidate.stop.a', type: 'candidate', label: 'A', value: 0, display_value: '',
+          direction: 'stop_loss', price: 215, basis_fact_id: '', basis_rule: 'ma20_breakdown',
+          applicable_strategies: ['swing_trade'], tier: 'primary', distance_pct_from_current: -2 },
+        { id: 'candidate.stop.b', type: 'candidate', label: 'B', value: 0, display_value: '',
+          direction: 'stop_loss', price: 200, basis_fact_id: '', basis_rule: 'support_breakdown',
+          applicable_strategies: ['swing_trade'], tier: 'primary', distance_pct_from_current: -8 },
+        { id: 'candidate.stop.c', type: 'candidate', label: 'C', value: 0, display_value: '',
+          direction: 'stop_loss', price: 180, basis_fact_id: '', basis_rule: 'atr_3x_below_current',
+          applicable_strategies: ['swing_trade'], tier: 'primary', distance_pct_from_current: -15 },
+      ],
+    };
+    const out = buildPriceMapLevels(manyStops);
+    const stopIds = out.filter((l) => l.role === 'stop').map((l) => l.factId);
+    expect(stopIds).toHaveLength(2);
+    expect(stopIds).toContain('candidate.stop.a');  // closest
+    expect(stopIds).toContain('candidate.stop.b');  // 2nd closest
+    expect(stopIds).not.toContain('candidate.stop.c');  // dropped (farthest)
   });
 });

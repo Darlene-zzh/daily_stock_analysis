@@ -59,9 +59,15 @@ export function PriceMapCard({
 
   if (currentPrice <= 0 || levels.length === 0) return null;
 
-  // Project levels + currentPrice onto a horizontal axis. We compute a min/max
-  // padded by 5% so endpoints don't sit on the card edge.
-  const allPrices = [displayPrice, ...sortedLevels.map((l) => l.price)];
+  // Axis is pinned to the ORIGINAL currentPrice + levels. We deliberately do
+  // NOT include `displayPrice` so that the user clicking 刷新价格 only slides
+  // the black current-price dot; every level marker stays put. Without this
+  // pinning, a 0.1% price tick reprojects every marker and the chart appears
+  // to jitter unpredictably.
+  const allPrices = useMemo(
+    () => [currentPrice, ...sortedLevels.map((l) => l.price)],
+    [currentPrice, sortedLevels],
+  );
   const minP = Math.min(...allPrices);
   const maxP = Math.max(...allPrices);
   const padding = (maxP - minP) * 0.05 || maxP * 0.01;
