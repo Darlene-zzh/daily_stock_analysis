@@ -13,6 +13,8 @@ import { PositionOutcomeSummary } from './PositionOutcomeSummary';
 import { ReportStrategy } from './ReportStrategy';
 import { ReportNews } from './ReportNews';
 import { ReportDetails } from './ReportDetails';
+import { PriceMapCard } from './PriceMapCard';
+import { buildPriceMapLevels } from '../../utils/priceMapLevels';
 import { InlineAlert } from '../common/InlineAlert';
 import { Button } from '../common/Button';
 import { getReportText, normalizeReportLanguage } from '../../utils/reportLanguage';
@@ -66,6 +68,12 @@ export const ReportSummary: React.FC<ReportSummaryProps> = ({
   const isCached = meta.cached === true;
   const cacheAgeLabel = isCached ? formatCacheAge(meta.cacheAgeSeconds) : '';
 
+  const factBundle = report.dashboard?.factBundle;
+  const currentPriceFact = factBundle?.facts.find((f) => f.id === 'technical.current_price');
+  const currentPrice = typeof currentPriceFact?.value === 'number' ? currentPriceFact.value : null;
+  const priceMapLevels = buildPriceMapLevels(factBundle);
+  const showPriceMap = factBundle != null && currentPrice != null && currentPrice > 0 && priceMapLevels.length > 0;
+
   return (
     <div className="space-y-5 pb-8 animate-fade-in">
       {isCached && (
@@ -89,6 +97,14 @@ export const ReportSummary: React.FC<ReportSummaryProps> = ({
               </Button>
             ) : undefined
           }
+        />
+      )}
+      {showPriceMap && currentPrice != null && (
+        <PriceMapCard
+          stockCode={meta.stockCode}
+          currentPrice={currentPrice}
+          currentPriceAsOf={currentPriceFact?.as_of ?? factBundle!.as_of}
+          levels={priceMapLevels}
         />
       )}
       {/* 概览区（首屏） */}
