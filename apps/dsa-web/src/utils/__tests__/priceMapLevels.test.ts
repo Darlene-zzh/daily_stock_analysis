@@ -66,4 +66,34 @@ describe('buildPriceMapLevels', () => {
   it('returns [] for a null bundle', () => {
     expect(buildPriceMapLevels(null)).toEqual([]);
   });
+
+  it('silently drops primary-tier entry candidates (no PriceMapRole slot for entries)', () => {
+    const entryOnly: FactBundle = {
+      ...bundle,
+      candidates: [
+        { id: 'candidate.entry.1', type: 'candidate', label: 'MA10 回踩买点', value: 222.02,
+          display_value: '$222.02', direction: 'entry', price: 222.02,
+          basis_fact_id: 'technical.ma10', basis_rule: 'ma10_pullback',
+          applicable_strategies: ['swing_trade'], tier: 'primary', distance_pct_from_current: -0.65 },
+      ],
+    };
+    const out = buildPriceMapLevels(entryOnly);
+    expect(out.find((l) => l.factId === 'candidate.entry.1')).toBeUndefined();
+  });
+
+  it('discards facts with non-numeric or non-finite value via the Number.isFinite guard', () => {
+    const noisy: FactBundle = {
+      ...bundle,
+      facts: [
+        { id: 'technical.ma10', type: 'technical', label: 'MA10', value: 'not-a-number', display_value: '—' },
+        { id: 'technical.ma20', type: 'technical', label: 'MA20', value: 0, display_value: '0' },
+        { id: 'technical.resistance', type: 'technical', label: '阻力位', value: 226.13, display_value: '$226.13' },
+      ],
+      candidates: [],
+    };
+    const out = buildPriceMapLevels(noisy);
+    expect(out.find((l) => l.factId === 'technical.ma10')).toBeUndefined();
+    expect(out.find((l) => l.factId === 'technical.ma20')).toBeUndefined();
+    expect(out.find((l) => l.factId === 'technical.resistance')).toMatchObject({ price: 226.13 });
+  });
 });

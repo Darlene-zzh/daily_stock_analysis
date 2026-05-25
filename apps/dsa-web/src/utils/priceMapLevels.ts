@@ -42,6 +42,8 @@ export function buildPriceMapLevels(bundle: FactBundle | null | undefined): Pric
     } else if (cand.direction === 'take_profit' || cand.direction === 'exit') {
       out.push({ factId: cand.id, price: cand.price, label: cand.label, color: 'green', role: 'target' });
     }
+    // 'entry' direction is intentionally omitted — PriceMapRole has no 'entry'
+    // slot; entries are surfaced inside ActionPlanTable instead of on the axis.
   }
 
   return out;
