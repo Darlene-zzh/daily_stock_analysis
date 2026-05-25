@@ -117,7 +117,14 @@ export const ReportSummary: React.FC<ReportSummaryProps> = ({
             />
             {report.dashboard.coreConclusion.strategyThesis && (
               <StrategyThesis
-                thesis={report.dashboard.coreConclusion.strategyThesis}
+                // Task 8 will replace StrategyThesis with StrategyHeroCard which
+                // accepts the full union; until then, narrow to string so the
+                // legacy renderer keeps compiling.
+                thesis={
+                  typeof report.dashboard.coreConclusion.strategyThesis === 'string'
+                    ? report.dashboard.coreConclusion.strategyThesis
+                    : report.dashboard.coreConclusion.strategyThesis.text
+                }
                 recommendedLabel={undefined}
               />
             )}
