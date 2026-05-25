@@ -1,8 +1,11 @@
 import React, { useState } from 'react';
-import type { ActionPlanItem } from '../../types/analysis';
+import type { ActionPlanItem, FactBundle } from '../../types/analysis';
+import { EvidenceExpansion } from './EvidenceExpansion';
 
 interface ActionPlanTableProps {
   items: ActionPlanItem[];
+  /** Phase 5 — when present, expandable rows render an EvidenceExpansion under `evidenceRefs`. */
+  bundle?: FactBundle | null;
 }
 
 const DIRECTION_CONFIG: Record<
@@ -17,7 +20,15 @@ const DIRECTION_CONFIG: Record<
 
 const ORDINALS = ['①', '②', '③', '④'];
 
-function PlanItemRow({ item, index }: { item: ActionPlanItem; index: number }) {
+function PlanItemRow({
+  item,
+  index,
+  bundle,
+}: {
+  item: ActionPlanItem;
+  index: number;
+  bundle?: FactBundle | null;
+}) {
   const [expanded, setExpanded] = useState(false);
   const cfg = DIRECTION_CONFIG[item.direction] ?? DIRECTION_CONFIG.buy;
   const ordinal = ORDINALS[index] ?? `(${index + 1})`;
@@ -31,6 +42,13 @@ function PlanItemRow({ item, index }: { item: ActionPlanItem; index: number }) {
     .filter(Boolean)
     .join(' / ');
 
+  const hasEvidence = (item.evidenceRefs?.length ?? 0) > 0;
+  const hasNarrative = Boolean(item.narrative && item.narrative.trim());
+  const hasLegacyBasis = Boolean(
+    item.technicalBasis || item.fundamentalBasis || item.quantSignal || item.invalidationRule,
+  );
+  const showExpandToggle = hasEvidence || hasNarrative || hasLegacyBasis;
+
   return (
     <div className="rounded-lg border border-subtle bg-surface/40 p-3">
       {/* Header row */}
@@ -41,6 +59,16 @@ function PlanItemRow({ item, index }: { item: ActionPlanItem; index: number }) {
             <span className={cfg.colorClass}>{cfg.label}</span>
           </span>
           <span className="text-xs text-muted-text">优先级 {item.priority}</span>
+          {item.tier === 'discipline_anchor' && (
+            <span className="rounded bg-amber-500/15 px-1.5 py-0.5 text-[10px] font-medium text-amber-400">
+              📌 纪律锚
+            </span>
+          )}
+          {item.provenance === 'synthesized' && (
+            <span className="rounded bg-slate-500/15 px-1.5 py-0.5 text-[10px] font-medium text-slate-400">
+              🤖 代码兜底
+            </span>
+          )}
         </div>
         <div className="flex items-center gap-3 text-xs">
           {item.triggerPrice != null && (
@@ -63,16 +91,21 @@ function PlanItemRow({ item, index }: { item: ActionPlanItem; index: number }) {
       {/* Trigger condition */}
       <p className="mt-1 text-xs text-secondary-text">{item.triggerCondition}</p>
 
-      {/* Expandable rationale */}
-      <button
-        onClick={() => setExpanded((v) => !v)}
-        className="mt-2 text-xs text-accent-text hover:underline"
-      >
-        {expanded ? '▲ 收起分析依据' : '▼ 查看分析依据'}
-      </button>
+      {/* Expandable rationale toggle — only shown when there is content to reveal */}
+      {showExpandToggle && (
+        <button
+          onClick={() => setExpanded((v) => !v)}
+          className="mt-2 text-xs text-accent-text hover:underline"
+        >
+          {expanded ? '▲ 收起分析依据' : '▼ 查看分析依据'}
+        </button>
+      )}
 
       {expanded && (
-        <div className="mt-2 space-y-1 rounded bg-surface/60 p-2 text-xs text-secondary-text">
+        <div className="mt-2 space-y-2 rounded bg-surface/60 p-2 text-xs text-secondary-text">
+          {hasNarrative && (
+            <p className="leading-relaxed text-foreground">{item.narrative}</p>
+          )}
           {item.technicalBasis && (
             <p>
               <span className="font-medium text-foreground">技术面：</span>
@@ -97,13 +130,21 @@ function PlanItemRow({ item, index }: { item: ActionPlanItem; index: number }) {
               <span className="text-muted-text">{item.invalidationRule}</span>
             </p>
           )}
+          {hasEvidence && bundle && (
+            <EvidenceExpansion
+              evidenceRefs={item.evidenceRefs!}
+              bundle={bundle}
+              groupBy="type"
+              className="mt-1"
+            />
+          )}
         </div>
       )}
     </div>
   );
 }
 
-export const ActionPlanTable: React.FC<ActionPlanTableProps> = ({ items }) => {
+export const ActionPlanTable: React.FC<ActionPlanTableProps> = ({ items, bundle }) => {
   if (!items || items.length === 0) return null;
 
   return (
@@ -111,7 +152,7 @@ export const ActionPlanTable: React.FC<ActionPlanTableProps> = ({ items }) => {
       <h3 className="text-sm font-semibold text-foreground">📋 持仓操作计划</h3>
       <div className="space-y-2">
         {items.slice(0, 4).map((item, idx) => (
-          <PlanItemRow key={idx} item={item} index={idx} />
+          <PlanItemRow key={idx} item={item} index={idx} bundle={bundle} />
         ))}
       </div>
     </div>

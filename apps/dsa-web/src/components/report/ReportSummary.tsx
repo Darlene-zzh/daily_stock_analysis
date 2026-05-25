@@ -121,7 +121,10 @@ export const ReportSummary: React.FC<ReportSummaryProps> = ({
       {report.dashboard?.coreConclusion?.actionPlanItems &&
         report.dashboard.coreConclusion.actionPlanItems.length > 0 && (
           <div className="rounded-xl border border-subtle bg-card p-4">
-            <ActionPlanTable items={report.dashboard.coreConclusion.actionPlanItems} />
+            <ActionPlanTable
+              items={report.dashboard.coreConclusion.actionPlanItems}
+              bundle={factBundle}
+            />
           </div>
         )}
 
