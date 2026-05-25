@@ -142,7 +142,7 @@ export const ReportSummary: React.FC<ReportSummaryProps> = ({
       {report.dashboard?.coreConclusion?.positionOutcomeSummary && (
         <PositionFlowTimeline
           summary={report.dashboard.coreConclusion.positionOutcomeSummary}
-          triggers={report.dashboard.coreConclusion.actionPlanItems}
+          triggers={report.dashboard.coreConclusion.actionPlanItems ?? []}
         />
       )}
 
