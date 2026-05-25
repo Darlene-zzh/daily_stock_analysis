@@ -42,14 +42,22 @@ describe('toCamelCase', () => {
     };
     const out = toCamelCase<typeof raw>(raw);
     expect(out.dashboard.core_conclusion).toBeUndefined(); // siblings camelized
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     expect((out as any).dashboard.coreConclusion.recommendedStrategy).toBe('swing_trade');
     // factBundle is the camelized outer key — but its body is preserved
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     expect((out as any).dashboard.factBundle.as_of).toBe('2026-05-25T00:00:00Z');
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     expect((out as any).dashboard.factBundle.stock_code).toBe('NVDA');
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     expect((out as any).dashboard.factBundle.facts[0].display_value).toBe('$226.13');
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     expect((out as any).dashboard.factBundle.facts[0].basis_fact_id).toBe('technical.resistance');
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     expect((out as any).dashboard.factBundle.candidates[0].basis_rule).toBe('resistance_touch');
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     expect((out as any).dashboard.factBundle.candidates[0].applicable_strategies).toEqual(['swing_trade']);
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     expect((out as any).dashboard.factBundle.candidates[0].distance_pct_from_current).toBe(1.19);
   });
 
@@ -66,7 +74,9 @@ describe('toCamelCase', () => {
       },
     };
     const out = toCamelCase<typeof raw>(raw);
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     expect((out as any).report.dashboard.factBundle.stock_code).toBe('AAPL');
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     expect((out as any).report.dashboard.factBundle.facts[0].display_value).toBe('1');
   });
 });
