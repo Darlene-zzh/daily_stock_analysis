@@ -46,4 +46,25 @@ describe('PositionFlowTimeline', () => {
     expect(rows[1]).toHaveTextContent('🛑');
     expect(rows[1]).toHaveTextContent('$213.40');
   });
+
+  it('sorts triggers by ascending priority regardless of input order', () => {
+    // Regression: original test fixture passed [p=1, p=2] in-order, so the
+    // sort line was a no-op. Pass reversed to verify sort actually fires.
+    const reversed = [triggers[1], triggers[0]]; // [priority=2, priority=1]
+    render(<PositionFlowTimeline summary={summary} triggers={reversed} />);
+    const rows = screen.getAllByTestId('flow-trigger-row');
+    expect(rows[0]).toHaveTextContent('$226.13'); // priority 1 first
+    expect(rows[1]).toHaveTextContent('$213.40'); // priority 2 second
+  });
+
+  it('omits the summary grid when summary is empty but triggers exist', () => {
+    render(
+      <PositionFlowTimeline summary={{} as PositionOutcomeSummary} triggers={triggers} />,
+    );
+    // Triggers render (the timeline)
+    expect(screen.getAllByTestId('flow-trigger-row')).toHaveLength(2);
+    // Grid labels do NOT appear — avoids a useless `— / — / — / —` block
+    expect(screen.queryByText('执行所有触发后剩余')).not.toBeInTheDocument();
+    expect(screen.queryByText('风险回报比')).not.toBeInTheDocument();
+  });
 });

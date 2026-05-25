@@ -26,6 +26,7 @@ export const PositionFlowTimeline: React.FC<PositionFlowTimelineProps> = ({
 }) => {
   if (isEmpty(summary) && triggers.length === 0) return null;
   const ccy = summary.worstCaseCurrency || '';
+  const showGrid = !isEmpty(summary);
 
   const ordered = [...triggers].sort((a, b) => a.priority - b.priority);
 
@@ -54,36 +55,38 @@ export const PositionFlowTimeline: React.FC<PositionFlowTimelineProps> = ({
         </ol>
       )}
 
-      <div className="grid grid-cols-2 gap-2 border-t border-subtle pt-3 text-xs">
-        <div>
-          <p className="text-muted-text">执行所有触发后剩余</p>
-          <p className="font-mono text-foreground">
-            {summary.remainingSharesAfterAllTriggers != null
-              ? `${summary.remainingSharesAfterAllTriggers} 股`
-              : '—'}
-          </p>
+      {showGrid && (
+        <div className="grid grid-cols-2 gap-2 border-t border-subtle pt-3 text-xs">
+          <div>
+            <p className="text-muted-text">执行所有触发后剩余</p>
+            <p className="font-mono text-foreground">
+              {summary.remainingSharesAfterAllTriggers != null
+                ? `${summary.remainingSharesAfterAllTriggers} 股`
+                : '—'}
+            </p>
+          </div>
+          <div>
+            <p className="text-muted-text">风险回报比</p>
+            <p className="font-mono text-foreground">{summary.riskRewardRatio || '—'}</p>
+          </div>
+          <div>
+            <p className="text-muted-text">最差止损</p>
+            <p className="font-mono text-red-400">
+              {summary.worstCaseLossAmount != null
+                ? `${summary.worstCaseLossAmount} ${ccy}`.trim()
+                : '—'}
+            </p>
+          </div>
+          <div>
+            <p className="text-muted-text">最好止盈</p>
+            <p className="font-mono text-emerald-400">
+              {summary.bestCaseGainAmount != null
+                ? `+${summary.bestCaseGainAmount} ${ccy}`.trim()
+                : '—'}
+            </p>
+          </div>
         </div>
-        <div>
-          <p className="text-muted-text">风险回报比</p>
-          <p className="font-mono text-foreground">{summary.riskRewardRatio || '—'}</p>
-        </div>
-        <div>
-          <p className="text-muted-text">最差止损</p>
-          <p className="font-mono text-red-400">
-            {summary.worstCaseLossAmount != null
-              ? `${summary.worstCaseLossAmount} ${ccy}`.trim()
-              : '—'}
-          </p>
-        </div>
-        <div>
-          <p className="text-muted-text">最好止盈</p>
-          <p className="font-mono text-emerald-400">
-            {summary.bestCaseGainAmount != null
-              ? `+${summary.bestCaseGainAmount} ${ccy}`.trim()
-              : '—'}
-          </p>
-        </div>
-      </div>
+      )}
     </div>
   );
 };
