@@ -35,7 +35,13 @@ function emojiOf(c: StrategyChoice): string {
 }
 
 function isStructuredThesis(t: unknown): t is StrategyThesisStructured {
-  return typeof t === 'object' && t !== null && 'text' in t;
+  return (
+    typeof t === 'object' &&
+    t !== null &&
+    'text' in t &&
+    'evidenceRefs' in t &&
+    'provenance' in t
+  );
 }
 
 export const StrategyHeroCard: React.FC<StrategyHeroCardProps> = ({
@@ -67,26 +73,9 @@ export const StrategyHeroCard: React.FC<StrategyHeroCardProps> = ({
     <div className="rounded-xl border border-subtle bg-card p-4 space-y-3">
       {recommended && (
         <div className="space-y-2">
-          <div className="flex items-center justify-between">
-            <h3 className="text-base font-semibold text-foreground">
-              🎯 AI 推荐策略：{emojiOf(recommended)} {labelOf(recommended)}
-            </h3>
-            {thesisProvenance === 'synthesized' && (
-              <span className="rounded bg-slate-500/15 px-1.5 py-0.5 text-[10px] font-medium text-slate-400">
-                🤖 代码兜底
-              </span>
-            )}
-          </div>
-          {thesisText && (
-            <p className="text-sm leading-relaxed text-secondary-text">{thesisText}</p>
-          )}
-          {thesisRefs.length > 0 && bundle && (
-            <div className="flex flex-wrap gap-1.5">
-              {thesisRefs.map((id) => (
-                <EvidenceRef key={id} fact={getFact(id)} fallbackId={id} />
-              ))}
-            </div>
-          )}
+          <h3 className="text-base font-semibold text-foreground">
+            🎯 AI 推荐策略：{emojiOf(recommended)} {labelOf(recommended)}
+          </h3>
           {recommended.fitCondition && (
             <p className="text-xs text-muted-text">适用条件：{recommended.fitCondition}</p>
           )}
@@ -95,6 +84,32 @@ export const StrategyHeroCard: React.FC<StrategyHeroCardProps> = ({
           )}
           {recommended.timeHorizon && (
             <p className="text-xs text-muted-text">⏱ {recommended.timeHorizon}</p>
+          )}
+        </div>
+      )}
+
+      {/* Thesis renders even when recommendedId is out of sync with choices — we must
+          never silently drop a thesis the backend bothered to emit. */}
+      {(thesisText || thesisProvenance === 'synthesized') && (
+        <div className="space-y-2">
+          <div className="flex flex-wrap items-start justify-between gap-2">
+            {thesisText && (
+              <p className="text-sm leading-relaxed text-secondary-text flex-1 min-w-0">
+                {thesisText}
+              </p>
+            )}
+            {thesisProvenance === 'synthesized' && (
+              <span className="shrink-0 rounded bg-slate-500/15 px-1.5 py-0.5 text-[10px] font-medium text-slate-400">
+                🤖 代码兜底
+              </span>
+            )}
+          </div>
+          {thesisRefs.length > 0 && bundle && (
+            <div className="flex flex-wrap gap-1.5">
+              {thesisRefs.map((id) => (
+                <EvidenceRef key={id} fact={getFact(id)} fallbackId={id} />
+              ))}
+            </div>
           )}
         </div>
       )}

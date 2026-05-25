@@ -80,4 +80,22 @@ describe('StrategyHeroCard', () => {
     );
     expect(screen.getByText(/代码兜底/)).toBeInTheDocument();
   });
+
+  it('still renders the thesis when recommendedId does not match any choice', () => {
+    // Regression: the thesis used to live inside `{recommended && ...}` and was
+    // silently dropped when the backend emitted a thesis but the matching choice
+    // was missing or marked inapplicable.
+    render(
+      <StrategyHeroCard
+        choices={choices}
+        recommendedId="unknown_strategy_id"
+        thesis="Thesis must survive even with a stale recommendedId."
+      />,
+    );
+    expect(
+      screen.getByText('Thesis must survive even with a stale recommendedId.'),
+    ).toBeInTheDocument();
+    // Hero heading should NOT render since no choice matched
+    expect(screen.queryByText(/AI 推荐策略/)).not.toBeInTheDocument();
+  });
 });
