@@ -1,9 +1,10 @@
 import camelcaseKeys from 'camelcase-keys';
 
 /**
- * Paths kept in snake_case across every API response. Mirrors the contract in
- * `apps/dsa-web/src/types/analysis.ts:529-591` — the FactBundle wire body is
- * authored snake_case (basis_fact_id, display_value, applicable_strategies,
+ * Paths kept in snake_case across every API response. Mirrors the `FactBundle`
+ * / `FactRecord` / `CandidateLevel` contract in `apps/dsa-web/src/types/analysis.ts`
+ * — the FactBundle wire body is authored snake_case
+ * (basis_fact_id, display_value, applicable_strategies,
  * distance_pct_from_current, ...) and must remain so for Phase 4 components
  * (EvidenceRef, EvidenceExpansion, PriceMapCard, useFactBundle) to read it.
  *
