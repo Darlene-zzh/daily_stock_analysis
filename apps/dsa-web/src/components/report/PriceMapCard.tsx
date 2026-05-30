@@ -57,17 +57,19 @@ export function PriceMapCard({
     [levels],
   );
 
-  if (currentPrice <= 0 || levels.length === 0) return null;
-
   // Axis is pinned to the ORIGINAL currentPrice + levels. We deliberately do
   // NOT include `displayPrice` so that the user clicking 刷新价格 only slides
   // the black current-price dot; every level marker stays put. Without this
   // pinning, a 0.1% price tick reprojects every marker and the chart appears
-  // to jitter unpredictably.
+  // to jitter unpredictably. Computed before the early return so the hook
+  // order stays stable across renders (react-hooks/rules-of-hooks).
   const allPrices = useMemo(
     () => [currentPrice, ...sortedLevels.map((l) => l.price)],
     [currentPrice, sortedLevels],
   );
+
+  if (currentPrice <= 0 || levels.length === 0) return null;
+
   const minP = Math.min(...allPrices);
   const maxP = Math.max(...allPrices);
   const padding = (maxP - minP) * 0.05 || maxP * 0.01;
