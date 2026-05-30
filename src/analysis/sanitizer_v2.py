@@ -11,6 +11,7 @@ from __future__ import annotations
 import logging
 from typing import Any, Dict, List, Optional
 
+from src.analysis.candidate_rules import GHOST_DISTANCE_THRESHOLD_PCT
 from src.analysis.facts import FactBundle, CandidateLevel
 
 logger = logging.getLogger(__name__)
@@ -18,6 +19,23 @@ logger = logging.getLogger(__name__)
 
 def _candidate_map(bundle: FactBundle) -> Dict[str, CandidateLevel]:
     return {c.id: c for c in bundle.candidates}
+
+
+def _candidate_is_ghost(cand: CandidateLevel) -> bool:
+    """Defense-in-depth ghost check at the sanitizer boundary.
+
+    ``candidate_rules._apply_ghost_gate`` already re-tags ghost candidates as
+    ``tier='filtered'`` when they come from ``compute_candidates``. But bundles
+    can be constructed manually (tests, future code paths that synthesize
+    candidates outside the rule pass) — checking here too guarantees the
+    sanitizer refuses items pointing at any obviously corrupt candidate
+    regardless of how the bundle was built.
+    """
+    if cand.price is None or cand.price <= 0:
+        return True
+    if abs(cand.distance_pct_from_current) > GHOST_DISTANCE_THRESHOLD_PCT:
+        return True
+    return False
 
 
 def sanitize_with_candidates(
@@ -83,6 +101,15 @@ def sanitize_with_candidates(
         if cand.tier == "filtered":
             logger.info(
                 "[sanitizer_v2] drop item: candidate=%s is in filtered tier", cid,
+            )
+            continue
+
+        # Check #4.5 — ghost gate (defense-in-depth, see _candidate_is_ghost)
+        if _candidate_is_ghost(cand):
+            logger.info(
+                "[sanitizer_v2] drop item: candidate=%s flagged as ghost "
+                "(price=%s, distance=%.1f%%)",
+                cid, cand.price, cand.distance_pct_from_current,
             )
             continue
 
