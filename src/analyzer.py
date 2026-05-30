@@ -2666,8 +2666,13 @@ intelligence 区块新增字段示例（仅供格式参考，实际内容由你�
             core_out["recommended_strategy"] = parsed["recommended_strategy"]
         if isinstance(parsed.get("strategy_thesis"), str):
             core_out["strategy_thesis"] = parsed["strategy_thesis"]
-        if items:
-            core_out["action_plan_items"] = items
+        # The inject step is the AUTHORITATIVE source for action_plan_items.
+        # Assign unconditionally — even when empty — so a stale, untagged,
+        # possibly strategy-inconsistent list left by the upstream main
+        # analysis (e.g. a `buy` item under a wait_and_see verdict) can never
+        # leak through to the dashboard. An empty plan (e.g. legitimate
+        # wait_and_see) correctly renders no 持仓操作计划.
+        core_out["action_plan_items"] = items
         # Always derive position_outcome_summary from the sanitized items + real
         # portfolio facts. The LLM's self-reported summary is intentionally ignored
         # here — Gemini 2.5 Flash routinely emits numbers that don't match the

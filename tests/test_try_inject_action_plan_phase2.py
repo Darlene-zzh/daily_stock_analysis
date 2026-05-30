@@ -154,3 +154,44 @@ def test_inject_synthesizes_when_llm_raises():
     items = result.dashboard["core_conclusion"].get("action_plan_items") or []
     assert len(items) >= 1
     assert all(it.get("provenance") == "synthesized" for it in items)
+
+
+def test_inject_does_not_leak_stale_untagged_items_when_plan_empties():
+    """Repro for the degraded-run artifact: main analysis pre-populated
+    core_conclusion.action_plan_items with a raw, untagged, strategy-
+    inconsistent item (e.g. wait_and_see + a buy). The inject LLM then returns
+    an empty plan (or one the sanitizer fully drops). The inject step is the
+    authoritative source for action_plan_items — it must NOT leave the stale
+    pre-existing item in place. Every surviving item must carry a provenance.
+    """
+    agent = GeminiAnalyzer.__new__(GeminiAnalyzer)
+    # LLM recommends wait_and_see with no actionable items
+    agent.generate_text = MagicMock(return_value=json.dumps({
+        "recommended_strategy": "wait_and_see",
+        "strategy_thesis": "观望",
+        "strategy_choices": [],
+        "action_plan_items": [],
+    }))
+    agent._sanitize_strategy_choices = lambda x, **k: x
+    agent._recompute_position_outcome_summary = lambda *a, **k: None
+
+    result = _result_with_bundle()
+    # Stale, untagged, strategy-inconsistent item left by the main analysis.
+    # No recommended_strategy here -> forces the main (non-upstream) inject path.
+    result.dashboard["core_conclusion"]["action_plan_items"] = [
+        {"direction": "buy", "trigger_price": 196.5}
+    ]
+
+    GeminiAnalyzer._try_inject_action_plan_items(
+        agent, result, "NVDA", portfolio_context_block=None,
+    )
+
+    items = result.dashboard["core_conclusion"].get("action_plan_items") or []
+    # The stale untagged buy item must not survive.
+    assert not any(
+        it.get("provenance") is None for it in items
+    ), f"stale untagged item leaked: {items}"
+    assert not any(
+        it.get("direction") == "buy" and it.get("provenance") is None
+        for it in items
+    )
