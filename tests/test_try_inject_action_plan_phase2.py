@@ -112,3 +112,45 @@ def test_inject_falls_back_to_synthesizer_when_sanitizer_empties():
     # Real candidate.exit.1 / candidate.stop.1 should now be the synthesized basis
     cids = [it["candidate_id"] for it in items]
     assert any(cid in ("candidate.exit.1", "candidate.stop.1") for cid in cids)
+
+
+def test_inject_synthesizes_when_llm_returns_none():
+    """LLM unavailable (quota/outage → generate_text returns None): the
+    candidate-based synthesizer must still produce an action plan instead of
+    leaving action_plan_items empty."""
+    agent = GeminiAnalyzer.__new__(GeminiAnalyzer)
+    agent.generate_text = MagicMock(return_value=None)
+    agent._sanitize_strategy_choices = lambda x, **k: x
+    agent._recompute_position_outcome_summary = lambda *a, **k: None
+
+    result = _result_with_bundle()
+    GeminiAnalyzer._try_inject_action_plan_items(
+        agent, result, "NVDA", portfolio_context_block=None,
+    )
+    items = result.dashboard["core_conclusion"].get("action_plan_items") or []
+    assert len(items) >= 1, "synthesizer should fill in when the LLM returns nothing"
+    assert all(it.get("provenance") == "synthesized" for it in items)
+    cids = [it.get("candidate_id") for it in items]
+    assert any(cid in ("candidate.exit.1", "candidate.stop.1") for cid in cids)
+
+
+def test_inject_synthesizes_when_llm_raises():
+    """generate_text raising (e.g. all providers exhausted) is normalized to
+    None by the public wrapper, but guard the inject path directly too."""
+    agent = GeminiAnalyzer.__new__(GeminiAnalyzer)
+
+    def _boom(*a, **k):
+        raise RuntimeError("all providers exhausted")
+
+    agent.generate_text = MagicMock(side_effect=_boom)
+    agent._sanitize_strategy_choices = lambda x, **k: x
+    agent._recompute_position_outcome_summary = lambda *a, **k: None
+
+    result = _result_with_bundle()
+    # Must not raise; should synthesize a plan from candidates.
+    GeminiAnalyzer._try_inject_action_plan_items(
+        agent, result, "NVDA", portfolio_context_block=None,
+    )
+    items = result.dashboard["core_conclusion"].get("action_plan_items") or []
+    assert len(items) >= 1
+    assert all(it.get("provenance") == "synthesized" for it in items)

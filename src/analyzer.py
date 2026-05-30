@@ -2415,6 +2415,70 @@ intelligence 区块新增字段示例（仅供格式参考，实际内容由你�
             if k in valid_keys and v:
                 result.dashboard['intelligence'][k] = v
 
+    def _synthesize_action_plan_from_bundle(
+        self,
+        fact_bundle: Optional[dict],
+        strategy: str,
+        code: str,
+    ) -> list:
+        """Build candidate-based action_plan_items from a serialized fact_bundle.
+
+        Pure code path — needs NO LLM. Used both as the sanitizer-emptied
+        fallback and as the LLM-unavailable fallback so the user always sees a
+        real, evidence-grounded plan. Returns ``[]`` on any failure.
+        """
+        if not fact_bundle or not isinstance(fact_bundle, dict):
+            return []
+        try:
+            from src.analysis.facts import FactBundle, FactRecord, CandidateLevel
+            from src.analysis.synthesizer import synthesize_from_candidates
+            bundle_obj = FactBundle(
+                as_of=fact_bundle.get("as_of", ""),
+                market=fact_bundle.get("market", "us"),
+                stock_code=fact_bundle.get("stock_code", ""),
+                facts=[FactRecord(**f) for f in fact_bundle.get("facts", [])],
+                candidates=[
+                    CandidateLevel(**c) for c in fact_bundle.get("candidates", [])
+                ],
+            )
+            items = synthesize_from_candidates(
+                bundle_obj.candidates, strategy=strategy, facts=bundle_obj.facts,
+            )
+            logger.info(
+                "[action_plan] synthesized %d items from candidates for %s/%s",
+                len(items), code, strategy,
+            )
+            return items
+        except Exception as exc:
+            logger.warning(
+                "[action_plan] synthesize_from_candidates failed for %s: %s",
+                code, exc,
+            )
+            return []
+
+    def _inject_synthesized_action_plan(
+        self,
+        result: "AnalysisResult",
+        fact_bundle: Optional[dict],
+        code: str,
+        portfolio_context_block: Optional[str],
+        strategy: str = "swing_trade",
+    ) -> None:
+        """LLM-unavailable fallback: synthesize a plan from candidates and inject
+        it without any reference to an LLM response. Safe no-op when no candidates."""
+        items = self._synthesize_action_plan_from_bundle(fact_bundle, strategy, code)
+        if not items:
+            return
+        core_out = result.dashboard.get("core_conclusion")
+        if not isinstance(core_out, dict):
+            core_out = {}
+            result.dashboard["core_conclusion"] = core_out
+        core_out["action_plan_items"] = items
+        core_out.setdefault("recommended_strategy", strategy)
+        self._recompute_position_outcome_summary(
+            core_out, items, portfolio_context_block
+        )
+
     def _try_inject_action_plan_items(
         self,
         result: "AnalysisResult",
@@ -2480,34 +2544,9 @@ intelligence 区块新增字段示例（仅供格式参考，实际内容由你�
                 if isinstance(it, dict) and "provenance" not in it:
                     it["provenance"] = "llm"
             if not sanitized and fact_bundle and isinstance(fact_bundle, dict):
-                try:
-                    from src.analysis.facts import FactBundle, FactRecord, CandidateLevel
-                    from src.analysis.synthesizer import synthesize_from_candidates
-                    bundle_obj = FactBundle(
-                        as_of=fact_bundle.get("as_of", ""),
-                        market=fact_bundle.get("market", "us"),
-                        stock_code=fact_bundle.get("stock_code", ""),
-                        facts=[FactRecord(**f) for f in fact_bundle.get("facts", [])],
-                        candidates=[
-                            CandidateLevel(**c)
-                            for c in fact_bundle.get("candidates", [])
-                        ],
-                    )
-                    sanitized = synthesize_from_candidates(
-                        bundle_obj.candidates,
-                        strategy=upstream_strategy,
-                        facts=bundle_obj.facts,
-                    )
-                    logger.info(
-                        "[action_plan] upstream sanitizer empty -> synthesized "
-                        "%d items for %s/%s",
-                        len(sanitized), code, upstream_strategy,
-                    )
-                except Exception as exc:
-                    logger.warning(
-                        "[action_plan] upstream synthesize fallback failed for %s: %s",
-                        code, exc,
-                    )
+                sanitized = self._synthesize_action_plan_from_bundle(
+                    fact_bundle, upstream_strategy, code,
+                )
             core["action_plan_items"] = sanitized
             if isinstance(core.get("strategy_choices"), list):
                 core["strategy_choices"] = self._sanitize_strategy_choices(
@@ -2561,8 +2600,19 @@ intelligence 区块新增字段示例（仅供格式参考，实际内容由你�
             fact_bundle=fact_bundle,
         )
 
-        raw = self.generate_text(prompt, max_tokens=3072, temperature=0.3)
+        try:
+            raw = self.generate_text(prompt, max_tokens=3072, temperature=0.3)
+        except Exception as exc:  # generate_text normally returns None, but be defensive
+            logger.warning("[action_plan] generate_text raised for %s: %s", code, exc)
+            raw = None
         if not raw:
+            # LLM unavailable (quota/outage/all-fallbacks-exhausted). Don't drop
+            # the action plan — synthesize it from the candidates, which need no
+            # LLM. Without this the report shows an empty 持仓操作计划 whenever the
+            # provider is down. See _synthesize_action_plan_from_bundle.
+            self._inject_synthesized_action_plan(
+                result, fact_bundle, code, portfolio_context_block,
+            )
             return
 
         import json as _json
@@ -2598,34 +2648,9 @@ intelligence 区块新增字段示例（仅供格式参考，实际内容由你�
                 it["provenance"] = "llm"
 
         if not items and fact_bundle and isinstance(fact_bundle, dict):
-            try:
-                from src.analysis.facts import FactBundle, FactRecord, CandidateLevel
-                from src.analysis.synthesizer import synthesize_from_candidates
-                bundle_obj = FactBundle(
-                    as_of=fact_bundle.get("as_of", ""),
-                    market=fact_bundle.get("market", "us"),
-                    stock_code=fact_bundle.get("stock_code", ""),
-                    facts=[FactRecord(**f) for f in fact_bundle.get("facts", [])],
-                    candidates=[
-                        CandidateLevel(**c)
-                        for c in fact_bundle.get("candidates", [])
-                    ],
-                )
-                fallback_strategy = strategy or "swing_trade"
-                items = synthesize_from_candidates(
-                    bundle_obj.candidates,
-                    strategy=fallback_strategy,
-                    facts=bundle_obj.facts,
-                )
-                logger.info(
-                    "[action_plan] sanitizer empty -> synthesized %d items "
-                    "from candidates for %s/%s", len(items), code, fallback_strategy,
-                )
-            except Exception as exc:
-                logger.warning(
-                    "[action_plan] synthesize_from_candidates failed for %s: %s",
-                    code, exc,
-                )
+            items = self._synthesize_action_plan_from_bundle(
+                fact_bundle, strategy or "swing_trade", code,
+            )
 
         # Inject all fields atomically
         if not isinstance(result.dashboard.get("core_conclusion"), dict):
