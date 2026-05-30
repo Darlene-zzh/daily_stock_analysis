@@ -801,6 +801,63 @@ class AnalysisApiContractTestCase(unittest.TestCase):
 
         self.assertEqual(report.meta.report_language, "en")
 
+    def test_build_analysis_report_lifts_committee_and_risk_to_top_level(self) -> None:
+        """Opt-in committee / risk_assessment live inside dashboard but the
+        frontend ``ReportSummary`` destructures them from the report top level
+        (``report.committee`` / ``report.riskAssessment``). The live analyze
+        path must mirror the history endpoint and surface them at top level,
+        otherwise a freshly-completed analysis renders no committee panel until
+        the user re-fetches via the history GET endpoint."""
+        if _build_analysis_report is None:
+            self.skipTest("analysis endpoint helpers unavailable in this environment")
+
+        committee = {"pm_verdict": "增持", "pm_score": 7}
+        risk = {"tail_risk_score": 3, "severity": "soft"}
+        report = _build_analysis_report(
+            report_data={
+                "meta": {},
+                "summary": {},
+                "strategy": {},
+                "details": {},
+                "dashboard": {
+                    "committee": committee,
+                    "risk_assessment": risk,
+                    "action_plan_items": [],
+                },
+            },
+            query_id="q1",
+            stock_code="600519",
+            stock_name="贵州茅台",
+            context_snapshot=None,
+            fallback_fundamental_payload=None,
+        )
+
+        self.assertEqual(report.committee, committee)
+        self.assertEqual(report.risk_assessment, risk)
+
+    def test_build_analysis_report_committee_absent_when_dashboard_lacks_it(self) -> None:
+        """No committee in dashboard → top-level field stays None (renders nothing)."""
+        if _build_analysis_report is None:
+            self.skipTest("analysis endpoint helpers unavailable in this environment")
+
+        report = _build_analysis_report(
+            report_data={
+                "meta": {},
+                "summary": {},
+                "strategy": {},
+                "details": {},
+                "dashboard": {"action_plan_items": []},
+            },
+            query_id="q1",
+            stock_code="600519",
+            stock_name="贵州茅台",
+            context_snapshot=None,
+            fallback_fundamental_payload=None,
+        )
+
+        self.assertIsNone(report.committee)
+        self.assertIsNone(report.risk_assessment)
+
     def test_load_sync_fundamental_sources_uses_query_and_code_for_fallback(self) -> None:
         if _load_sync_fundamental_sources is None:
             self.skipTest("analysis endpoint helpers unavailable in this environment")
