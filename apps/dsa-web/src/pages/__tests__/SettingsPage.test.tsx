@@ -54,8 +54,13 @@ const {
 
 const mockedAnchorClick = vi.fn();
 
-vi.mock('../../hooks', () => ({
+// SettingsPage imports each hook from its concrete module
+// (`../hooks/useAuth`, `../hooks/useSystemConfig`), so mock those paths
+// directly — mocking the `hooks` barrel does not intercept file imports.
+vi.mock('../../hooks/useAuth', () => ({
   useAuth: () => useAuthMock(),
+}));
+vi.mock('../../hooks/useSystemConfig', () => ({
   useSystemConfig: () => useSystemConfigMock(),
 }));
 
@@ -74,14 +79,23 @@ vi.mock('../../utils/constants', async () => {
   };
 });
 
-vi.mock('../../components/settings', () => ({
+// SettingsPage imports each settings child from its concrete module path
+// (`../components/settings/<Name>`), so mock those paths directly — mocking
+// the `components/settings` barrel does not intercept direct file imports.
+vi.mock('../../components/settings/AuthSettingsCard', () => ({
   AuthSettingsCard: () => <div>认证与登录保护</div>,
+}));
+vi.mock('../../components/settings/ChangePasswordCard', () => ({
   ChangePasswordCard: () => <div>修改密码</div>,
+}));
+vi.mock('../../components/settings/IntelligentImport', () => ({
   IntelligentImport: ({ onMerged }: { onMerged: (value: string) => void }) => (
     <button type="button" onClick={() => onMerged('SZ000001,SZ000002')}>
       merge stock list
     </button>
   ),
+}));
+vi.mock('../../components/settings/LLMChannelEditor/LLMChannelEditor', () => ({
   LLMChannelEditor: ({
     onSaved,
   }: {
@@ -94,9 +108,13 @@ vi.mock('../../components/settings', () => ({
       save llm channels
     </button>
   ),
+}));
+vi.mock('../../components/settings/NotificationTestPanel', () => ({
   NotificationTestPanel: ({ items }: { items: Array<{ key: string; value: string }> }) => (
     <div>通知测试面板:{items.map((item) => item.key).join(',')}</div>
   ),
+}));
+vi.mock('../../components/settings/SettingsAlert', () => ({
   SettingsAlert: ({
     title,
     message,
@@ -117,6 +135,8 @@ vi.mock('../../components/settings', () => ({
       ) : null}
     </div>
   ),
+}));
+vi.mock('../../components/settings/SettingsCategoryNav', () => ({
   SettingsCategoryNav: ({
     categories,
     activeCategory,
@@ -139,8 +159,14 @@ vi.mock('../../components/settings', () => ({
       ))}
     </nav>
   ),
+}));
+vi.mock('../../components/settings/SettingsField', () => ({
   SettingsField: ({ item }: { item: { key: string } }) => <div>{item.key}</div>,
+}));
+vi.mock('../../components/settings/SettingsLoading', () => ({
   SettingsLoading: () => <div>loading</div>,
+}));
+vi.mock('../../components/settings/SettingsSectionCard', () => ({
   SettingsSectionCard: ({
     title,
     description,
