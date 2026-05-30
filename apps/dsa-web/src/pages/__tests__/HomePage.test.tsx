@@ -50,6 +50,13 @@ vi.mock('../../hooks/useTaskStream', () => ({
   useTaskStream: vi.fn(),
 }));
 
+// The empty report workspace renders the portfolio heatmap treemap (it
+// replaced the old "开始分析" EmptyState). Stub it so the HomePage unit test
+// stays isolated from the treemap's portfolio data fetching.
+vi.mock('../../components/portfolio/PortfolioHeatmapTreemap', () => ({
+  PortfolioHeatmapTreemap: () => <div data-testid="portfolio-heatmap-treemap">portfolio heatmap</div>,
+}));
+
 const historyItem = {
   id: 1,
   queryId: 'q-1',
@@ -141,9 +148,9 @@ describe('HomePage', () => {
       </MemoryRouter>,
     );
 
-    expect(await screen.findByText('开始分析')).toBeInTheDocument();
-    expect(screen.getByRole('heading', { name: '开始分析', level: 3 })).toBeInTheDocument();
-    expect(screen.getByText('输入股票代码进行分析，或从左侧选择历史报告查看。')).toBeInTheDocument();
+    // Empty workspace now surfaces the portfolio heatmap treemap (replaces the
+    // old "开始分析" EmptyState); the history sidebar still shows its own empty hint.
+    expect(await screen.findByTestId('portfolio-heatmap-treemap')).toBeInTheDocument();
     expect(screen.getByText('暂无历史分析记录')).toBeInTheDocument();
   });
 
@@ -289,7 +296,7 @@ describe('HomePage', () => {
     expect(dashboardScroll).toContainElement(marketReviewReport);
     expect(marketReviewReport.className).not.toContain('max-h-64');
     expect(marketReviewReport.className).not.toContain('overflow-y-auto');
-    expect(await screen.findByText('开始分析')).toBeInTheDocument();
+    expect(await screen.findByTestId('portfolio-heatmap-treemap')).toBeInTheDocument();
   });
 
   it('shows first-run setup gaps and links to settings', async () => {

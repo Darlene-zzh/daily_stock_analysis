@@ -18,10 +18,12 @@ describe('EvidenceRef', () => {
     expect(screen.getByText('阻力位')).toBeInTheDocument();
   });
 
-  it('exposes display_value in a title attribute for hover tooltip', () => {
+  it('exposes display_value via aria-label for assistive tech', () => {
+    // Native `title` hover tooltips are banned by the UI governance guard, so
+    // the human-readable value is surfaced through aria-label instead.
     render(<EvidenceRef fact={sampleFact} />);
     const pill = screen.getByText('阻力位');
-    expect(pill.closest('[title]')).toHaveAttribute('title', '$226.13');
+    expect(pill.closest('[aria-label]')).toHaveAttribute('aria-label', '$226.13');
   });
 
   it('renders nothing when fact is undefined', () => {

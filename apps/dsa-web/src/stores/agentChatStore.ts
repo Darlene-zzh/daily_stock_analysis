@@ -101,10 +101,21 @@ interface AgentChatActions {
   startStream: (payload: ChatStreamRequest, meta?: StreamMeta) => Promise<void>;
 }
 
-const getInitialSessionId = (): string =>
-  typeof localStorage !== 'undefined'
-    ? localStorage.getItem(STORAGE_KEY_SESSION) || generateUUID()
-    : generateUUID();
+const getInitialSessionId = (): string => {
+  // Runs at module-init (zustand create), so it must tolerate environments
+  // where `localStorage` exists but is non-functional or throws — privacy /
+  // sandboxed contexts, SSR, and some test runners. The bare
+  // `typeof localStorage !== 'undefined'` guard is not enough: getItem can be
+  // missing or throw even when the global is defined.
+  try {
+    if (typeof localStorage !== 'undefined' && typeof localStorage.getItem === 'function') {
+      return localStorage.getItem(STORAGE_KEY_SESSION) || generateUUID();
+    }
+  } catch {
+    // fall through to a fresh id
+  }
+  return generateUUID();
+};
 
 export const useAgentChatStore = create<AgentChatState & AgentChatActions>((set, get) => ({
   messages: [],

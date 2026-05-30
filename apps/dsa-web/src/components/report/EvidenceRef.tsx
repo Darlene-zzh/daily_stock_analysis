@@ -11,8 +11,9 @@ export interface EvidenceRefProps {
 
 /**
  * Inline citation pill — renders the fact label as a small monospace chip,
- * with the human-readable display_value exposed via `title` for hover. Phase 4
- * keeps interaction minimal; Phase 5 may swap to a tooltip popover.
+ * with the human-readable display_value exposed via `aria-label` for assistive
+ * tech. Native `title` hover tooltips are banned by the UI governance guard
+ * (not keyboard/screen-reader accessible); a real tooltip popover can come later.
  */
 export function EvidenceRef({ fact, fallbackId, className }: EvidenceRefProps) {
   if (!fact && !fallbackId) return null;
@@ -22,7 +23,7 @@ export function EvidenceRef({ fact, fallbackId, className }: EvidenceRefProps) {
 
   return (
     <span
-      title={tooltip}
+      aria-label={tooltip}
       className={clsx(
         'inline-flex items-center gap-1 rounded px-1.5 py-0.5',
         'text-xs font-mono align-middle',
