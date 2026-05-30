@@ -194,7 +194,10 @@ describe('stockPoolStore', () => {
     expect(state.isAnalyzing).toBe(false);
     expect(analysisApi.analyzeAsync).toHaveBeenCalledWith(expect.objectContaining({
       stockCode: '00700.HK',
-      reportType: 'detailed',
+      // Default report type is 'full' — set by the store default (stockPoolStore
+      // line ~376) and mirrored in api/analysis.ts; the old 'detailed' default
+      // was intentionally retired.
+      reportType: 'full',
       stockName: '腾讯控股',
       originalQuery: '00700',
       selectionSource: 'autocomplete',

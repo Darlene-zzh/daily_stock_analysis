@@ -341,7 +341,7 @@ const LensCard: React.FC<LensCardProps> = ({
                 <span
                   data-testid={`committee-lens-reason-${personaId}`}
                   className="text-[11px] text-muted-text"
-                  title={opinion?.errorSummary ?? ''}
+                  aria-label={opinion?.errorSummary ?? ''}
                 >
                   {reason}
                 </span>
