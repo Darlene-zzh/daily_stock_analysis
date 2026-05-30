@@ -6,8 +6,9 @@ Cerebras Qwen3-235B / OpenRouter DeepSeek-V4 (both Chinese-native), the
 analysis comes back with Chinese in the base `risk_alerts` / `latest_news`
 fields. The old `_try_inject_zh_translations` fired unconditionally and
 re-translated Chinese→Chinese, producing two paraphrased copies on the
-dashboard. The new gate skips the LLM call and just mirrors the source to
-the `*_zh` slot when the content is already CJK.
+dashboard. The gate now skips the LLM call AND leaves the `*_zh` slot
+absent when the content is already CJK — the renderers fall back to the
+original field, so a single Chinese copy is shown instead of a duplicate.
 """
 
 from __future__ import annotations
@@ -104,11 +105,12 @@ class TranslationGateTestCase(unittest.TestCase):
             analyzer._try_inject_zh_translations(result, "NVDA")
 
         mock_llm.assert_not_called()
-        # Source should be mirrored into _zh slots so renderer still shows it
+        # Chinese source is left as-is: no `*_zh` mirror, so the renderer shows
+        # the original field once instead of printing the same Chinese twice.
         intel = result.dashboard["intelligence"]
-        self.assertEqual(intel["risk_alerts_zh"], ["估值偏高，PE 远超历史均值"])
-        self.assertEqual(intel["positive_catalysts_zh"], ["数据中心业务持续放量"])
-        self.assertEqual(intel["sentiment_summary_zh"], "市场情绪积极，但有分歧")
+        self.assertNotIn("risk_alerts_zh", intel)
+        self.assertNotIn("positive_catalysts_zh", intel)
+        self.assertNotIn("sentiment_summary_zh", intel)
 
     def test_does_translate_english_source(self):
         from src.analyzer import GeminiAnalyzer
@@ -145,17 +147,18 @@ class TranslationGateTestCase(unittest.TestCase):
         with patch.object(analyzer, "generate_text", return_value=fake_response) as mock_llm:
             analyzer._try_inject_zh_translations(result, "NVDA")
 
-        # LLM was called once (for the English field), but the Chinese field
-        # was mirrored directly.
+        # LLM was called once (for the English field). The Chinese field is
+        # neither sent to the LLM nor mirrored into a `*_zh` slot.
         mock_llm.assert_called_once()
         # The prompt sent to the LLM must NOT include the Chinese-source field.
         sent_prompt = mock_llm.call_args[0][0]
         self.assertIn("Concentration risk", sent_prompt)
         self.assertNotIn("AI 推理需求强劲", sent_prompt)
-        # Both slots end up populated.
+        # Only the English field gets a `*_zh` translation; the Chinese field
+        # keeps its original value with no `*_zh` mirror.
         intel = result.dashboard["intelligence"]
         self.assertEqual(intel["risk_alerts_zh"], ["DC 业务集中度风险"])
-        self.assertEqual(intel["positive_catalysts_zh"], ["AI 推理需求强劲，订单饱满"])
+        self.assertNotIn("positive_catalysts_zh", intel)
 
 
 if __name__ == "__main__":

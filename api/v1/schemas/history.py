@@ -9,7 +9,7 @@
 2. 定义分析报告完整模型
 """
 
-from typing import Optional, List, Any, Dict
+from typing import Optional, List, Any, Dict, Union
 
 from pydantic import BaseModel, ConfigDict, Field
 
@@ -124,6 +124,15 @@ class ActionPlanItemSchema(BaseModel):
     quant_signal: Optional[str] = None
     invalidation_rule: Optional[str] = None
     priority: Optional[int] = None
+    # Phase 2 evidence-grounding fields. Optional → backward compatible with
+    # legacy reports that lack them. Without these declarations Pydantic strips
+    # the keys from the serialized response and the Phase 5 frontend cannot
+    # render evidence pills / provenance badges / tier markers.
+    candidate_id: Optional[str] = None
+    evidence_refs: Optional[List[str]] = None
+    narrative: Optional[str] = None
+    tier: Optional[str] = None  # 'primary' | 'discipline_anchor' | ...
+    provenance: Optional[str] = None  # 'llm' | 'synthesized'
 
 
 class StrategyChoiceSchema(BaseModel):
@@ -139,6 +148,16 @@ class StrategyChoiceSchema(BaseModel):
     key_params: Optional[str] = None
     time_horizon: Optional[str] = None
     inapplicable_reason: Optional[str] = None
+    # Phase 5 evidence-grounding (optional, additive).
+    supporting_evidence_refs: Optional[List[str]] = None
+    contradicting_evidence_refs: Optional[List[str]] = None
+
+
+class StrategyThesisStructuredSchema(BaseModel):
+    """Structured strategy thesis emitted by the evidence-grounded pipeline."""
+    text: str
+    evidence_refs: List[str] = Field(default_factory=list)
+    provenance: str  # 'llm' | 'synthesized'
 
 
 class PositionOutcomeSummarySchema(BaseModel):
@@ -161,7 +180,10 @@ class CoreConclusionSchema(BaseModel):
     action_plan_items: Optional[List[ActionPlanItemSchema]] = None
     strategy_choices: Optional[List[StrategyChoiceSchema]] = None
     recommended_strategy: Optional[str] = None
-    strategy_thesis: Optional[str] = None
+    # Accept BOTH legacy string thesis AND Phase 5 structured object form.
+    # Pydantic union resolution tries str first; structured dict promotes to
+    # StrategyThesisStructuredSchema via duck-typed validation.
+    strategy_thesis: Optional[Union[str, StrategyThesisStructuredSchema]] = None
     position_outcome_summary: Optional[PositionOutcomeSummarySchema] = None
 
 
@@ -173,6 +195,11 @@ class DashboardSection(BaseModel):
     data_perspective: Optional[dict] = None
     battle_plan: Optional[dict] = None
     intelligence: Optional[dict] = None
+    # Phase 1 evidence-grounded fact bundle. Pass-through as Dict — the inner
+    # shape (facts[] / candidates[] with snake_case keys) is preserved verbatim
+    # for the frontend, which preserves snake_case via DEFAULT_STOP_PATHS in
+    # apps/dsa-web/src/api/utils.ts.
+    fact_bundle: Optional[Dict[str, Any]] = None
 
 
 class ReportMeta(BaseModel):

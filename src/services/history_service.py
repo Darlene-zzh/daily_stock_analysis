@@ -1198,13 +1198,13 @@ class HistoryService:
             if intel.get('sentiment_summary'):
                 report_lines.append(f"**💭 {labels['sentiment_summary_label']}**: {intel['sentiment_summary']}")
                 zh = _zh_scalar(intel.get('sentiment_summary_zh'))
-                if zh:
+                if zh and zh != intel.get('sentiment_summary'):
                     report_lines.append(f"{zh}")
             # 业绩预期
             if intel.get('earnings_outlook'):
                 report_lines.append(f"**📊 {labels['earnings_outlook_label']}**: {intel['earnings_outlook']}")
                 zh = _zh_scalar(intel.get('earnings_outlook_zh'))
-                if zh:
+                if zh and zh != intel.get('earnings_outlook'):
                     report_lines.append(f"{zh}")
             # 风险警报（醒目显示）
             risk_alerts = intel.get('risk_alerts', [])
@@ -1215,7 +1215,7 @@ class HistoryService:
                 for i, alert in enumerate(risk_alerts):
                     report_lines.append(f"- {alert}")
                     zh = _zh_for(i, risk_alerts_zh)
-                    if zh:
+                    if zh and zh != alert:
                         report_lines.append(f"  {zh}")
             # 利好催化
             catalysts = intel.get('positive_catalysts', [])
@@ -1226,14 +1226,14 @@ class HistoryService:
                 for i, cat in enumerate(catalysts):
                     report_lines.append(f"- {cat}")
                     zh = _zh_for(i, catalysts_zh)
-                    if zh:
+                    if zh and zh != cat:
                         report_lines.append(f"  {zh}")
             # 最新消息
             if intel.get('latest_news'):
                 report_lines.append("")
                 report_lines.append(f"**📢 {labels['latest_news_label']}**: {intel['latest_news']}")
                 zh = _zh_scalar(intel.get('latest_news_zh'))
-                if zh:
+                if zh and zh != intel.get('latest_news'):
                     report_lines.append(f"{zh}")
             report_lines.append("")
 

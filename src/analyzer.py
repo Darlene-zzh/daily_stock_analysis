@@ -2357,8 +2357,11 @@ intelligence 区块新增字段示例（仅供格式参考，实际内容由你�
             return
 
         # Collect fields that exist in this analysis AND are not already Chinese.
+        # When the source is already Chinese we DO NOT mirror to `*_zh` — the
+        # renderer's pattern "print original then print _zh below" would print
+        # the same Chinese twice. Renderers fall back to the original field
+        # when `*_zh` is absent, which is exactly the correct behaviour here.
         to_translate: dict = {}
-        already_chinese: dict = {}
         for key in ('risk_alerts', 'positive_catalysts', 'latest_news', 'sentiment_summary', 'earnings_outlook'):
             val = intel.get(key)
             if not val:
@@ -2366,14 +2369,8 @@ intelligence 区块新增字段示例（仅供格式参考，实际内容由你�
             if not ((isinstance(val, list) and val) or (isinstance(val, str) and val.strip())):
                 continue
             if _field_is_predominantly_chinese(val):
-                # Mirror straight into the _zh slot so the renderer (which
-                # prefers *_zh when present) still has something to show, but
-                # don't waste an LLM call on it.
-                already_chinese[f"{key}_zh"] = val
-            else:
-                to_translate[key] = val
-        for k, v in already_chinese.items():
-            result.dashboard['intelligence'][k] = v
+                continue  # already Chinese — leave original in place, no mirror
+            to_translate[key] = val
         if not to_translate:
             return
 
@@ -2443,6 +2440,12 @@ intelligence 区块新增字段示例（仅供格式参考，实际内容由你�
         fact_bundle = result.dashboard.get("fact_bundle") if isinstance(
             result.dashboard, dict
         ) else None
+        # Portfolio-match was set by `_apply_portfolio_match` earlier in the
+        # pipeline (see src/core/pipeline.py:548). When the user does not
+        # currently hold the symbol, sanitizer_v2 zeros out fabricated
+        # `pct_of_position` / `shares` fields the LLM emits against a
+        # non-existent position.
+        portfolio_held = getattr(result, "portfolio_match", None) == "held"
         current_price = None
         try:
             persp_local = result.dashboard.get("data_perspective") or {}
@@ -2468,6 +2471,7 @@ intelligence 区块新增字段示例（仅供格式参考，实际内容由你�
                 strategy=upstream_strategy,
                 fact_bundle=fact_bundle,
                 current_price=current_price,
+                portfolio_held=portfolio_held,
             )
             # Phase 2: tag survivors as LLM-provenance; if sanitizer emptied the
             # list (e.g. legacy upstream items missing candidate_id), fall back
@@ -2584,6 +2588,7 @@ intelligence 区块新增字段示例（仅供格式参考，实际内容由你�
             strategy=strategy,
             fact_bundle=fact_bundle,
             current_price=current_price,
+            portfolio_held=portfolio_held,
         )
 
         # Phase 2: tag survivors as LLM-provenance; if sanitizer emptied the list,
@@ -2858,6 +2863,7 @@ intelligence 区块新增字段示例（仅供格式参考，实际内容由你�
         *,
         fact_bundle: Optional[dict] = None,
         current_price: Optional[float] = None,
+        portfolio_held: bool = True,
     ) -> list:
         """Apply post-LLM sanitization.
 
@@ -2890,6 +2896,7 @@ intelligence 区块新增字段示例（仅供格式参考，实际内容由你�
                 )
                 return sanitize_with_candidates(
                     items, bundle, strategy=strategy, current_price=current_price,
+                    portfolio_held=portfolio_held,
                 )
             except Exception as exc:
                 logger.warning(

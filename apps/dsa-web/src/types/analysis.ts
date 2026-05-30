@@ -169,6 +169,16 @@ export interface StrategyChoice {
   keyParams?: string;
   timeHorizon?: string;
   inapplicableReason?: string;
+  // Phase 5 evidence-grounding fields (optional, additive).
+  supportingEvidenceRefs?: string[];
+  contradictingEvidenceRefs?: string[];
+}
+
+/** Structured strategy thesis emitted by the evidence-grounded pipeline. */
+export interface StrategyThesisStructured {
+  text: string;
+  evidenceRefs: string[];
+  provenance: 'llm' | 'synthesized';
 }
 
 export interface PositionOutcomeSummary {
@@ -225,7 +235,7 @@ export interface CoreConclusion {
   actionPlanItems?: ActionPlanItem[];
   strategyChoices?: StrategyChoice[];
   recommendedStrategy?: string;
-  strategyThesis?: string;
+  strategyThesis?: string | StrategyThesisStructured;
   positionOutcomeSummary?: PositionOutcomeSummary;
 }
 
@@ -236,6 +246,9 @@ export interface DashboardSection {
   intelligence?: Record<string, unknown> & {
     sentimentDimensions?: SentimentDimensions;
   };
+  /** Phase 1+5 — evidence-grounded fact bundle. Snake_case body preserved by
+   *  `apps/dsa-web/src/api/utils.ts` `DEFAULT_STOP_PATHS`. */
+  factBundle?: FactBundle;
 }
 
 // ============ Investment Committee Types (Sprint 1B) ============

@@ -26,11 +26,20 @@ def sanitize_with_candidates(
     *,
     strategy: Optional[str],
     current_price: Optional[float],
+    portfolio_held: bool = True,
 ) -> List[Dict[str, Any]]:
     """Run the 9-check sanitizer against the candidate pool.
 
     Returns the filtered + corrected items list, with `priority` renumbered
     1..N. May return [] if all items fail — caller falls back to synthesizer.
+
+    ``portfolio_held``: when False (user does not currently hold this symbol)
+    the post-check pass zeroes out ``shares`` / ``pct_of_position`` /
+    ``pct_of_equity`` on every survivor — Gemini & Cerebras free-tier models
+    routinely hallucinate "持仓 5%" etc. against a non-existent position.
+    Trigger prices and evidence are retained so the user still sees the
+    informational levels; only the quantitative claims about a non-existent
+    position are scrubbed.
     """
     cmap = _candidate_map(bundle)
     survivors: List[Dict[str, Any]] = []
@@ -162,5 +171,23 @@ def sanitize_with_candidates(
     # Check #9 — Renumber priority 1..N after dedup/cap
     for new_pri, it in enumerate(survivors, start=1):
         it["priority"] = new_pri
+
+    # Check #10 — when user does not hold the symbol, scrub quantitative
+    # position claims. Keep trigger_price + evidence — they remain useful as
+    # informational levels for "if you enter, plan to exit here".
+    if not portfolio_held:
+        for it in survivors:
+            had_claim = any(
+                it.get(k) not in (None, 0, 0.0)
+                for k in ("shares", "pct_of_position", "pct_of_equity")
+            )
+            it["shares"] = None
+            it["pct_of_position"] = None
+            it["pct_of_equity"] = None
+            if had_claim:
+                logger.info(
+                    "[sanitizer_v2] scrubbed fabricated position fields on "
+                    "candidate=%s (user does not hold)", it.get("candidate_id"),
+                )
 
     return survivors

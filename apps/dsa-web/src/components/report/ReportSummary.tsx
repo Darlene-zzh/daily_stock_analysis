@@ -6,13 +6,14 @@ import { QuantContextPanel } from '../quant/QuantContextPanel';
 import { StructuredRiskCallout } from '../risk/StructuredRiskCallout';
 import { ReportOverview } from './ReportOverview';
 import { ActionPlanTable } from './ActionPlanTable';
-import { StrategySelector } from './StrategySelector';
-import { StrategyThesis } from './StrategyThesis';
+import { StrategyHeroCard } from './StrategyHeroCard';
 import { SentimentPanel } from './SentimentPanel';
-import { PositionOutcomeSummary } from './PositionOutcomeSummary';
+import { PositionFlowTimeline } from './PositionFlowTimeline';
 import { ReportStrategy } from './ReportStrategy';
 import { ReportNews } from './ReportNews';
 import { ReportDetails } from './ReportDetails';
+import { PriceMapCard } from './PriceMapCard';
+import { buildPriceMapLevels } from '../../utils/priceMapLevels';
 import { InlineAlert } from '../common/InlineAlert';
 import { Button } from '../common/Button';
 import { getReportText, normalizeReportLanguage } from '../../utils/reportLanguage';
@@ -66,6 +67,11 @@ export const ReportSummary: React.FC<ReportSummaryProps> = ({
   const isCached = meta.cached === true;
   const cacheAgeLabel = isCached ? formatCacheAge(meta.cacheAgeSeconds) : '';
 
+  const factBundle = report.dashboard?.factBundle;
+  const currentPriceFact = factBundle?.facts.find((f) => f.id === 'technical.current_price');
+  const currentPrice = typeof currentPriceFact?.value === 'number' ? currentPriceFact.value : null;
+  const priceMapLevels = buildPriceMapLevels(factBundle);
+
   return (
     <div className="space-y-5 pb-8 animate-fade-in">
       {isCached && (
@@ -91,6 +97,17 @@ export const ReportSummary: React.FC<ReportSummaryProps> = ({
           }
         />
       )}
+      {factBundle != null &&
+        currentPrice != null &&
+        currentPrice > 0 &&
+        priceMapLevels.length > 0 && (
+          <PriceMapCard
+            stockCode={meta.stockCode}
+            currentPrice={currentPrice}
+            currentPriceAsOf={currentPriceFact?.as_of ?? factBundle.as_of}
+            levels={priceMapLevels}
+          />
+        )}
       {/* 概览区（首屏） */}
       <ReportOverview
         meta={meta}
@@ -103,31 +120,29 @@ export const ReportSummary: React.FC<ReportSummaryProps> = ({
       {report.dashboard?.coreConclusion?.actionPlanItems &&
         report.dashboard.coreConclusion.actionPlanItems.length > 0 && (
           <div className="rounded-xl border border-subtle bg-card p-4">
-            <ActionPlanTable items={report.dashboard.coreConclusion.actionPlanItems} />
+            <ActionPlanTable
+              items={report.dashboard.coreConclusion.actionPlanItems}
+              bundle={factBundle}
+            />
           </div>
         )}
 
-      {/* 策略选择 — 4 个候选 + AI 推荐 + 论述 */}
+      {/* 策略英雄卡（推荐 + 备选 + 不适用） */}
       {report.dashboard?.coreConclusion?.strategyChoices &&
         report.dashboard.coreConclusion.strategyChoices.length > 0 && (
-          <div className="rounded-xl border border-subtle bg-card p-4 space-y-3">
-            <StrategySelector
-              choices={report.dashboard.coreConclusion.strategyChoices}
-              recommendedId={report.dashboard.coreConclusion.recommendedStrategy}
-            />
-            {report.dashboard.coreConclusion.strategyThesis && (
-              <StrategyThesis
-                thesis={report.dashboard.coreConclusion.strategyThesis}
-                recommendedLabel={undefined}
-              />
-            )}
-          </div>
+          <StrategyHeroCard
+            choices={report.dashboard.coreConclusion.strategyChoices}
+            recommendedId={report.dashboard.coreConclusion.recommendedStrategy}
+            thesis={report.dashboard.coreConclusion.strategyThesis}
+            bundle={factBundle}
+          />
         )}
 
-      {/* 仓位流水汇总 */}
+      {/* 仓位流水时间线 + 汇总 */}
       {report.dashboard?.coreConclusion?.positionOutcomeSummary && (
-        <PositionOutcomeSummary
+        <PositionFlowTimeline
           summary={report.dashboard.coreConclusion.positionOutcomeSummary}
+          triggers={report.dashboard.coreConclusion.actionPlanItems ?? []}
         />
       )}
 
