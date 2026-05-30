@@ -240,3 +240,84 @@ def test_chip_avg_cost_entry_a_share():
     chip_entries = [c for c in cands if c.basis_rule == "chip_avg_cost"]
     assert len(chip_entries) == 1
     assert chip_entries[0].direction == "entry"
+
+
+# ---- Spec Section A rules 21-23 (previously deferred) ----
+
+def test_support_breakdown_stop_when_support_below_current():
+    facts = [
+        _fact("technical.current_price", 223.47),
+        _fact("technical.support", 210.0),
+    ]
+    cands = compute_candidates(facts)
+    stops = [c for c in cands if c.basis_rule == "support_breakdown"]
+    assert len(stops) == 1
+    s = stops[0]
+    assert s.price == 210.0
+    assert s.direction == "stop_loss"
+    assert s.tier == "primary"
+    assert s.applicable_strategies == ["swing_trade"]
+
+
+def test_support_breakdown_skipped_when_support_at_or_above_current():
+    facts = [
+        _fact("technical.current_price", 200.0),
+        _fact("technical.support", 222.0),
+    ]
+    cands = compute_candidates(facts)
+    assert not any(c.basis_rule == "support_breakdown" for c in cands)
+
+
+def test_ma20_pullback_entry_when_at_or_below_current():
+    facts = [
+        _fact("technical.current_price", 223.47),
+        _fact("technical.ma20", 213.4),
+    ]
+    cands = compute_candidates(facts)
+    entries = [c for c in cands if c.basis_rule == "ma20_pullback"]
+    assert len(entries) == 1
+    e = entries[0]
+    assert e.price == 213.4
+    assert e.direction == "entry"
+    assert e.tier == "primary"
+    assert "swing_trade" in e.applicable_strategies
+    assert "stepped_profit_taking" in e.applicable_strategies
+    assert "long_term_hold" in e.applicable_strategies
+
+
+def test_ma20_pullback_skipped_when_above_current():
+    facts = [
+        _fact("technical.current_price", 200.0),
+        _fact("technical.ma20", 222.0),
+    ]
+    cands = compute_candidates(facts)
+    assert not any(c.basis_rule == "ma20_pullback" for c in cands)
+
+
+def test_breakout_retest_entry_when_swing_high_below_current():
+    # Price has broken above the prior 20d swing high; that level now acts as
+    # support on a retest -> entry candidate.
+    facts = [
+        _fact("technical.current_price", 223.47),
+        _fact("technical.swing_high_20d", 215.0),
+    ]
+    cands = compute_candidates(facts)
+    entries = [c for c in cands if c.basis_rule == "breakout_retest"]
+    assert len(entries) == 1
+    e = entries[0]
+    assert e.price == 215.0
+    assert e.direction == "entry"
+    assert e.tier == "primary"
+    assert "swing_trade" in e.applicable_strategies
+    assert "stepped_profit_taking" in e.applicable_strategies
+
+
+def test_breakout_retest_skipped_when_swing_high_above_current():
+    # swing_high above current is a take_profit target (prev_swing_high), not a
+    # breakout retest entry.
+    facts = [
+        _fact("technical.current_price", 200.0),
+        _fact("technical.swing_high_20d", 215.0),
+    ]
+    cands = compute_candidates(facts)
+    assert not any(c.basis_rule == "breakout_retest" for c in cands)
