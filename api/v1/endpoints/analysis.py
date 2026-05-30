@@ -873,6 +873,12 @@ def get_analysis_status(task_id: str) -> TaskStatus:
                 if isinstance(dash, dict):
                     dashboard_data = dash
 
+            # Committee minutes are late-bound to the DB row ~minutes after the
+            # initial insert (see update_committee_minutes), so a task polled
+            # after completion may now carry them in dashboard. Lift to top level
+            # so the committee/risk panels render on the freshly-completed report.
+            committee_payload, risk_assessment_payload = _lift_optin_payloads(dashboard_data)
+
             report_dict = AnalysisReport(
                 meta=ReportMeta(
                     id=record.id,
@@ -899,6 +905,8 @@ def get_analysis_status(task_id: str) -> TaskStatus:
                     take_profit=_stringify_report_strategy_value(getattr(record, 'take_profit', None)),
                 ),
                 dashboard=dashboard_data,
+                committee=committee_payload,
+                risk_assessment=risk_assessment_payload,
             ).model_dump()
             return TaskStatus(
                 task_id=task_id,
@@ -975,6 +983,26 @@ def _stringify_report_strategy_value(value: Any) -> Optional[str]:
     if isinstance(value, str):
         return value
     return str(value)
+
+
+def _lift_optin_payloads(
+        dashboard_payload: Optional[Dict[str, Any]],
+) -> "tuple[Optional[Dict[str, Any]], Optional[Dict[str, Any]]]":
+    """Extract opt-in ``committee`` / ``risk_assessment`` dicts out of the
+    dashboard so they can be surfaced at the ``AnalysisReport`` top level.
+
+    The frontend ``ReportSummary`` reads ``report.committee`` /
+    ``report.riskAssessment`` directly, not ``report.dashboard.committee``.
+    Returns ``(None, None)`` when absent or empty so optional panels render
+    nothing. Mirrors the inline lift in api/v1/endpoints/history.py.
+    """
+    if not isinstance(dashboard_payload, dict):
+        return None, None
+    committee = dashboard_payload.get("committee")
+    risk = dashboard_payload.get("risk_assessment")
+    committee_out = committee if isinstance(committee, dict) and committee else None
+    risk_out = risk if isinstance(risk, dict) and risk else None
+    return committee_out, risk_out
 
 
 def _build_analysis_report(
@@ -1071,10 +1099,19 @@ def _build_analysis_report(
     if not isinstance(dashboard_payload, dict):
         dashboard_payload = None
 
+    # Lift opt-in committee / risk_assessment to the top level so the frontend
+    # ``ReportSummary`` destructure (``{committee, riskAssessment}``) finds them
+    # without diving into ``dashboard``. This mirrors the history GET endpoint
+    # (api/v1/endpoints/history.py) — without it a freshly-completed analysis
+    # renders no committee/risk panel until re-fetched via history.
+    committee_payload, risk_assessment_payload = _lift_optin_payloads(dashboard_payload)
+
     return AnalysisReport(
         meta=meta,
         summary=summary,
         strategy=strategy,
         details=details,
         dashboard=dashboard_payload,
+        committee=committee_payload,
+        risk_assessment=risk_assessment_payload,
     )
