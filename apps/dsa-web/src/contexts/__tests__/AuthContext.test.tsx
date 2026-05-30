@@ -20,7 +20,11 @@ vi.mock('../../api/auth', () => ({
   },
 }));
 
-vi.mock('../../stores', () => ({
+// AuthContext imports the store from its concrete module
+// (`../stores/stockPoolStore`), not the `stores` barrel — vi.mock is
+// path-specific, so the barrel mock never intercepted it and the real
+// store's resetDashboardState ran instead of this spy.
+vi.mock('../../stores/stockPoolStore', () => ({
   useStockPoolStore: {
     getState: () => ({
       resetDashboardState,

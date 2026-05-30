@@ -8,7 +8,9 @@ const { navigate, useSearchParamsMock, useAuthMock } = vi.hoisted(() => ({
   useAuthMock: vi.fn(),
 }));
 
-vi.mock('../../hooks', () => ({
+// Mock the concrete hook module LoginPage imports (`../hooks/useAuth`), not
+// the `hooks` barrel — vi.mock is path-specific.
+vi.mock('../../hooks/useAuth', () => ({
   useAuth: () => useAuthMock(),
 }));
 

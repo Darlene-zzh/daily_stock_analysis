@@ -8,7 +8,10 @@ const { refreshStatus, updateSettings, useAuthMock } = vi.hoisted(() => ({
   useAuthMock: vi.fn(),
 }));
 
-vi.mock('../../../hooks', () => ({
+// Mock the concrete hook module the component imports from
+// (`../../hooks/useAuth`), not the `hooks` barrel — vi.mock is path-specific,
+// so mocking the barrel does not intercept a direct file import.
+vi.mock('../../../hooks/useAuth', () => ({
   useAuth: () => useAuthMock(),
 }));
 
