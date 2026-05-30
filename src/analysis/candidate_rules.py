@@ -1,18 +1,17 @@
 """Candidate price-level computation rules.
 
-20 rules across entry / exit / take_profit / stop_loss directions.
+23 rules across entry / exit / take_profit / stop_loss directions.
 Each rule produces 0 or 1 CandidateLevel from the FactBundle.
 
 Implemented rules (the names match `basis_rule` on emitted candidates):
-  resistance_touch, ma20_breakdown, ma10_pullback, support_test,
-  atr_2x_below_current, atr_3x_below_current, resistance_plus_atr,
-  r_multiple_2r, r_multiple_3r, psychological_round,
+  resistance_touch, ma20_breakdown, ma10_pullback, ma20_pullback, support_test,
+  support_breakdown, atr_2x_below_current, atr_3x_below_current,
+  resistance_plus_atr, r_multiple_2r, r_multiple_3r, psychological_round,
   cost_plus_5pct, cost_plus_12pct, cost_plus_20pct, cost_minus_10pct,
-  prev_swing_high, prev_swing_low, fib_extension_1272, fib_extension_1618,
-  qlib_top_decile_buy, chip_avg_cost.
+  prev_swing_high, breakout_retest, prev_swing_low, fib_extension_1272,
+  fib_extension_1618, qlib_top_decile_buy, chip_avg_cost.
 
-Spec lists 23 candidates total. The remaining 3 (support_breakdown,
-ma20_pullback, breakout_retest) are deferred to a follow-up — see
+All 23 candidates from the spec are implemented — see
 docs/superpowers/specs/2026-05-21-evidence-grounded-decision-pipeline-design.md
 Section A "Candidate 生成规则".
 """
@@ -123,6 +122,17 @@ def compute_candidates(facts: List[FactRecord]) -> List[CandidateLevel]:
             applicable_strategies=["swing_trade", "stepped_profit_taking"],
         ))
 
+    # ---- Rule: ma20_pullback (entry) ----
+    if ma20 is not None and ma20 <= current:
+        add(_make_candidate(
+            next_idx("entry"),
+            direction="entry", price=ma20, current=current,
+            label="MA20 回踩入场",
+            basis_fact_id="technical.ma20",
+            basis_rule="ma20_pullback",
+            applicable_strategies=["swing_trade", "stepped_profit_taking", "long_term_hold"],
+        ))
+
     # ---- Rule: support_test (entry) ----
     sup = _get_value(facts, "technical.support")
     if sup is not None and sup <= current:
@@ -132,6 +142,19 @@ def compute_candidates(facts: List[FactRecord]) -> List[CandidateLevel]:
             label="支撑位反抽入场",
             basis_fact_id="technical.support",
             basis_rule="support_test",
+            applicable_strategies=["swing_trade"],
+        ))
+
+    # ---- Rule: support_breakdown (stop_loss) ----
+    # Same support level as support_test, but as the protective stop if price
+    # breaks below it. Only valid when support sits strictly below current.
+    if sup is not None and sup < current:
+        add(_make_candidate(
+            next_idx("stop"),
+            direction="stop_loss", price=sup, current=current,
+            label="支撑位跌破止损",
+            basis_fact_id="technical.support",
+            basis_rule="support_breakdown",
             applicable_strategies=["swing_trade"],
         ))
 
@@ -253,6 +276,20 @@ def compute_candidates(facts: List[FactRecord]) -> List[CandidateLevel]:
             basis_fact_id="technical.swing_high_20d",
             basis_rule="prev_swing_high",
             applicable_strategies=["swing_trade"],
+        ))
+
+    # ---- Rule: breakout_retest (entry) ----
+    # A prior 20d swing high that price has already broken above now acts as
+    # support on a retest from above — an entry level. (When the swing high is
+    # still above current it is a take_profit target via prev_swing_high.)
+    if swing_high is not None and swing_high < current:
+        add(_make_candidate(
+            next_idx("entry"),
+            direction="entry", price=swing_high, current=current,
+            label="突破回踩入场",
+            basis_fact_id="technical.swing_high_20d",
+            basis_rule="breakout_retest",
+            applicable_strategies=["swing_trade", "stepped_profit_taking"],
         ))
 
     # ---- Rule: prev_swing_low (stop_loss) ----
