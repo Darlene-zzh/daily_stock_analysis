@@ -271,3 +271,135 @@ def test_check9_priority_renumbered_1_to_N():
                                     current_price=223.47)
     priorities = sorted(it["priority"] for it in out)
     assert priorities == [1, 2]
+
+
+# ---------------------------------------------------------------------------
+# Check #11 — narrative cost-relationship consistency
+#
+# The LLM-authored `narrative` may assert a relationship between the trigger
+# price and the average cost that contradicts the FactBundle (observed in the
+# wild on MSFT: a 3×ATR trailing stop at $415.25 — correctly ABOVE the
+# $396.81 avg cost to protect profit — was narrated as "低于平均成本"). The
+# price is fine; only the prose lied. This check corrects the comparison word
+# deterministically against `portfolio.avg_cost`.
+# ---------------------------------------------------------------------------
+
+def _bundle_with_cost(candidates, *, current_price, avg_cost):
+    facts = [
+        FactRecord(id="technical.current_price", type="technical", label="现价",
+                   value=current_price, display_value=f"${current_price:.2f}"),
+        FactRecord(id="portfolio.avg_cost", type="portfolio", label="平均成本",
+                   value=avg_cost, display_value=f"${avg_cost:.2f}"),
+    ]
+    return FactBundle(as_of="x", market="us", stock_code="MSFT",
+                     facts=facts, candidates=candidates)
+
+
+def test_check11_corrects_below_to_above_when_stop_above_cost():
+    """MSFT reproduction: stop $415.25 is ABOVE cost $396.81 but narrative
+    says '低于平均成本' — must be corrected to '高于平均成本'."""
+    bundle = _bundle_with_cost(
+        [_candidate("candidate.stop.4", "stop_loss", 415.25, ["swing_trade"],
+                    tier="discipline_anchor", basis_fact_id="technical.atr_14")],
+        current_price=450.24, avg_cost=396.81,
+    )
+    items = [{
+        "candidate_id": "candidate.stop.4", "trigger_price": 415.25,
+        "direction": "stop_loss", "priority": 1, "tier": "discipline_anchor",
+        "evidence_refs": ["technical.atr_14", "portfolio.avg_cost"],
+        "narrative": "设置止损价于 $415.25，低于平均成本，以保护已获浮盈，防止大幅回撤。",
+    }]
+    out = sanitize_with_candidates(items, bundle, strategy="swing_trade",
+                                    current_price=450.24)
+    assert len(out) == 1
+    assert "高于平均成本" in out[0]["narrative"]
+    assert "低于平均成本" not in out[0]["narrative"]
+    # rest of the prose is preserved
+    assert "以保护已获浮盈" in out[0]["narrative"]
+
+
+def test_check11_corrects_above_to_below_when_below_cost():
+    bundle = _bundle_with_cost(
+        [_candidate("candidate.stop.x", "stop_loss", 380.0, ["swing_trade"])],
+        current_price=450.24, avg_cost=396.81,
+    )
+    items = [{
+        "candidate_id": "candidate.stop.x", "trigger_price": 380.0,
+        "direction": "stop_loss", "priority": 1, "tier": "primary",
+        "evidence_refs": ["technical.atr_14", "portfolio.avg_cost"],
+        "narrative": "止损 $380.00 高于平均成本，控制下行风险。",
+    }]
+    out = sanitize_with_candidates(items, bundle, strategy="swing_trade",
+                                    current_price=450.24)
+    assert "低于平均成本" in out[0]["narrative"]
+    assert "高于平均成本" not in out[0]["narrative"]
+
+
+def test_check11_consistent_narrative_untouched():
+    bundle = _bundle_with_cost(
+        [_candidate("candidate.stop.4", "stop_loss", 415.25, ["swing_trade"])],
+        current_price=450.24, avg_cost=396.81,
+    )
+    narrative = "设置止损价于 $415.25，高于平均成本，以保护已获浮盈。"
+    items = [{
+        "candidate_id": "candidate.stop.4", "trigger_price": 415.25,
+        "direction": "stop_loss", "priority": 1, "tier": "primary",
+        "evidence_refs": ["technical.atr_14", "portfolio.avg_cost"],
+        "narrative": narrative,
+    }]
+    out = sanitize_with_candidates(items, bundle, strategy="swing_trade",
+                                    current_price=450.24)
+    assert out[0]["narrative"] == narrative
+
+
+def test_check11_no_cost_claim_untouched():
+    bundle = _bundle_with_cost(
+        [_candidate("candidate.stop.4", "stop_loss", 415.25, ["swing_trade"])],
+        current_price=450.24, avg_cost=396.81,
+    )
+    narrative = "止损价 $415.25 参考 ATR 指标，提供稳健风险控制。"
+    items = [{
+        "candidate_id": "candidate.stop.4", "trigger_price": 415.25,
+        "direction": "stop_loss", "priority": 1, "tier": "primary",
+        "evidence_refs": ["technical.atr_14", "portfolio.avg_cost"],
+        "narrative": narrative,
+    }]
+    out = sanitize_with_candidates(items, bundle, strategy="swing_trade",
+                                    current_price=450.24)
+    assert out[0]["narrative"] == narrative
+
+
+def test_check11_noop_when_no_avg_cost_fact():
+    """No portfolio.avg_cost fact in bundle -> can't validate, leave prose as-is."""
+    bundle = _bundle(
+        [_candidate("candidate.stop.4", "stop_loss", 415.25, ["swing_trade"])],
+        current_price=450.24,
+    )
+    narrative = "设置止损价于 $415.25，低于平均成本，以保护已获浮盈。"
+    items = [{
+        "candidate_id": "candidate.stop.4", "trigger_price": 415.25,
+        "direction": "stop_loss", "priority": 1, "tier": "primary",
+        "evidence_refs": ["technical.atr_14", "technical.current_price"],
+        "narrative": narrative,
+    }]
+    out = sanitize_with_candidates(items, bundle, strategy="swing_trade",
+                                    current_price=450.24)
+    assert out[0]["narrative"] == narrative
+
+
+def test_check11_near_cost_not_flipped():
+    """Trigger within tolerance of cost -> ambiguous, don't rewrite."""
+    bundle = _bundle_with_cost(
+        [_candidate("candidate.stop.4", "stop_loss", 397.0, ["swing_trade"])],
+        current_price=450.24, avg_cost=396.81,
+    )
+    narrative = "止损 $397.00 低于平均成本。"
+    items = [{
+        "candidate_id": "candidate.stop.4", "trigger_price": 397.0,
+        "direction": "stop_loss", "priority": 1, "tier": "primary",
+        "evidence_refs": ["technical.atr_14", "portfolio.avg_cost"],
+        "narrative": narrative,
+    }]
+    out = sanitize_with_candidates(items, bundle, strategy="swing_trade",
+                                    current_price=450.24)
+    assert out[0]["narrative"] == narrative
