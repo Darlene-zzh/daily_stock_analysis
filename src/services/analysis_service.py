@@ -257,6 +257,14 @@ class AnalysisService:
             # bypass path because both converge here.  Default analysis is
             # untouched when ``enable_investment_committee=False``.
             if enable_investment_committee and response is not None:
+                # Committee runs ~12 extra LLM calls after the report is built;
+                # surface a progress tick so the bar doesn't sit silent at its
+                # last value for minutes during deliberation.
+                if progress_callback is not None:
+                    try:
+                        progress_callback(96, f"{stock_code}：投资委员会评议中…")
+                    except Exception:
+                        pass
                 try:
                     # Backward-compat: existing tests may monkey-patch
                     # ``_invoke_committee`` with the Sprint 1A signature

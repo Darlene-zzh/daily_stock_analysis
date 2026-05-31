@@ -60,6 +60,40 @@ from bot.models import BotMessage
 
 logger = logging.getLogger(__name__)
 
+# Agent-path progress window. The agent loop (multi-step tool calling) is a
+# long black box between "切换 Agent 分析链路" (58%) and completion; without
+# per-step progress the bar freezes at 58% for minutes and looks hung. We map
+# the agent's own loop events into this window so the bar keeps moving.
+_AGENT_PROGRESS_LO = 59
+_AGENT_PROGRESS_HI = 92
+
+
+def _agent_event_progress(event: Optional[dict], last: int) -> int:
+    """Map one agent-loop progress event to a monotonic pipeline progress %.
+
+    The agent runner emits dict events: ``{"type": "thinking"|"generating"|
+    "stage_start"|"stage_done"|..., "step": N, "message": ...}``. We translate
+    those into a value within ``[_AGENT_PROGRESS_LO, _AGENT_PROGRESS_HI]`` that
+    never moves backward (the bar must be monotonic). Events with no usable
+    signal still nudge forward by 1 so long stretches of tool calls show life.
+    """
+    lo, hi = _AGENT_PROGRESS_LO, _AGENT_PROGRESS_HI
+    etype = (event or {}).get("type")
+    step = (event or {}).get("step")
+    if etype == "generating":
+        candidate = hi
+    elif isinstance(step, bool):  # bool is an int subclass — reject it
+        candidate = last + 2
+    elif isinstance(step, int) and step > 0:
+        candidate = lo + step * 3
+    else:
+        candidate = last + 2
+    candidate = max(lo, min(hi, candidate))
+    if candidate <= last:
+        candidate = min(hi, last + 1)
+    return candidate
+
+
 # 防御性 guard：当实例绕过 __init__（如测试中 __new__）构造时，
 # double-check 初始化 _single_stock_notify_lock 仍然线程安全。
 _SINGLE_STOCK_NOTIFY_LOCK_INIT_GUARD = threading.Lock()
@@ -904,7 +938,25 @@ class StockAnalysisPipeline:
                 message = f"Analyze stock {code} ({stock_name}) and return the full decision dashboard JSON in English."
             else:
                 message = f"请分析股票 {code} ({stock_name})，并生成决策仪表盘报告。"
-            agent_result = executor.run(message, context=initial_context)
+            # Bridge the agent loop's own step events to the task progress bar.
+            # Without this the bar freezes at 58% for the whole (multi-minute)
+            # agent run and looks hung.
+            _agent_prog = {"p": _AGENT_PROGRESS_LO - 1}
+
+            def _agent_progress_cb(event: dict) -> None:
+                try:
+                    p = _agent_event_progress(event, _agent_prog["p"])
+                    _agent_prog["p"] = p
+                    msg = (event or {}).get("message") or "Agent 正在分析"
+                    self._emit_progress(p, f"{stock_name}：{msg}")
+                except Exception:  # never let progress reporting break analysis
+                    pass
+
+            agent_result = executor.run(
+                message, context=initial_context,
+                progress_callback=_agent_progress_cb,
+            )
+            self._emit_progress(94, f"{stock_name}：正在整理 Agent 分析结果")
 
             # 转换为 AnalysisResult
             result = self._agent_result_to_analysis_result(

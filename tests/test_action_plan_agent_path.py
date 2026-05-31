@@ -114,8 +114,9 @@ class PipelineAgentPathPortfolioWiringTestCase(unittest.TestCase):
         captured: dict = {}
 
         class FakeExecutor:
-            def run(self, _msg, context=None):
+            def run(self, _msg, context=None, progress_callback=None):
                 captured["context"] = dict(context or {})
+                captured["progress_callback"] = progress_callback
                 from src.agent.protocols import AgentResult
                 return AgentResult(success=False, error="stop here", dashboard=None)
 

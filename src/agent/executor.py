@@ -564,12 +564,20 @@ class AgentExecutor:
         self.max_steps = max_steps
         self.timeout_seconds = timeout_seconds
 
-    def run(self, task: str, context: Optional[Dict[str, Any]] = None) -> AgentResult:
+    def run(
+        self,
+        task: str,
+        context: Optional[Dict[str, Any]] = None,
+        progress_callback: Optional[Callable] = None,
+    ) -> AgentResult:
         """Execute the agent loop for a given task.
 
         Args:
             task: The user task / analysis request.
             context: Optional context dict (e.g., {"stock_code": "600519"}).
+            progress_callback: Optional per-step loop callback (same dict-event
+                shape as ``chat``) so callers can surface agent progress —
+                otherwise the multi-step loop is opaque to the task progress bar.
 
         Returns:
             AgentResult with parsed dashboard or error.
@@ -607,7 +615,10 @@ class AgentExecutor:
             {"role": "user", "content": self._build_user_message(task, context)},
         ]
 
-        return self._run_loop(messages, tool_decls, parse_dashboard=True)
+        return self._run_loop(
+            messages, tool_decls, parse_dashboard=True,
+            progress_callback=progress_callback,
+        )
 
     def chat(self, message: str, session_id: str, progress_callback: Optional[Callable] = None, context: Optional[Dict[str, Any]] = None) -> AgentResult:
         """Execute the agent loop for a free-form chat message.
