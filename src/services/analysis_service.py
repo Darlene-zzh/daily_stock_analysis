@@ -716,6 +716,25 @@ class AnalysisService:
         dashboard_raw = getattr(result, "dashboard", None) or {}
         report["dashboard"] = dashboard_raw
 
+        # Lift opt-in ``committee`` / ``risk_assessment`` to the report top
+        # level so the frontend ``ReportSummary`` destructure (``{committee,
+        # riskAssessment} = report``) finds them. This is a no-op for the
+        # fresh-analysis path (the committee hook runs AFTER this builder and
+        # writes ``response["report"]["committee"]`` directly at the end of
+        # ``analyze_stock``), but it is the only lift on the 24h same-stock
+        # cache short-circuit path — without it, a cache hit returns a report
+        # whose dashboard still carries committee but whose top level does
+        # not, causing the committee + structured-risk panels to silently
+        # vanish until the user manually refreshes (which routes through
+        # GET /history/{id}, where the same lift already exists).
+        if isinstance(dashboard_raw, dict):
+            cached_committee = dashboard_raw.get("committee")
+            if isinstance(cached_committee, dict) and cached_committee:
+                report["committee"] = cached_committee
+            cached_risk = dashboard_raw.get("risk_assessment")
+            if isinstance(cached_risk, dict) and cached_risk:
+                report["risk_assessment"] = cached_risk
+
         return {
             "stock_code": result.code,
             "stock_name": stock_name,
