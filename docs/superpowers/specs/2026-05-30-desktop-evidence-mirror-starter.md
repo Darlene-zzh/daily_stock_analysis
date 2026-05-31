@@ -1,9 +1,30 @@
 # Desktop Evidence-Chain Mirror — Initiative Starter (pre-brainstorm)
 
 **Date**: 2026-05-30
-**Status**: Starter (not yet brainstormed)
+**Status**: ✅ RESOLVED 2026-05-31 — initiative is moot (no mirror work needed). See "Resolution" below.
 **Parent reference**: `docs/superpowers/specs/2026-05-21-evidence-grounded-decision-pipeline-design.md`
 （参见原 spec "非目标" 段："桌面端组件 mirror（本 spec 完成后另立 initiative 单独考虑）"）
+
+---
+
+## Resolution (2026-05-31)
+
+调查 `apps/dsa-desktop/` 实际架构后，**本 initiative 不需要执行**：
+
+- 桌面端是一个 **Electron 壳**，不是独立的 React/Tauri 报告 UI（`package.json`: electron ^31，无 react / vite / tauri）。
+- `main.js` 启动内置后端进程后，主窗口直接 `await mainWindow.loadURL('http://127.0.0.1:${port}/')`（约 line 1566），加载的就是**后端服务的同一份 Web 前端**（`static/`，由 `apps/dsa-web` 构建）。
+- `renderer/` 目录只有一个 `loading.html` 启动屏；**没有任何独立的桌面报告渲染层**。
+
+因此 Phase 4-5 的证据链组件（`PriceMapCard` / `EvidenceExpansion` / `EvidenceRef` / `StrategyHeroCard` / `PositionFlowTimeline` / `ActionPlanTable`）**在桌面端已经自动呈现**——桌面端就是同一个 web bundle 跑在 BrowserWindow 里。没有"镜像"工作可做。
+
+下面的开放问题（Q1-Q6）建立在"桌面端有/需要自己的报告渲染"这一**错误前提**上，已作废：
+
+- **Q1（框架/复用边界）**：答案是"两者皆非"——桌面端通过 `loadURL` 加载 web app，天然永远同步，无需 symlink/monorepo/重写。
+- **Q2（信息密度）/ Q5（跨平台）/ Q6（测试）**：因为渲染的就是 web app，全部沿用 Web 端方案，无桌面专属决策。
+- **Q3（实时报价）**：桌面端后端是本地 spawn 的，web app 的 `🔄 刷新` 调用 `GET /api/v1/stocks/{code}/quote` 直接可用。
+- **Q4（离线）**：桌面端依赖本地后端进程运行；后端在则 quote 可用，不存在"web 组件 + 无 quote endpoint"的降级场景。
+
+**唯一可能的桌面专属（未来如有需要再单独提）**：启动屏 `loading.html` 的体验、窗口默认尺寸是否适配证据链组件的宽度。均非本 initiative 范畴，且无明确需求，按"稳定性优先"暂不动。
 
 ---
 
