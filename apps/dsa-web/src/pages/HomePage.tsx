@@ -173,6 +173,9 @@ const HomePage: React.FC = () => {
     syncTaskCompleted,
     syncTaskFailed,
     removeTask,
+    // Safety-net reconciliation reads the live active-task list. The hook
+    // rebinds its poll closure every render, so this snapshot stays fresh.
+    getActiveTasks: () => activeTasks,
   });
 
   const handleHistoryItemClick = useCallback((recordId: number) => {
