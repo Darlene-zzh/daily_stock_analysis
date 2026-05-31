@@ -31,10 +31,31 @@ describe('PositionFlowTimeline', () => {
   it('renders the summary grid with worst/best amounts and R/R ratio', () => {
     render(<PositionFlowTimeline summary={summary} triggers={[]} />);
     expect(screen.getByText('📊 仓位流水汇总')).toBeInTheDocument();
-    expect(screen.getByText('12.34 GBP')).toBeInTheDocument();
+    // Positive worst case = a profit-protecting stop above cost; shown as a
+    // gain (+ prefix, green) rather than a red loss.
+    expect(screen.getByText('+12.34 GBP')).toBeInTheDocument();
     expect(screen.getByText('+45.67 GBP')).toBeInTheDocument();
     expect(screen.getByText('1:3.7')).toBeInTheDocument();
     expect(screen.getByText('0.5 股')).toBeInTheDocument();
+  });
+
+  it('shows a positive worst case as a green gain (profit-protecting stop)', () => {
+    render(<PositionFlowTimeline summary={summary} triggers={[]} />);
+    const worst = screen.getByText('+12.34 GBP');
+    expect(worst).toHaveClass('text-emerald-400');
+    expect(worst).not.toHaveClass('text-red-400');
+  });
+
+  it('shows a negative worst case as a red loss with native minus sign', () => {
+    const losing: PositionOutcomeSummary = {
+      ...summary,
+      worstCaseLossAmount: -8.5,
+      riskRewardRatio: '1:2.0',
+    };
+    render(<PositionFlowTimeline summary={losing} triggers={[]} />);
+    const worst = screen.getByText('-8.5 GBP');
+    expect(worst).toHaveClass('text-red-400');
+    expect(worst).not.toHaveClass('text-emerald-400');
   });
 
   it('renders a row per trigger in priority order with direction emoji + price', () => {
