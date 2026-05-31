@@ -71,9 +71,18 @@ export const PositionFlowTimeline: React.FC<PositionFlowTimelineProps> = ({
           </div>
           <div>
             <p className="text-muted-text">最差止损</p>
-            <p className="font-mono text-red-400">
+            {/* A profit-protecting stop above cost yields a positive worst-case
+                P&L — still a gain, so colour/sign by value rather than always
+                painting "最差止损" red. */}
+            <p
+              className={`font-mono ${
+                (summary.worstCaseLossAmount ?? 0) >= 0
+                  ? 'text-emerald-400'
+                  : 'text-red-400'
+              }`}
+            >
               {summary.worstCaseLossAmount != null
-                ? `${summary.worstCaseLossAmount} ${ccy}`.trim()
+                ? `${summary.worstCaseLossAmount >= 0 ? '+' : ''}${summary.worstCaseLossAmount} ${ccy}`.trim()
                 : '—'}
             </p>
           </div>

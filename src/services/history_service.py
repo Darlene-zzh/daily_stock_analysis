@@ -344,11 +344,15 @@ def _render_position_outcome(outcome: dict, labels: dict) -> list:
     wc = outcome.get("worst_case_currency") or ""
     bg = outcome.get("best_case_gain_amount")
     rr = outcome.get("risk_reward_ratio") or "N/A"
+    # Sign-aware worst case: a profit-protecting stop above cost yields a
+    # positive worst-case P&L (still a gain). Prefix "+" so it doesn't read as
+    # a loss; a real loss keeps its native "-" sign.
+    wl_disp = "—" if wl is None else (f"+{wl}" if wl >= 0 else f"{wl}")
     return [
         f"**📊 {heading}**",
         "",
         f"- 执行所有触发后剩余仓位：{remain if remain is not None else '—'} 股",
-        f"- 最差止损：{wl if wl is not None else '—'} {wc}",
+        f"- 最差止损：{wl_disp} {wc}",
         f"- 最好止盈：{bg if bg is not None else '—'} {wc}",
         f"- {rr_label}：{rr}",
         "",
