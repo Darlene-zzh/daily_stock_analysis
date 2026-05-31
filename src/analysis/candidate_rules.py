@@ -14,13 +14,25 @@ Implemented rules (the names match `basis_rule` on emitted candidates):
 All 23 candidates from the spec are implemented — see
 docs/superpowers/specs/2026-05-21-evidence-grounded-decision-pipeline-design.md
 Section A "Candidate 生成规则".
+
+Ghost-gate post-processing (see ``_apply_ghost_gate``): after the rule pass,
+candidates whose price is non-positive, whose distance from current price
+exceeds ``GHOST_DISTANCE_THRESHOLD_PCT``, or whose source fact itself is
+corrupt (e.g. ``technical.atr_14 <= 0`` or ``>= current``, ``quant.qlib_rank
+> 1.0``) get re-tagged ``tier='filtered'`` so the sanitizer drops items that
+point at them. The handoff suggested 50% as the magnitude threshold; the
+floor tests in ``tests/test_candidate_price_sanity.py`` pin that legitimate
++30% targets and ~7% pullbacks stay primary.
 """
 from __future__ import annotations
 
 import math
-from typing import Any, Callable, Dict, List, Optional
+from typing import Any, Callable, Dict, List, Optional, Set
 
 from src.analysis.facts import CandidateLevel, FactRecord
+
+
+GHOST_DISTANCE_THRESHOLD_PCT = 50.0
 
 
 def _get_fact(facts: List[FactRecord], fact_id: str) -> Optional[FactRecord]:
@@ -348,4 +360,77 @@ def compute_candidates(facts: List[FactRecord]) -> List[CandidateLevel]:
             applicable_strategies=["long_term_hold", "swing_trade", "stepped_profit_taking"],
         ))
 
+    return _apply_ghost_gate(candidates, facts, current)
+
+
+def _ghost_source_fact_ids(facts: List[FactRecord], current: float) -> Set[str]:
+    """Identify upstream facts whose values are themselves corrupt.
+
+    Returns a set of fact IDs that should poison any candidate derived from
+    them. Each entry corresponds to a known failure mode from
+    ``tests/test_candidate_price_sanity.py``:
+
+    * ``technical.atr_14``: must be positive and strictly less than
+      ``current`` (an ATR larger than the underlying price is implausible
+      under any sane definition and would produce polarity-reversed or
+      deeply-negative stop candidates).
+    * ``quant.qlib_rank``: cross-sectional percentile in ``(0, 1]`` by spec;
+      anything outside that range (e.g. ``1.5``) indicates a qlib pipeline
+      glitch and the derived "top decile" entry is meaningless.
+
+    Other ghost detection (negative prices, > 50% distance) is handled at
+    the candidate level by ``_apply_ghost_gate``.
+    """
+    ghosts: Set[str] = set()
+    for f in facts:
+        if f.value is None:
+            continue
+        try:
+            v = float(f.value)
+        except (TypeError, ValueError):
+            continue
+        if f.id == "technical.atr_14":
+            if v <= 0 or v >= current:
+                ghosts.add(f.id)
+        elif f.id == "quant.qlib_rank":
+            if v <= 0 or v > 1.0:
+                ghosts.add(f.id)
+    return ghosts
+
+
+def _apply_ghost_gate(
+    candidates: List[CandidateLevel],
+    facts: List[FactRecord],
+    current: float,
+) -> List[CandidateLevel]:
+    """Re-tag obviously corrupt candidates as ``tier='filtered'``.
+
+    Three independent ghost checks:
+
+    1. Non-positive price (``price <= 0``) — zero / negative / sub-cent
+       prices anchor action-plan items to nonsense, regardless of source.
+    2. Distance from current exceeds ``GHOST_DISTANCE_THRESHOLD_PCT``
+       — covers stale pre-split levels (NVDA pre-split $606 vs $140
+       current) and decimal-shift portfolio cost-anchor bugs.
+    3. Source fact is itself corrupt — covers ATR-derived candidates whose
+       stop price happens to land near current (e.g. ``atr=0`` produces
+       ``stop_loss = current``, distance 0%, would slip past check #2).
+
+    Candidates already at ``tier='filtered'`` are left alone — never escalate.
+    """
+    if current is None or current <= 0:
+        return candidates
+    ghost_sources = _ghost_source_fact_ids(facts, current)
+    for c in candidates:
+        if c.tier == "filtered":
+            continue
+        if c.price is None or c.price <= 0:
+            c.tier = "filtered"
+            continue
+        if abs(c.distance_pct_from_current) > GHOST_DISTANCE_THRESHOLD_PCT:
+            c.tier = "filtered"
+            continue
+        if c.basis_fact_id in ghost_sources:
+            c.tier = "filtered"
+            continue
     return candidates

@@ -1,30 +1,36 @@
-"""Regression + aspirational guards for ghost-priced candidates.
+"""Regression guards for ghost-priced candidates.
 
 Motivation: in the NVDA case (2026-05-21 analysis id=13), a stale pre-split
 resistance level of $606 was paired with a real current price of ~$140.
-`compute_candidates` happily emitted a take_profit candidate at $606 and the
-sanitizer let it through because Check #5 only verifies direction polarity,
-not magnitude. The LLM then anchored its action plan to $606.
+``compute_candidates`` happily emitted a take_profit candidate at $606 and
+the sanitizer let it through because the original Check #5 only verified
+direction polarity, not magnitude. The LLM then anchored its action plan to
+$606.
 
-This module pins down two pieces:
+This module pins three pieces of behavior, all currently passing:
 
-1. **Current behavior** — `distance_pct_from_current` is recorded faithfully
-   even for ghost-priced facts. A test that passes today and that would
-   regress if a future refactor stopped recording the distance.
-2. **Desired hardening** — two `xfail(strict=True)` assertions describing how
-   the gate *should* behave once someone adds a distance check. `strict=True`
-   means: if the gap closes and these start passing, pytest reports XPASS as a
-   failure, forcing whoever fixed the gap to remove the markers. That
-   converts "silent fix" into "loud, auditable test flip" so the spec
-   follow-up doesn't drift away unnoticed.
+1. **Emission preserved** — ghost-priced facts still produce candidates with
+   their literal price and faithful ``distance_pct_from_current``. Catches
+   regressions where a refactor silently stops emitting the candidate (which
+   would mask the data quality problem instead of fixing it).
+2. **Ghost gate active** — ``candidate_rules._apply_ghost_gate`` re-tags any
+   candidate whose price is non-positive, whose distance exceeds
+   ``GHOST_DISTANCE_THRESHOLD_PCT`` (50%), or whose source fact is corrupt
+   (``technical.atr_14 <= 0`` or ``>= current``, ``quant.qlib_rank > 1.0``)
+   as ``tier='filtered'``. Sanitizer Check #4 then drops items pointing at
+   such candidates.
+3. **Sanitizer defense-in-depth** — ``sanitizer_v2.sanitize_with_candidates``
+   independently refuses items pointing at any candidate whose price is
+   non-positive or whose distance exceeds 50%, even if the bundle was
+   constructed outside ``compute_candidates`` (manual test fixtures, future
+   code paths that synthesize candidates by other means).
 
-Threshold: handoff memo suggests `|distance_pct| > 50` as the gate. The exact
-threshold belongs to the hardening PR, not to this test — the xfail tests
-only assert "ghost gets filtered", not a specific threshold value.
-
-See `project-next-session-handoff.md` (NVDA sanity test priority) and
-`repo-nvda-presplit-ghost.md` (superseded hypothesis, but the underlying gap
-is real).
+History: these tests were originally introduced with the desired-hardening
+assertions wrapped in ``pytest.mark.xfail(strict=True)`` so that whoever
+implemented the gate would be forced to remove the markers (XPASS under
+strict=True breaks the suite). The xfails were flipped to permanent
+assertions when the gate landed; see ``repo-nvda-presplit-ghost.md`` for the
+superseded hypothesis history.
 """
 import pytest
 
@@ -100,31 +106,14 @@ def test_ghost_swing_low_distance_is_recorded_for_stop_loss_direction():
 
 
 # ---------------------------------------------------------------------------
-# Aspirational hardening — xfail(strict=True). When the fix lands, remove
-# the marker and the assertion stands on its own.
+# Ghost gate — now active. These tests originally lived as xfail(strict=True)
+# placeholders documenting the desired behavior; the gate lands in
+# `candidate_rules._apply_ghost_gate` + `sanitizer_v2._candidate_is_ghost`.
 # ---------------------------------------------------------------------------
 
-_GHOST_GATE_REASON = (
-    "Ghost-price gate not yet implemented (NVDA pre-split bug surface). "
-    "Spec follow-up: candidates whose |distance_pct_from_current| is "
-    "implausibly large (handoff suggests >50%) should be tagged "
-    "tier='filtered' so sanitizer Check #4 drops them. Once that gate "
-    "lands in candidate_rules or facts_builder, this xfail flips to "
-    "XPASS — strict=True will then fail the suite, forcing whoever shipped "
-    "the gate to remove this marker and confirm the new behavior."
-)
 
-_SANITIZER_GATE_REASON = (
-    "Sanitizer magnitude check (Check #10) not yet implemented. Even if a "
-    "candidate slips through the upstream tier='filtered' assignment with "
-    "the wrong magnitude, the sanitizer should refuse it at the bundle "
-    "boundary. Same flip mechanics as the candidate-rules gate above."
-)
-
-
-@pytest.mark.xfail(strict=True, reason=_GHOST_GATE_REASON)
 def test_ghost_resistance_should_be_marked_filtered():
-    """Aspirational: a 4x-off resistance must not be `primary` tier."""
+    """A 4x-off resistance must not be `primary` tier (ghost gate active)."""
     facts = [
         _fact("technical.current_price", 140.0),
         _fact("technical.resistance", 606.0),
@@ -135,9 +124,8 @@ def test_ghost_resistance_should_be_marked_filtered():
     assert rt[0].tier == "filtered"
 
 
-@pytest.mark.xfail(strict=True, reason=_GHOST_GATE_REASON)
 def test_ghost_swing_low_should_be_marked_filtered():
-    """Aspirational: a stop at 5% of current is a ghost; must be filtered."""
+    """A stop at 5% of current is a ghost; ghost gate filters it."""
     facts = [
         _fact("technical.current_price", 140.0),
         _fact("technical.swing_low_20d", 5.0),
@@ -148,10 +136,10 @@ def test_ghost_swing_low_should_be_marked_filtered():
     assert sl[0].tier == "filtered"
 
 
-@pytest.mark.xfail(strict=True, reason=_SANITIZER_GATE_REASON)
 def test_sanitizer_drops_item_pointing_at_ghost_candidate():
-    """Aspirational: even if a primary-tier ghost survives candidate rules,
-    the sanitizer must refuse the action plan item that points at it."""
+    """Even if a primary-tier ghost is constructed manually (test or future
+    code path bypassing compute_candidates), sanitizer Check #4.5 refuses
+    items pointing at it (defense-in-depth)."""
     ghost = _candidate(
         "candidate.exit.ghost", "take_profit", 606.0,
         ["swing_trade"], tier="primary", distance=332.86,
@@ -204,23 +192,17 @@ def test_legitimate_30pct_swing_target_is_primary_tier_today():
 #   * avg_cost = 0.01 on a $140 stock → cost_minus_10pct = $0.009 < current,
 #     emits as `discipline_anchor` stop_loss (line 233) at sub-cent magnitude
 #
-# Aspirational gate: any cost-anchor whose |distance_pct_from_current| is
-# implausibly large (handoff memo suggests >50% as the threshold) should be
-# tagged `tier='filtered'` so the sanitizer drops it at the boundary.
-
-_PORTFOLIO_GATE_REASON = (
-    "Portfolio cost-anchor magnitude gate not yet implemented. "
-    "candidate_rules.py:205-234 guards only `avg_cost > 0`; nothing bounds "
-    "the resulting take_profit / stop_loss away from ghost magnitudes. "
-    "Same xfail flip mechanics as the technical ghost-resistance test above."
-)
+# Ghost gate: any cost-anchor whose |distance_pct_from_current| is
+# implausibly large is tagged `tier='filtered'` (now active — see
+# `candidate_rules._apply_ghost_gate`).
 
 
 def test_portfolio_avg_cost_inflated_take_profit_is_recorded_today():
-    """A 700x-inflated avg_cost (decimal-shift broker bug) emits all three
-    cost-anchor take_profit candidates at inflated prices today. Regression
-    guard: if rule logic ever stops emitting these without an explicit gate,
-    this test catches the silent change."""
+    """A 700x-inflated avg_cost (decimal-shift broker bug) still emits all
+    three cost-anchor take_profit candidates at inflated prices — they're
+    not silently dropped, just re-tagged ``filtered`` by the ghost gate so
+    sanitizer Check #4 drops items pointing at them. Regression guard for
+    emission + new tier behavior."""
     facts = [
         _fact("technical.current_price", 140.0),
         _fact("portfolio.avg_cost", 99999.0, type_="portfolio", label="成本均价"),
@@ -229,13 +211,13 @@ def test_portfolio_avg_cost_inflated_take_profit_is_recorded_today():
     cost_anchors = [c for c in cands if c.basis_rule.startswith("cost_plus_")]
     assert len(cost_anchors) == 3  # +5%, +12%, +20%
     assert all(c.price > 100000 for c in cost_anchors)
-    assert all(c.tier == "discipline_anchor" for c in cost_anchors)
+    assert all(c.tier == "filtered" for c in cost_anchors)
 
 
 def test_portfolio_avg_cost_tiny_value_stop_loss_is_recorded_today():
     """A 14000x-deflated avg_cost (reverse decimal-shift) emits a sub-cent
-    cost_minus_10pct stop_loss today. The cost_plus_* candidates skip the
-    `price > current` check and don't emit — only the stop path leaks."""
+    cost_minus_10pct stop_loss — still emitted but ghost-gate flips it to
+    ``filtered`` (sub-cent price + distance ~-100% both trip)."""
     facts = [
         _fact("technical.current_price", 140.0),
         _fact("portfolio.avg_cost", 0.01, type_="portfolio", label="成本均价"),
@@ -244,15 +226,11 @@ def test_portfolio_avg_cost_tiny_value_stop_loss_is_recorded_today():
     stop_anchors = [c for c in cands if c.basis_rule == "cost_minus_10pct"]
     assert len(stop_anchors) == 1
     assert stop_anchors[0].price < 0.05  # 0.01 * 0.9 = 0.009
-    assert stop_anchors[0].tier == "discipline_anchor"
+    assert stop_anchors[0].tier == "filtered"
 
 
-@pytest.mark.xfail(strict=True, reason=_PORTFOLIO_GATE_REASON)
 def test_portfolio_avg_cost_inflated_should_be_filtered():
-    """Aspirational: 700x-inflated cost anchors must be `filtered`, not
-    `discipline_anchor`. Spec follow-up should add a magnitude gate either in
-    candidate_rules (preferred — keeps sanitizer simple) or as a new
-    sanitizer check parallel to Check #5."""
+    """700x-inflated cost anchors are `filtered` (ghost-gate distance >50%)."""
     facts = [
         _fact("technical.current_price", 140.0),
         _fact("portfolio.avg_cost", 99999.0, type_="portfolio", label="成本均价"),
@@ -267,9 +245,8 @@ def test_portfolio_avg_cost_inflated_should_be_filtered():
     assert all(c.tier == "filtered" for c in cost_anchors)
 
 
-@pytest.mark.xfail(strict=True, reason=_PORTFOLIO_GATE_REASON)
 def test_portfolio_avg_cost_tiny_stop_loss_should_be_filtered():
-    """Aspirational: a sub-cent stop_loss is a ghost; must be filtered."""
+    """A sub-cent stop_loss is a ghost; ghost gate filters it."""
     facts = [
         _fact("technical.current_price", 140.0),
         _fact("portfolio.avg_cost", 0.01, type_="portfolio", label="成本均价"),
@@ -307,19 +284,10 @@ def test_portfolio_avg_cost_underwater_holder_stays_discipline_anchor():
 # but the *signal source* is corrupt, and the action plan would still tell
 # the user "Qlib 顶 10% 即时入场" off a broken metric.
 
-_QLIB_GATE_REASON = (
-    "qlib_rank upper-bound gate not yet implemented. quant.qlib_rank is a "
-    "percentile in (0, 1] by spec — values > 1.0 indicate upstream data "
-    "corruption and the candidate must be tier='filtered'. Fix can live in "
-    "the extractor (reject the fact) or in candidate_rules (filter the "
-    "candidate)."
-)
-
-
 def test_qlib_rank_above_one_emits_entry_candidate_today():
-    """A corrupt qlib_rank=1.5 still emits a qlib_top_decile_buy entry today
-    (passes the `> 0.9` guard, no upper bound). Regression guard: documents
-    the current gap so a future fix is forced to flip the xfail below."""
+    """A corrupt qlib_rank=1.5 still emits a qlib_top_decile_buy entry —
+    candidate not silenced — but source-fact ghost check re-tags it
+    ``filtered``. Regression guard for the emission pathway."""
     facts = [
         _fact("technical.current_price", 140.0),
         _fact("quant.qlib_rank", 1.5, type_="quant", label="Qlib 截面分位"),
@@ -327,12 +295,11 @@ def test_qlib_rank_above_one_emits_entry_candidate_today():
     cands = compute_candidates(facts)
     qlib_cands = [c for c in cands if c.basis_rule == "qlib_top_decile_buy"]
     assert len(qlib_cands) == 1
-    assert qlib_cands[0].tier == "primary"
+    assert qlib_cands[0].tier == "filtered"
 
 
-@pytest.mark.xfail(strict=True, reason=_QLIB_GATE_REASON)
 def test_qlib_rank_above_one_should_be_filtered():
-    """Aspirational: qlib_rank > 1.0 is corrupt; candidate must be filtered."""
+    """qlib_rank > 1.0 is corrupt; source-fact ghost gate filters it."""
     facts = [
         _fact("technical.current_price", 140.0),
         _fact("quant.qlib_rank", 1.5, type_="quant", label="Qlib 截面分位"),
@@ -367,16 +334,9 @@ def test_qlib_rank_legit_top_decile_stays_primary():
 # zero price is exactly the failure mode this whole sanity layer exists to
 # catch.
 
-_CHIP_GATE_REASON = (
-    "chip_avg_cost positivity gate not yet implemented. candidate_rules.py"
-    ":292-302 only checks `chip_cost <= current`. Zero or negative values "
-    "indicate upstream data corruption and must be tier='filtered'."
-)
-
-
 def test_chip_avg_cost_zero_emits_entry_at_zero_today():
-    """chip.avg_cost = 0 passes the `<= current` guard and emits an entry
-    candidate at price 0. Regression guard."""
+    """chip.avg_cost = 0 still emits an entry candidate at price 0 — the
+    candidate is not silenced — but ghost gate (price<=0) flips tier."""
     facts = [
         _fact("technical.current_price", 140.0),
         _fact("chip.avg_cost", 0.0, type_="chip", label="市场平均成本"),
@@ -385,12 +345,11 @@ def test_chip_avg_cost_zero_emits_entry_at_zero_today():
     chip_cands = [c for c in cands if c.basis_rule == "chip_avg_cost"]
     assert len(chip_cands) == 1
     assert chip_cands[0].price == 0.0
-    assert chip_cands[0].tier == "primary"
+    assert chip_cands[0].tier == "filtered"
 
 
 def test_chip_avg_cost_negative_emits_entry_at_negative_today():
-    """chip.avg_cost = -5 passes (-5 <= 140) and emits a negative-priced
-    entry candidate. Regression guard for the sign-flip case."""
+    """chip.avg_cost = -5 emits a negative-priced entry; ghost gate filters."""
     facts = [
         _fact("technical.current_price", 140.0),
         _fact("chip.avg_cost", -5.0, type_="chip", label="市场平均成本"),
@@ -399,12 +358,11 @@ def test_chip_avg_cost_negative_emits_entry_at_negative_today():
     chip_cands = [c for c in cands if c.basis_rule == "chip_avg_cost"]
     assert len(chip_cands) == 1
     assert chip_cands[0].price == -5.0
-    assert chip_cands[0].tier == "primary"
+    assert chip_cands[0].tier == "filtered"
 
 
-@pytest.mark.xfail(strict=True, reason=_CHIP_GATE_REASON)
 def test_chip_avg_cost_zero_should_be_filtered():
-    """Aspirational: chip.avg_cost == 0 is corrupt; candidate must be filtered."""
+    """chip.avg_cost == 0 is corrupt; ghost gate filters."""
     facts = [
         _fact("technical.current_price", 140.0),
         _fact("chip.avg_cost", 0.0, type_="chip", label="市场平均成本"),
@@ -415,9 +373,8 @@ def test_chip_avg_cost_zero_should_be_filtered():
     assert chip_cands[0].tier == "filtered"
 
 
-@pytest.mark.xfail(strict=True, reason=_CHIP_GATE_REASON)
 def test_chip_avg_cost_negative_should_be_filtered():
-    """Aspirational: negative chip avg_cost is a sign-flip ghost; filter."""
+    """Negative chip avg_cost is a sign-flip ghost; gate filters."""
     facts = [
         _fact("technical.current_price", 140.0),
         _fact("chip.avg_cost", -5.0, type_="chip", label="市场平均成本"),
@@ -451,17 +408,8 @@ def test_chip_avg_cost_legit_retest_stays_primary():
 # Same root failure mode (anchoring a buy order to a nonsense price), same
 # aspirational fix (positivity check at the extractor or rules layer).
 
-_SUPPORT_GATE_REASON = (
-    "technical.support positivity gate not yet implemented. "
-    "candidate_rules.py:116-126 guards only `sup <= current`. Zero or "
-    "negative values indicate upstream data corruption and the candidate "
-    "must be tier='filtered'."
-)
-
-
 def test_support_zero_emits_entry_at_zero_today():
-    """technical.support = 0 passes the `<= current` guard and emits a
-    support_test entry candidate at price 0. Regression guard."""
+    """support = 0 still emits a support_test entry at 0; ghost gate filters."""
     facts = [
         _fact("technical.current_price", 140.0),
         _fact("technical.support", 0.0),
@@ -470,12 +418,11 @@ def test_support_zero_emits_entry_at_zero_today():
     sup_cands = [c for c in cands if c.basis_rule == "support_test"]
     assert len(sup_cands) == 1
     assert sup_cands[0].price == 0.0
-    assert sup_cands[0].tier == "primary"
+    assert sup_cands[0].tier == "filtered"
 
 
 def test_support_negative_emits_entry_at_negative_today():
-    """technical.support = -10 passes (-10 <= 140) and emits a
-    negative-priced entry. Sign-flip / corrupt-source regression guard."""
+    """support = -10 emits a negative-priced entry; ghost gate filters."""
     facts = [
         _fact("technical.current_price", 140.0),
         _fact("technical.support", -10.0),
@@ -484,12 +431,11 @@ def test_support_negative_emits_entry_at_negative_today():
     sup_cands = [c for c in cands if c.basis_rule == "support_test"]
     assert len(sup_cands) == 1
     assert sup_cands[0].price == -10.0
-    assert sup_cands[0].tier == "primary"
+    assert sup_cands[0].tier == "filtered"
 
 
-@pytest.mark.xfail(strict=True, reason=_SUPPORT_GATE_REASON)
 def test_support_zero_should_be_filtered():
-    """Aspirational: technical.support == 0 is corrupt; must be filtered."""
+    """technical.support == 0 is corrupt; ghost gate filters."""
     facts = [
         _fact("technical.current_price", 140.0),
         _fact("technical.support", 0.0),
@@ -500,9 +446,8 @@ def test_support_zero_should_be_filtered():
     assert sup_cands[0].tier == "filtered"
 
 
-@pytest.mark.xfail(strict=True, reason=_SUPPORT_GATE_REASON)
 def test_support_negative_should_be_filtered():
-    """Aspirational: negative support is corrupt; must be filtered."""
+    """Negative support is corrupt; ghost gate filters."""
     facts = [
         _fact("technical.current_price", 140.0),
         _fact("technical.support", -10.0),
@@ -544,22 +489,14 @@ def test_support_legit_retest_stays_primary():
 #     the R-multiple targets via the `stop_ref = current - 2*atr` fallback
 #     (line 168-169), producing absurd take_profit prices.
 #
-# Aspirational gate: ATR must be positive AND within a reasonable range of
-# current price (e.g. `0 < atr < current` — a stock can't have ATR larger
-# than its own price under any sane definition).
-
-_ATR_GATE_REASON = (
-    "technical.atr_14 sanity gate not yet implemented. candidate_rules.py"
-    ":128-151 emits stop_loss candidates whenever `atr is not None` with no "
-    "positivity, magnitude, or polarity check. Aspirational: atr must be "
-    "positive and bounded (< current) or the resulting candidates must be "
-    "tier='filtered'."
-)
+# Ghost gate: ATR must be positive AND strictly less than current — anything
+# else means the source fact is corrupt and derived candidates are filtered
+# (see `_ghost_source_fact_ids` in candidate_rules).
 
 
 def test_atr_zero_emits_stop_loss_at_current_today():
-    """atr_14 = 0 produces an atr_2x stop_loss at exactly `current` —
-    a useless stop that never triggers, but still emitted today."""
+    """atr_14 = 0 produces an atr_2x stop_loss at exactly `current`; still
+    emitted but source-fact ghost check (atr <= 0) re-tags ``filtered``."""
     facts = [
         _fact("technical.current_price", 140.0),
         _fact("technical.atr_14", 0.0),
@@ -568,14 +505,12 @@ def test_atr_zero_emits_stop_loss_at_current_today():
     atr2x = [c for c in cands if c.basis_rule == "atr_2x_below_current"]
     assert len(atr2x) == 1
     assert atr2x[0].price == 140.0
-    assert atr2x[0].tier == "primary"
+    assert atr2x[0].tier == "filtered"
 
 
 def test_atr_negative_emits_stop_loss_above_current_today():
-    """atr_14 = -50 (sign-flip corruption) produces stop_loss = current -
-    2*(-50) = 240, ABOVE current. Direction polarity is reversed at the
-    rules layer; sanitizer Check #5 would refuse it downstream, but the
-    rules-layer test pins that nothing stops the emission here today."""
+    """atr_14 = -50 produces stop_loss = current + 100 = 240 (polarity
+    reversed). Still emitted but source-fact ghost check filters."""
     facts = [
         _fact("technical.current_price", 140.0),
         _fact("technical.atr_14", -50.0),
@@ -584,7 +519,7 @@ def test_atr_negative_emits_stop_loss_above_current_today():
     atr2x = [c for c in cands if c.basis_rule == "atr_2x_below_current"]
     assert len(atr2x) == 1
     assert atr2x[0].price == 240.0  # > current — polarity reversed
-    assert atr2x[0].tier == "primary"
+    assert atr2x[0].tier == "filtered"
 
 
 def test_atr_inflated_emits_negative_priced_stop_loss_today():
@@ -602,10 +537,8 @@ def test_atr_inflated_emits_negative_priced_stop_loss_today():
     assert atr2x[0].price < -100000
 
 
-@pytest.mark.xfail(strict=True, reason=_ATR_GATE_REASON)
 def test_atr_zero_should_be_filtered():
-    """Aspirational: ATR == 0 means no volatility signal; stop candidates
-    derived from it are meaningless and must be filtered."""
+    """ATR == 0: no volatility signal; derived candidates filtered."""
     facts = [
         _fact("technical.current_price", 140.0),
         _fact("technical.atr_14", 0.0),
@@ -616,10 +549,8 @@ def test_atr_zero_should_be_filtered():
     assert all(c.tier == "filtered" for c in atr_cands)
 
 
-@pytest.mark.xfail(strict=True, reason=_ATR_GATE_REASON)
 def test_atr_negative_should_be_filtered():
-    """Aspirational: negative ATR is data corruption; rules layer must not
-    emit polarity-reversed candidates regardless of downstream sanitizer."""
+    """Negative ATR = sign-flip; source-fact gate filters derived candidates."""
     facts = [
         _fact("technical.current_price", 140.0),
         _fact("technical.atr_14", -50.0),
@@ -630,10 +561,8 @@ def test_atr_negative_should_be_filtered():
     assert all(c.tier == "filtered" for c in atr_cands)
 
 
-@pytest.mark.xfail(strict=True, reason=_ATR_GATE_REASON)
 def test_atr_inflated_should_be_filtered():
-    """Aspirational: ATR larger than current price is implausible by any
-    sane definition; must be filtered before cascading into R-multiple."""
+    """ATR > current is implausible; source-fact gate filters."""
     facts = [
         _fact("technical.current_price", 140.0),
         _fact("technical.atr_14", 99999.0),
@@ -673,17 +602,9 @@ def test_atr_legit_value_stays_primary():
 # at nonsense prices. Same shape as Group C and Group D, applied to the
 # moving-average surfaces.
 
-_MA_GATE_REASON = (
-    "technical.ma10/ma20 positivity gate not yet implemented. "
-    "candidate_rules.py:92-114 only checks inequality vs current. Zero or "
-    "negative moving averages indicate upstream corruption and the "
-    "resulting candidates must be tier='filtered'."
-)
-
-
 def test_ma20_zero_emits_stop_loss_at_zero_today():
-    """ma20 = 0 passes `0 < current` and emits ma20_breakdown stop_loss at
-    $0. Pin against future silent removal."""
+    """ma20 = 0 still emits ma20_breakdown stop_loss at $0; ghost gate
+    (price <= 0) re-tags ``filtered``."""
     facts = [
         _fact("technical.current_price", 140.0),
         _fact("technical.ma20", 0.0),
@@ -692,12 +613,11 @@ def test_ma20_zero_emits_stop_loss_at_zero_today():
     ma20_cands = [c for c in cands if c.basis_rule == "ma20_breakdown"]
     assert len(ma20_cands) == 1
     assert ma20_cands[0].price == 0.0
-    assert ma20_cands[0].tier == "primary"
+    assert ma20_cands[0].tier == "filtered"
 
 
 def test_ma10_negative_emits_entry_at_negative_today():
-    """ma10 = -5 passes -5 <= current and emits ma10_pullback entry at -$5.
-    Sign-flip regression guard."""
+    """ma10 = -5 still emits ma10_pullback entry at -$5; ghost gate filters."""
     facts = [
         _fact("technical.current_price", 140.0),
         _fact("technical.ma10", -5.0),
@@ -706,12 +626,11 @@ def test_ma10_negative_emits_entry_at_negative_today():
     ma10_cands = [c for c in cands if c.basis_rule == "ma10_pullback"]
     assert len(ma10_cands) == 1
     assert ma10_cands[0].price == -5.0
-    assert ma10_cands[0].tier == "primary"
+    assert ma10_cands[0].tier == "filtered"
 
 
-@pytest.mark.xfail(strict=True, reason=_MA_GATE_REASON)
 def test_ma20_zero_should_be_filtered():
-    """Aspirational: ma20 == 0 is corrupt; stop candidate must be filtered."""
+    """ma20 == 0 is corrupt; ghost gate filters."""
     facts = [
         _fact("technical.current_price", 140.0),
         _fact("technical.ma20", 0.0),
@@ -722,9 +641,8 @@ def test_ma20_zero_should_be_filtered():
     assert ma20_cands[0].tier == "filtered"
 
 
-@pytest.mark.xfail(strict=True, reason=_MA_GATE_REASON)
 def test_ma10_negative_should_be_filtered():
-    """Aspirational: negative ma10 is a sign-flip ghost; must be filtered."""
+    """Negative ma10 is a sign-flip ghost; gate filters."""
     facts = [
         _fact("technical.current_price", 140.0),
         _fact("technical.ma10", -5.0),
