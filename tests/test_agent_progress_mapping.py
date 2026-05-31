@@ -66,3 +66,22 @@ def test_bool_step_not_treated_as_int():
 def test_at_ceiling_stays_at_ceiling():
     p = _agent_event_progress({"type": "thinking", "step": 2}, _AGENT_PROGRESS_HI)
     assert p == _AGENT_PROGRESS_HI
+
+
+def test_both_agent_run_entrypoints_accept_progress_callback():
+    """Regression guard: the pipeline calls ``executor.run(..., progress_callback=)``
+    where ``executor`` is EITHER an AgentExecutor (single mode) or an
+    AgentOrchestrator (multi mode, what production uses). Both public ``run``
+    signatures must accept progress_callback — a prior fix only patched
+    AgentExecutor and broke every multi-mode (US-stock) analysis with a
+    TypeError that offline tests missed (they stubbed the executor).
+    """
+    import inspect
+    from src.agent.orchestrator import AgentOrchestrator
+    from src.agent.executor import AgentExecutor
+
+    for cls in (AgentExecutor, AgentOrchestrator):
+        params = inspect.signature(cls.run).parameters
+        assert "progress_callback" in params, (
+            f"{cls.__name__}.run must accept progress_callback"
+        )

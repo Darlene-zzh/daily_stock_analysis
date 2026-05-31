@@ -272,16 +272,27 @@ class AgentOrchestrator:
     # Public interface (mirrors AgentExecutor)
     # -----------------------------------------------------------------
 
-    def run(self, task: str, context: Optional[Dict[str, Any]] = None) -> "AgentResult":
+    def run(
+        self,
+        task: str,
+        context: Optional[Dict[str, Any]] = None,
+        progress_callback: Optional[Callable] = None,
+    ) -> "AgentResult":
         """Run the multi-agent pipeline for a dashboard analysis.
 
         Returns an ``AgentResult`` (same type as ``AgentExecutor.run``).
+
+        ``progress_callback`` (optional) receives the same per-step loop dict
+        events as ``chat`` so callers (the analysis pipeline) can surface agent
+        progress — without it the multi-step loop is opaque to the task bar.
         """
         from src.agent.executor import AgentResult
 
         ctx = self._build_context(task, context)
         ctx.meta["response_mode"] = "dashboard"
-        orch_result = self._execute_pipeline(ctx, parse_dashboard=True)
+        orch_result = self._execute_pipeline(
+            ctx, parse_dashboard=True, progress_callback=progress_callback,
+        )
 
         return AgentResult(
             success=orch_result.success,
