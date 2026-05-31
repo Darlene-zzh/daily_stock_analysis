@@ -9,6 +9,7 @@ Section B "Sanitizer 新版".
 from __future__ import annotations
 
 import logging
+import re
 from typing import Any, Dict, List, Optional
 
 from src.analysis.candidate_rules import GHOST_DISTANCE_THRESHOLD_PCT
@@ -16,9 +17,62 @@ from src.analysis.facts import FactBundle, CandidateLevel
 
 logger = logging.getLogger(__name__)
 
+# Check #11 — narrative cost-relationship consistency.
+# Matches a comparison adverb (低于/高于) that qualifies a "成本" (cost) noun in
+# LLM prose, e.g. "低于平均成本" / "高于成本价". Group 1 is the adverb, group 2 is
+# the cost phrase — we only ever rewrite group 1.
+_COST_CLAIM_RE = re.compile(r"(低于|高于)([^，。；、\s]{0,4}成本)")
+# Within this relative band of avg_cost the trigger is "near cost" — the
+# comparison is ambiguous, so we leave the prose untouched.
+_COST_REL_TOL = 0.005
+
 
 def _candidate_map(bundle: FactBundle) -> Dict[str, CandidateLevel]:
     return {c.id: c for c in bundle.candidates}
+
+
+def _avg_cost(bundle: FactBundle) -> Optional[float]:
+    """Numeric average cost from the FactBundle, or None when absent/non-numeric."""
+    for f in bundle.facts:
+        if f.id == "portfolio.avg_cost":
+            try:
+                return float(f.value)
+            except (TypeError, ValueError):
+                return None
+    return None
+
+
+def _correct_cost_claim(
+    narrative: str, trigger_price: float, avg_cost: float
+) -> str:
+    """Flip a '低于/高于…成本' comparison word when it contradicts the actual
+    trigger-vs-cost relationship.
+
+    No-op when: prose makes no cost claim, avg_cost is non-positive, the trigger
+    is within ``_COST_REL_TOL`` of cost (ambiguous "near cost"), or the claim
+    already matches reality. The LLM can place a perfectly valid trailing stop
+    above cost (to protect profit) yet narrate it as "低于平均成本" — the price is
+    fine, only the prose lies, so we correct just the adverb and keep the rest.
+    """
+    if not narrative or avg_cost <= 0:
+        return narrative
+    rel = (trigger_price - avg_cost) / avg_cost
+    if abs(rel) <= _COST_REL_TOL:
+        return narrative
+    actual = "高于" if rel > 0 else "低于"
+
+    def _repl(m: "re.Match[str]") -> str:
+        claimed = m.group(1)
+        if claimed == actual:
+            return m.group(0)
+        logger.info(
+            "[sanitizer_v2] correct narrative cost claim: '%s%s' -> '%s%s' "
+            "(trigger=%.2f vs avg_cost=%.2f)",
+            claimed, m.group(2), actual, m.group(2), trigger_price, avg_cost,
+        )
+        return actual + m.group(2)
+
+    return _COST_CLAIM_RE.sub(_repl, narrative)
 
 
 def _candidate_is_ghost(cand: CandidateLevel) -> bool:
@@ -60,6 +114,7 @@ def sanitize_with_candidates(
     position are scrubbed.
     """
     cmap = _candidate_map(bundle)
+    avg_cost = _avg_cost(bundle)
     survivors: List[Dict[str, Any]] = []
 
     for it in items:
@@ -161,6 +216,18 @@ def sanitize_with_candidates(
                 deduped.append(r)
         it = dict(it)
         it["evidence_refs"] = deduped
+
+        # Check #11 — narrative cost-relationship consistency (deterministic).
+        # trigger_price is numeric here (Check #2 forced it to candidate.price).
+        if avg_cost is not None and isinstance(it.get("narrative"), str):
+            try:
+                trigger = float(it["trigger_price"])
+            except (TypeError, ValueError, KeyError):
+                trigger = None
+            if trigger is not None:
+                it["narrative"] = _correct_cost_claim(
+                    it["narrative"], trigger, avg_cost
+                )
 
         survivors.append(it)
 
