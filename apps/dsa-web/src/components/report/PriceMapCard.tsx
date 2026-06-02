@@ -24,11 +24,11 @@ export interface PriceMapCardProps {
 }
 
 const COLOR_TO_CLASS: Record<PriceMapColor, string> = {
-  red: 'bg-red-500 text-red-700 border-red-300',
-  green: 'bg-green-500 text-green-700 border-green-300',
-  orange: 'bg-orange-500 text-orange-700 border-orange-300',
-  blue: 'bg-blue-500 text-blue-700 border-blue-300',
-  gray: 'bg-slate-500 text-slate-700 border-slate-300',
+  red: 'bg-danger text-danger border-danger/40',
+  green: 'bg-success text-success border-success/40',
+  orange: 'bg-warning text-warning border-warning/40',
+  blue: 'bg-accent-brand text-accent-brand border-accent-brand/40',
+  gray: 'bg-muted text-muted-text border-border',
 };
 
 function distancePct(level: number, current: number): number {
