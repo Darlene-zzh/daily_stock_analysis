@@ -26,6 +26,10 @@ vi.mock('../../theme/ThemeToggle', () => ({
   ThemeToggle: (props: { collapsed?: boolean }) => mockThemeToggle(props),
 }));
 
+vi.mock('../../theme/FamilyToggle', () => ({
+  FamilyToggle: () => null,
+}));
+
 describe('SidebarNav', () => {
   it('shows the shared completion badge only when chat completion is pending', () => {
     completionBadgeState.value = true;

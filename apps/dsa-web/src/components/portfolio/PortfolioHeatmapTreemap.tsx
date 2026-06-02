@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
+import { useTheme } from 'next-themes';
 import {
   ResponsiveContainer,
   Treemap,
@@ -9,6 +10,7 @@ import { getParsedApiError } from '../../api/error';
 import { Card } from '../common/Card';
 import { EmptyState } from '../common/EmptyState';
 import type { PortfolioPositionItem } from '../../types/portfolio';
+import { useThemeFamily } from '../theme/useThemeFamily';
 
 /**
  * Portfolio heatmap rendered as a treemap.
@@ -46,6 +48,34 @@ type TreemapDatum = {
 };
 
 /**
+ * Per-theme palette for the PnL colour ramp.
+ * Hue and saturation are sourced from the active theme's CSS custom properties
+ * (--success for gain, --danger for loss) so each theme family uses its own
+ * green/red rather than hardcoded hues.
+ */
+type PnlRampPalette = {
+  gainHue: number; gainSat: number;
+  lossHue: number; lossSat: number;
+};
+
+/**
+ * Read a CSS HSL custom property from the document root and return its hue +
+ * saturation components. The property value is expected to be in the form
+ * "H S% L%" (space-separated, no commas) as used by the theme tokens.
+ *
+ * Falls back gracefully in jsdom / SSR environments where getComputedStyle
+ * returns an empty string.
+ */
+function readHsl(varName: string, fallback: { h: number; s: number }): { h: number; s: number } {
+  if (typeof window === 'undefined') return fallback;
+  const raw = getComputedStyle(document.documentElement).getPropertyValue(varName).trim();
+  // expected "H S% L%"
+  const m = raw.match(/^(-?\d+(?:\.\d+)?)\s+(-?\d+(?:\.\d+)?)%\s+(-?\d+(?:\.\d+)?)%$/);
+  if (!m) return fallback;
+  return { h: Number(m[1]), s: Number(m[2]) };
+}
+
+/**
  * Colour scale for a position's unrealized PnL % — TradingView / Yahoo Finance
  * heatmap aesthetic: clearly red for losses, clearly green for gains, but with
  * controlled saturation so the surface reads as a financial dashboard rather
@@ -57,49 +87,28 @@ type TreemapDatum = {
  *   - pass 2 (commit 834a25d): HSL with 55% saturation. User: still ugly.
  *   - pass 3 (commit 874d50e): Morandi dusty clay / sage / taupe. User:
  *     "ugly, go back to red+green".
- *   - pass 4 (this commit): red + green hues retained, three-stop ramp,
- *     saturation capped at 48%, lightness 40-58. Avoids the candy look of
- *     pass 1 while keeping the colours unmistakably red and green.
+ *   - pass 4 (commit before): red + green hues retained, three-stop ramp,
+ *     saturation capped at 48%, lightness 40-58.
+ *   - pass 5 (this commit): hue+saturation sourced from theme CSS variables
+ *     (--success / --danger) so each theme family uses its own green/red.
  *
- * Extreme is clamped at ±15%.
+ * Extreme is clamped at ±15%. Green = profit, Red = loss (never flipped).
  */
-function colourForPnlPct(pct: number | null): string {
-  if (pct == null || Number.isNaN(pct)) return 'hsl(220, 6%, 55%)';
+function colourForPnlPct(pct: number | null, palette: PnlRampPalette): string {
+  if (pct == null || Number.isNaN(pct)) return 'hsl(220 6% 55%)';
 
   const CAP = 15;
   const clamped = Math.max(-CAP, Math.min(CAP, pct));
-  const t = Math.abs(clamped) / CAP;          // 0 at flat → 1 at extreme
+  const t = Math.abs(clamped) / CAP; // 0 flat → 1 extreme
 
-  // Three-stop ramp. Hues stay firmly in red (0–8°) and green (138–148°),
-  // so the colour identity is never ambiguous. Saturation/lightness are
-  // tuned so even the extreme tile doesn't shout against a light card.
-  //   flat    : cool slate — 0% position (neutral, slightly blue-grey)
-  //   mid     : muted rose (loss) / muted leaf (gain) — around ±5%
-  //   extreme : warm brick-red (loss) / forest-green (gain) — ±15%
-  const flat = { h: 220, s: 6, l: 55 };
-  const gainMid = { h: 138, s: 30, l: 52 };
-  const gainEnd = { h: 148, s: 46, l: 40 };
-  const lossMid = { h: 6, s: 38, l: 56 };
-  const lossEnd = { h: 4, s: 48, l: 44 };
-
-  const mid = clamped >= 0 ? gainMid : lossMid;
-  const end = clamped >= 0 ? gainEnd : lossEnd;
-
-  // Two-segment lerp gives a smoother visual curve than a single flat→end ramp.
-  const lerp = (a: number, b: number, k: number) => a + (b - a) * k;
-  let h: number, s: number, l: number;
-  if (t <= 0.5) {
-    const k = t / 0.5;
-    h = lerp(flat.h, mid.h, k);
-    s = lerp(flat.s, mid.s, k);
-    l = lerp(flat.l, mid.l, k);
-  } else {
-    const k = (t - 0.5) / 0.5;
-    h = lerp(mid.h, end.h, k);
-    s = lerp(mid.s, end.s, k);
-    l = lerp(mid.l, end.l, k);
+  if (clamped >= 0) {
+    const s = Math.round(palette.gainSat * (0.66 + 0.34 * t));
+    const l = Math.round(54 - 14 * t);
+    return `hsl(${palette.gainHue} ${s}% ${l}%)`;
   }
-  return `hsl(${h.toFixed(0)}, ${s.toFixed(0)}%, ${l.toFixed(0)}%)`;
+  const s = Math.round(palette.lossSat * (0.72 + 0.28 * t));
+  const l = Math.round(56 - 12 * t);
+  return `hsl(${palette.lossHue} ${s}% ${l}%)`;
 }
 
 function formatPct(pct: number | null): string {
@@ -123,10 +132,13 @@ interface TreemapContentProps {
   name?: string;
   size?: number;
   pnlPct?: number | null;
+  palette?: PnlRampPalette;
 }
 
-function TreemapBlock({ x = 0, y = 0, width = 0, height = 0, name, pnlPct }: TreemapContentProps) {
-  const fill = colourForPnlPct(pnlPct ?? null);
+const DEFAULT_PALETTE: PnlRampPalette = { gainHue: 143, gainSat: 38, lossHue: 5, lossSat: 43 };
+
+function TreemapBlock({ x = 0, y = 0, width = 0, height = 0, name, pnlPct, palette = DEFAULT_PALETTE }: TreemapContentProps) {
+  const fill = colourForPnlPct(pnlPct ?? null, palette);
   // Tier thresholds: tiniest blocks just show the ticker on one line; medium
   // blocks add the percentage; large blocks get a roomier two-line layout.
   // Without the symbol-only tier, the right-edge "NET" sliver in the user's
@@ -201,7 +213,7 @@ function HeatmapTooltip({ active, payload }: CustomTooltipProps) {
       <div className="text-muted-text">
         现价 {data.lastPrice.toFixed(2)}
       </div>
-      <div className={`mt-1 font-medium ${(data.pnlPct ?? 0) >= 0 ? 'text-green-400' : 'text-red-400'}`}>
+      <div className={`mt-1 font-medium ${(data.pnlPct ?? 0) >= 0 ? 'text-success' : 'text-danger'}`}>
         {formatPct(data.pnlPct)} · {formatMoney(data.pnlBase, currency)}
       </div>
     </div>
@@ -214,6 +226,18 @@ export const PortfolioHeatmapTreemap: React.FC<PortfolioHeatmapTreemapProps> = (
   height = 520,
   positionsOverride,
 }) => {
+  const { family } = useThemeFamily();
+  const { resolvedTheme } = useTheme();
+
+  // Re-compute the palette whenever the theme family or light/dark mode changes
+  // so hue+saturation track the active theme's --success / --danger tokens.
+  const palette = useMemo<PnlRampPalette>(() => {
+    const gain = readHsl('--success', { h: 143, s: 38 });
+    const loss = readHsl('--danger', { h: 5, s: 43 });
+    return { gainHue: gain.h, gainSat: gain.s, lossHue: loss.h, lossSat: loss.s };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [family, resolvedTheme]);
+
   const [positions, setPositions] = useState<PortfolioPositionItem[]>(positionsOverride ?? []);
   const [isLoading, setIsLoading] = useState(!positionsOverride);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
@@ -282,7 +306,7 @@ export const PortfolioHeatmapTreemap: React.FC<PortfolioHeatmapTreemapProps> = (
   if (errorMsg) {
     return (
       <Card variant="bordered" padding="md" className="home-panel-card">
-        <div className="text-sm text-red-400">持仓数据加载失败：{errorMsg}</div>
+        <div className="text-sm text-danger">持仓数据加载失败：{errorMsg}</div>
       </Card>
     );
   }
@@ -312,7 +336,7 @@ export const PortfolioHeatmapTreemap: React.FC<PortfolioHeatmapTreemapProps> = (
             dataKey="size"
             nameKey="name"
             isAnimationActive={false}
-            content={<TreemapBlock />}
+            content={<TreemapBlock palette={palette} />}
             onClick={(node: unknown) => {
               if (!onSelectSymbol) return;
               const datum = (node as { name?: string } | undefined);

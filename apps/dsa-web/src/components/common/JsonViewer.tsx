@@ -19,7 +19,7 @@ export const JsonViewer: React.FC<JsonViewerProps> = ({
 
   if (!data) {
     return (
-      <div className="text-gray-500 italic py-4 text-center">暂无数据</div>
+      <div className="text-muted-text italic py-4 text-center">暂无数据</div>
     );
   }
 
@@ -37,22 +37,22 @@ export const JsonViewer: React.FC<JsonViewerProps> = ({
       // 高亮 key
       let highlighted = line.replace(
         /"([^"]+)":/g,
-        '<span class="text-cyan-400">"$1"</span>:'
+        '<span class="text-primary">"$1"</span>:'
       );
       // 高亮字符串值
       highlighted = highlighted.replace(
         /: "([^"]*)"/g,
-        ': <span class="text-emerald-400">"$1"</span>'
+        ': <span class="text-success">"$1"</span>'
       );
       // 高亮数字
       highlighted = highlighted.replace(
         /: (-?\d+\.?\d*)/g,
-        ': <span class="text-amber-400">$1</span>'
+        ': <span class="text-warning">$1</span>'
       );
       // 高亮布尔值和 null
       highlighted = highlighted.replace(
         /: (true|false|null)/g,
-        ': <span class="text-purple-400">$1</span>'
+        ': <span class="text-accent-brand">$1</span>'
       );
 
       return (
@@ -71,7 +71,7 @@ export const JsonViewer: React.FC<JsonViewerProps> = ({
       <button
         onClick={handleCopy}
         className="absolute top-2 right-2 px-2 py-1 text-xs rounded
-          bg-slate-700 hover:bg-slate-600 text-gray-300
+          bg-surface-2 hover:bg-hover text-secondary-text
           transition-colors z-10"
       >
         {copied ? '已复制!' : '复制'}
@@ -79,8 +79,8 @@ export const JsonViewer: React.FC<JsonViewerProps> = ({
 
       {/* JSON 内容 */}
       <div
-        className="bg-slate-900/80 rounded-lg p-4 overflow-auto custom-scrollbar
-          border border-slate-700/50 font-mono text-sm text-gray-300"
+        className="bg-card/80 rounded-lg p-4 overflow-auto custom-scrollbar
+          border border-border/50 font-mono text-sm text-secondary-text"
         style={{ maxHeight }}
       >
         <pre className="whitespace-pre-wrap break-words">

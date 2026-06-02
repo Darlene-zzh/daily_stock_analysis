@@ -142,6 +142,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 - [改进] master persona 的 `system_prompt` 从 ~2100 chars 瘦身到 <=1400 chars（约 38% 缩减），剥离冗余 voice/inputs 段、收紧 JSON schema example 但保留 enum 与全部 8 字段，为后续并行 fan-out 节省 TPM 余量。
 - [改进] 主分析器 prompt 新增「intelligence 区块必填字段」段（中英文报告都注入），强制 `latest_news` / `risk_alerts` / `positive_catalysts` / `earnings_outlook` / `sentiment_summary` 5 个子字段在任何情况下都出现（无数据填空字符串 / 空列表），解决 INTC 等案例只填 2 个字段的合规漏洞。
 - [新功能] 投委会新增 `INVESTMENT_COMMITTEE_MASTERS_PARALLEL` 环境变量（默认 `false`），开启后 4 master 用 `ThreadPoolExecutor` 并行 fan-out，将 master 阶段耗时压到串行的约 1/4；免费层 LLM（Gemini / Cerebras / Groq 共享 RPM bucket）不建议开启。`LLMCallBudget.acquire` 同步用 `threading.Lock` 保证并行安全。
+- [新功能] Web 端多主题视觉系统：新增「可爱 / 简约 / 高级」三套全新风格 + 保留「经典」，每套含浅色与暗色两种模式（4 家族 × 明暗 = 8 组合），顶栏（侧边栏底部 / 移动端顶栏）下拉与「设置 → 系统 → 外观」预览卡均可切换，选择记忆在 localStorage（键 `dsa-theme-family`），默认「高级」、明暗跟随系统。采用双轴 token 架构（`<html data-theme=...>` 家族轴 × `.dark` 模式轴），组件统一读语义 CSS 变量、零逻辑改动，新页面自动继承全部主题。涨跌色（红涨绿跌）与状态色（成功/警告/危险）按主题独立定义；持仓热力图盈亏色相跟随主题（绿盈红亏不变）；高级风加香槟金点缀（主卡顶金线 / 选中描金 / 衬线标题字 Fraunces）、可爱风加贴纸徽章 / 按钮微弹跳 / 🍡 空状态 / 圆体字 Quicksand。全套主题文字对比度过 WCAG AA。
 
 ## [3.16.0] - 2026-05-10
 

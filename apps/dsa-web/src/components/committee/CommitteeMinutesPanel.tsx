@@ -29,11 +29,11 @@ const VERDICT_LABEL: Record<CommitteeVerdict, { zh: string; en: string }> = {
 };
 
 const VERDICT_CHIP_CLASS: Record<CommitteeVerdict, string> = {
-  strong_buy: 'bg-emerald-500/15 text-emerald-700 border-emerald-500/30',
-  buy: 'bg-green-500/15 text-green-700 border-green-500/30',
-  hold: 'bg-yellow-500/15 text-yellow-700 border-yellow-500/30',
-  avoid: 'bg-orange-500/15 text-orange-700 border-orange-500/30',
-  short: 'bg-red-500/15 text-red-700 border-red-500/30',
+  strong_buy: 'bg-success/15 text-success border-success/30',
+  buy: 'bg-success/10 text-success border-success/20',
+  hold: 'bg-warning/15 text-warning border-warning/30',
+  avoid: 'bg-warning/20 text-warning border-warning/40',
+  short: 'bg-danger/15 text-danger border-danger/30',
 };
 
 const formatScore = (score: number | undefined): string =>
@@ -89,7 +89,7 @@ const StatusBanner: React.FC<StatusBannerProps> = ({ status, missingAgents, lang
     return (
       <div
         data-testid="committee-status-banner"
-        className="rounded-lg border border-amber-400/40 bg-amber-100/40 px-3 py-2 text-xs text-amber-900"
+        className="rounded-lg border border-warning/40 bg-warning/10 px-3 py-2 text-xs text-warning"
       >
         {language === 'en'
           ? `Committee delivered a verdict with ${count} agent${count === 1 ? '' : 's'} absent.`
@@ -101,7 +101,7 @@ const StatusBanner: React.FC<StatusBannerProps> = ({ status, missingAgents, lang
   return (
     <div
       data-testid="committee-status-banner"
-      className="rounded-lg border border-red-400/40 bg-red-100/40 px-3 py-2 text-xs text-red-900"
+      className="rounded-lg border border-danger/40 bg-danger/10 px-3 py-2 text-xs text-danger"
     >
       {language === 'en'
         ? 'Committee inconclusive — treat as advisory only.'
@@ -176,10 +176,10 @@ const RiskStrip: React.FC<RiskStripProps> = ({ risk, language }) => {
   const severity = risk.severity ?? 'none';
   const severityClass =
     severity === 'hard'
-      ? 'border-red-500/40 bg-red-100/40 text-red-900'
+      ? 'border-danger/40 bg-danger/10 text-danger'
       : severity === 'soft'
-        ? 'border-amber-400/40 bg-amber-100/40 text-amber-900'
-        : 'border-emerald-500/30 bg-emerald-100/30 text-emerald-900';
+        ? 'border-warning/40 bg-warning/10 text-warning'
+        : 'border-success/30 bg-success/10 text-success';
 
   const severityLabel = (() => {
     if (language === 'en') {
@@ -262,7 +262,7 @@ const DebateTimeline: React.FC<DebateTimelineProps> = ({ debate, language }) => 
                   <span
                     className={
                       'mr-1 font-semibold ' +
-                      (exchange.side === 'bull' ? 'text-emerald-700' : 'text-red-700')
+                      (exchange.side === 'bull' ? 'text-success' : 'text-danger')
                     }
                   >
                     {exchange.side === 'bull'

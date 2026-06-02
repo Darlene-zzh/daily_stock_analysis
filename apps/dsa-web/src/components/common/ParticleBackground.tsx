@@ -72,7 +72,19 @@ export const ParticleBackground = () => {
       }
     };
 
+    // Resolve the primary color from the CSS custom property at draw time.
+    // Canvas API cannot consume CSS variables directly, so we read the HSL
+    // channel values set on :root and convert to an rgba() string.
+    const getPrimaryRgb = (): string => {
+      const hsl = getComputedStyle(document.documentElement)
+        .getPropertyValue('--primary')
+        .trim();
+      // --primary is stored as "H S% L%" — wrap in hsl() for the browser.
+      return hsl ? `hsl(${hsl})` : 'hsl(193 100% 43%)';
+    };
+
     const drawLines = (c: CanvasRenderingContext2D) => {
+      const primaryColor = getPrimaryRgb();
       for (let i = 0; i < particles.length; i++) {
         const dxMouse = particles[i].x - mouse.x;
         const dyMouse = particles[i].y - mouse.y;
@@ -81,11 +93,13 @@ export const ParticleBackground = () => {
         if (distMouse > 0 && distMouse < 250) {
           c.beginPath();
           const opacity = 0.8 * (1 - distMouse / 250);
-          c.strokeStyle = `rgba(6, 182, 212, ${opacity})`;
+          c.globalAlpha = opacity;
+          c.strokeStyle = primaryColor;
           c.lineWidth = 2.0;
           c.moveTo(particles[i].x, particles[i].y);
           c.lineTo(mouse.x, mouse.y);
           c.stroke();
+          c.globalAlpha = 1;
           
           const force = (250 - distMouse) / 250;
           particles[i].x += (dxMouse / distMouse) * force * 2.0;

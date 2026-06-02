@@ -30,7 +30,14 @@ import type {
   PortfolioTradeListItem,
 } from '../types/portfolio';
 
-const PIE_COLORS = ['#00d4ff', '#00ff88', '#ffaa00', '#ff7a45', '#7f8cff', '#ff4466'];
+const PIE_COLORS = [
+  'hsl(var(--primary))',
+  'hsl(var(--success))',
+  'hsl(var(--warning))',
+  'hsl(var(--warning) / 0.7)',
+  'hsl(var(--accent-brand))',
+  'hsl(var(--danger))',
+];
 const DEFAULT_PAGE_SIZE = 20;
 const FALLBACK_BROKERS: PortfolioImportBrokerItem[] = [
   { broker: 'huatai', aliases: [], displayName: '华泰' },
@@ -861,7 +868,7 @@ const PortfolioPage: React.FC = () => {
     <div className="portfolio-page min-h-screen space-y-4 p-4 md:p-6">
       <section className="space-y-3">
         <div className="space-y-2">
-          <h1 className="text-xl md:text-2xl font-semibold text-foreground">持仓管理</h1>
+          <h1 className="text-xl md:text-2xl font-semibold text-foreground font-display">持仓管理</h1>
           <p className="text-xs md:text-sm text-secondary">
             组合快照、手工录入、CSV 导入与风险分析（支持全组合 / 单账户切换）
           </p>

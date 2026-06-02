@@ -39,8 +39,7 @@ export function RefreshPriceButton({
       disabled={loading}
       className={clsx(
         'inline-flex items-center gap-1 rounded border px-2 py-1 text-xs',
-        'border-slate-300 bg-white hover:bg-slate-50',
-        'dark:border-slate-700 dark:bg-slate-900 dark:hover:bg-slate-800',
+        'border-border bg-card hover:bg-hover',
         'disabled:opacity-50 disabled:cursor-not-allowed',
         className,
       )}

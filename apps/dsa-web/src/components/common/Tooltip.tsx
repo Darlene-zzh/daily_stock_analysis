@@ -8,6 +8,8 @@ interface TooltipProps {
   children: React.ReactNode;
   side?: 'top' | 'bottom';
   focusable?: boolean;
+  /** Force the tooltip closed (e.g. while an attached menu/popover is open) without unmounting the hover trigger. */
+  disabled?: boolean;
   className?: string;
   contentClassName?: string;
 }
@@ -22,6 +24,7 @@ export const Tooltip: React.FC<TooltipProps> = ({
   children,
   side = 'top',
   focusable = false,
+  disabled = false,
   className = '',
   contentClassName = '',
 }) => {
@@ -121,7 +124,7 @@ export const Tooltip: React.FC<TooltipProps> = ({
         {children}
       </span>
 
-      {typeof document !== 'undefined' && open
+      {typeof document !== 'undefined' && open && !disabled
         ? createPortal(
             <span
               ref={tooltipRef}

@@ -10,6 +10,7 @@ import { ConfirmDialog } from '../components/common/ConfirmDialog';
 import { EmptyState } from '../components/common/EmptyState';
 import { AuthSettingsCard } from '../components/settings/AuthSettingsCard';
 import { ChangePasswordCard } from '../components/settings/ChangePasswordCard';
+import { ThemeFamilySelector } from '../components/settings/ThemeFamilySelector';
 import { IntelligentImport } from '../components/settings/IntelligentImport';
 import { LLMChannelEditor } from '../components/settings/LLMChannelEditor/LLMChannelEditor';
 import { NotificationTestPanel } from '../components/settings/NotificationTestPanel';
@@ -503,7 +504,7 @@ const SettingsPage: React.FC = () => {
       <div className="mb-5 rounded-[1.5rem] border settings-border bg-card/94 p-5 shadow-soft-card-strong backdrop-blur-sm">
         <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
           <div>
-            <h1 className="text-xl font-semibold tracking-tight text-foreground">系统设置</h1>
+            <h1 className="text-xl font-semibold tracking-tight text-foreground font-display">系统设置</h1>
             <p className="text-xs leading-6 text-muted-text">
               统一管理模型、数据源、通知、安全认证与导入能力。
             </p>
@@ -565,6 +566,14 @@ const SettingsPage: React.FC = () => {
 
           <section className="space-y-4">
             {activeCategory === 'system' ? <AuthSettingsCard /> : null}
+            {activeCategory === 'system' ? (
+              <SettingsSectionCard title="外观">
+                <div className="space-y-2">
+                  <h3 className="text-sm font-semibold text-foreground">主题风格</h3>
+                  <ThemeFamilySelector />
+                </div>
+              </SettingsSectionCard>
+            ) : null}
             {activeCategory === 'system' ? (
               <SettingsSectionCard
                 title="版本信息"
@@ -653,7 +662,7 @@ const SettingsPage: React.FC = () => {
                   </div>
                 ) : null}
                 {WEB_BUILD_INFO.isFallbackVersion ? (
-                  <p className="text-xs leading-6 text-amber-700 dark:text-amber-300">
+                  <p className="text-xs leading-6 text-warning">
                     当前 package.json 仍为占位版本 0.0.0，页面已自动回退展示构建标识，避免误判旧资源仍在生效。
                   </p>
                 ) : null}
@@ -666,7 +675,7 @@ const SettingsPage: React.FC = () => {
               >
                 <div className="space-y-4">
                   {!isEnvBackupAllowed ? (
-                    <p className="text-xs leading-6 text-amber-700 dark:text-amber-300">
+                    <p className="text-xs leading-6 text-warning">
                       当前 Web 端未开启管理员鉴权，导出/导入 `.env` 备份功能已停用；请先将
                       `ADMIN_AUTH_ENABLED` 设为 `true` 并完成管理员登录后再使用。
                     </p>

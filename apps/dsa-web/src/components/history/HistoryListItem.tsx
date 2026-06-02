@@ -70,7 +70,7 @@ export const HistoryListItem: React.FC<HistoryListItemProps> = ({
               className="w-1 h-8 rounded-full flex-shrink-0"
               style={{
                 backgroundColor: sentimentColor,
-                boxShadow: `0 0 10px ${sentimentColor}40`,
+                boxShadow: `0 0 10px color-mix(in srgb, ${sentimentColor} 25%, transparent)`,
               }}
             />
           )}
@@ -93,8 +93,8 @@ export const HistoryListItem: React.FC<HistoryListItemProps> = ({
                   className={`home-history-sentiment-badge shrink-0 shadow-none text-[11px] font-semibold leading-none transition-opacity duration-200${isTruncated ? ' group-hover/item:opacity-80' : ''}`}
                   style={{
                     color: sentimentColor,
-                    borderColor: `${sentimentColor}30`,
-                    backgroundColor: `${sentimentColor}10`,
+                    borderColor: `color-mix(in srgb, ${sentimentColor} 19%, transparent)`,
+                    backgroundColor: `color-mix(in srgb, ${sentimentColor} 6%, transparent)`,
                   }}
                 >
                   {getOperationBadgeLabel(item.operationAdvice)} {item.sentimentScore}

@@ -27,8 +27,7 @@ export function EvidenceRef({ fact, fallbackId, className }: EvidenceRefProps) {
       className={clsx(
         'inline-flex items-center gap-1 rounded px-1.5 py-0.5',
         'text-xs font-mono align-middle',
-        'bg-slate-100 text-slate-700 hover:bg-slate-200',
-        'dark:bg-slate-800 dark:text-slate-200 dark:hover:bg-slate-700',
+        'bg-surface-2 text-secondary-text hover:bg-hover',
         className,
       )}
     >

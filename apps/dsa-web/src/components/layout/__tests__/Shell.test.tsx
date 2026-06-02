@@ -18,6 +18,10 @@ vi.mock('../../../stores/agentChatStore', () => ({
     selector({ completionBadge: true }),
 }));
 
+vi.mock('../../theme/FamilyToggle', () => ({
+  FamilyToggle: () => null,
+}));
+
 beforeAll(() => {
   Object.defineProperty(window, 'matchMedia', {
     writable: true,

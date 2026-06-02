@@ -24,11 +24,11 @@ export interface PriceMapCardProps {
 }
 
 const COLOR_TO_CLASS: Record<PriceMapColor, string> = {
-  red: 'bg-red-500 text-red-700 border-red-300',
-  green: 'bg-green-500 text-green-700 border-green-300',
-  orange: 'bg-orange-500 text-orange-700 border-orange-300',
-  blue: 'bg-blue-500 text-blue-700 border-blue-300',
-  gray: 'bg-slate-500 text-slate-700 border-slate-300',
+  red: 'bg-danger text-danger border-danger/40',
+  green: 'bg-success text-success border-success/40',
+  orange: 'bg-warning text-warning border-warning/40',
+  blue: 'bg-accent-brand text-accent-brand border-accent-brand/40',
+  gray: 'bg-muted text-muted-text border-border',
 };
 
 function distancePct(level: number, current: number): number {
@@ -91,7 +91,7 @@ export function PriceMapCard({
         const q = await onRefresh();
         handleQuote(q);
       }}
-      className="inline-flex items-center gap-1 rounded border border-slate-300 bg-white px-2 py-1 text-xs hover:bg-slate-50 dark:border-slate-700 dark:bg-slate-900 dark:hover:bg-slate-800"
+      className="inline-flex items-center gap-1 rounded border border-border bg-card px-2 py-1 text-xs hover:bg-hover"
       aria-label="刷新当前价"
     >
       <span>刷新价格</span>
@@ -103,28 +103,28 @@ export function PriceMapCard({
   return (
     <div
       className={clsx(
-        'rounded-lg border border-slate-200 dark:border-slate-700',
-        'bg-white dark:bg-slate-900 p-4',
+        'rounded-lg border border-border',
+        'bg-card p-4',
         className,
       )}
       data-component="price-map-card"
     >
       <div className="flex items-baseline justify-between mb-4">
         <div>
-          <div className="text-xs text-slate-500 dark:text-slate-400">当前价</div>
+          <div className="text-xs text-secondary-text">当前价</div>
           <div className="text-2xl font-semibold tabular-nums">
             {displayPrice.toFixed(2)}
           </div>
-          <div className="text-xs text-slate-400">{displayAsOf}</div>
+          <div className="text-xs text-muted-text">{displayAsOf}</div>
         </div>
         {refreshButton}
       </div>
 
       <div className="relative h-12 mt-6">
-        <div className="absolute inset-x-0 top-1/2 h-px bg-slate-200 dark:bg-slate-700" />
+        <div className="absolute inset-x-0 top-1/2 h-px bg-border" />
         {/* Current-price marker */}
         <div
-          className="absolute top-1/2 -translate-y-1/2 -translate-x-1/2 w-3 h-3 rounded-full bg-slate-900 dark:bg-slate-100 ring-2 ring-white dark:ring-slate-900"
+          className="absolute top-1/2 -translate-y-1/2 -translate-x-1/2 w-3 h-3 rounded-full bg-foreground ring-2 ring-card"
           style={{ left: `${project(displayPrice)}%` }}
           aria-label={`当前价 ${displayPrice.toFixed(2)}`}
         />
@@ -154,7 +154,7 @@ export function PriceMapCard({
                 <div className={clsx('font-medium', COLOR_TO_CLASS[lvl.color].split(' ')[1])}>
                   {lvl.label}
                 </div>
-                <div className="text-slate-400 tabular-nums">
+                <div className="text-muted-text tabular-nums">
                   {lvl.price.toFixed(2)} · {formatPct(pct)}
                 </div>
               </div>

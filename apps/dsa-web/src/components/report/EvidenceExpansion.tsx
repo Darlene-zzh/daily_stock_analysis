@@ -87,25 +87,25 @@ export function EvidenceExpansion({
       {Array.from(grouped!.entries()).map(([type, ids]) => {
         const isOpen = openTypes.has(type);
         return (
-          <div key={type} data-evidence-group={type} className="rounded border border-slate-200 dark:border-slate-700">
+          <div key={type} data-evidence-group={type} className="rounded border border-border">
             <button
               type="button"
               onClick={() => toggle(type)}
               aria-expanded={isOpen}
-              className="w-full flex items-center justify-between px-3 py-1.5 text-sm font-medium hover:bg-slate-50 dark:hover:bg-slate-800"
+              className="w-full flex items-center justify-between px-3 py-1.5 text-sm font-medium hover:bg-hover"
             >
               <span>{groupLabel(type)}（{ids.length}）</span>
               <span aria-hidden>{isOpen ? '−' : '+'}</span>
             </button>
             {isOpen && (
-              <div className="px-3 py-2 space-y-1.5 border-t border-slate-100 dark:border-slate-800">
+              <div className="px-3 py-2 space-y-1.5 border-t border-border">
                 {ids.map((id) => {
                   const fact = getFact(id);
                   return (
                     <div key={id} className="flex items-start gap-2 text-sm">
                       <EvidenceRef fact={fact} fallbackId={id} />
                       {fact && (
-                        <span className="text-slate-600 dark:text-slate-300">
+                        <span className="text-secondary-text">
                           {fact.display_value}
                         </span>
                       )}

@@ -55,9 +55,9 @@ const formatPercent = (value: number | null | undefined): string => {
 
 const alphaToneClass = (alpha: number | null | undefined): string => {
   if (typeof alpha !== 'number') return 'text-muted-text';
-  if (alpha > 0.001) return 'text-emerald-600 font-medium';
-  if (alpha < -0.001) return 'text-rose-600 font-medium';
-  return 'text-yellow-700';
+  if (alpha > 0.001) return 'text-success font-medium';
+  if (alpha < -0.001) return 'text-danger font-medium';
+  return 'text-warning';
 };
 
 interface AlphaSparklineProps {
@@ -100,7 +100,7 @@ const AlphaSparkline: React.FC<AlphaSparklineProps> = ({ values, label }) => {
         width={w}
         height={h}
         viewBox={`0 0 ${w} ${h}`}
-        className="text-blue-500"
+        className="text-primary"
       >
         {/* baseline @ y = 0 */}
         <line
@@ -174,10 +174,10 @@ export const DecisionTrackingTab: React.FC<DecisionTrackingTabProps> = ({
     return (
       <section
         data-testid="decision-tracking-error"
-        className="rounded-lg border border-rose-300 bg-rose-50/40 p-4"
+        className="rounded-lg border border-danger/40 bg-danger/10 p-4"
       >
-        <h3 className="mb-2 text-sm font-semibold text-rose-700">{labels.title}</h3>
-        <p className="text-xs text-rose-700">{labels.error}</p>
+        <h3 className="mb-2 text-sm font-semibold text-danger">{labels.title}</h3>
+        <p className="text-xs text-danger">{labels.error}</p>
       </section>
     );
   }

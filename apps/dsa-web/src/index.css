@@ -42,6 +42,13 @@
   --border: 217 28% 84%;
   --input: 217 28% 84%;
   --ring: 193 100% 43%;
+  /* === Multi-theme semantic tokens (classic light defaults) === */
+  --accent-brand: 247 84% 66%;       /* classic 紫 */
+  --accent-brand-2: 193 100% 43%;    /* classic 青（= primary） */
+  --gain: 0 88% 62%;                 /* 涨·红（沿用 --home-price-up） */
+  --loss: 149 100% 42%;              /* 跌·绿（沿用 --home-price-down） */
+  --font-sans: "Inter", "SF Pro Display", "Segoe UI", system-ui, -apple-system, sans-serif;
+  --font-display: var(--font-sans);
   --radius: 1rem;
   --elevated: 0 0% 100%;
   --hover: 214 29% 90%;
@@ -213,18 +220,17 @@
   --settings-border-soft: hsl(218 22% 84% / 0.94);
   --settings-border-strong: hsl(218 18% 68% / 0.98);
   --settings-border-overlay: hsl(218 22% 72% / 0.92);
-  --settings-accent-shadow: hsl(190 100% 50% / 0.08);
-  --settings-primary-border: hsl(190 100% 50% / 0.26);
-  --settings-primary-gradient:
-    linear-gradient(135deg, hsl(190 100% 50% / 0.96), hsl(191 100% 40% / 0.96));
-  --settings-primary-text: hsl(205 71% 6%);
-  --settings-primary-shadow: hsl(190 100% 50% / 0.2);
-  --settings-primary-shadow-hover: hsl(190 100% 50% / 0.22);
+  --settings-accent-shadow: hsl(var(--primary) / 0.08);
+  --settings-primary-border: hsl(var(--primary) / 0.26);
+  --settings-primary-gradient: hsl(var(--primary));
+  --settings-primary-text: hsl(var(--primary-foreground));
+  --settings-primary-shadow: hsl(var(--primary) / 0.2);
+  --settings-primary-shadow-hover: hsl(var(--primary) / 0.22);
   --settings-secondary-border: hsl(218 22% 74% / 0.96);
   --settings-secondary-bg: hsl(214 36% 95% / 0.98);
-  --settings-secondary-border-hover: hsl(190 100% 50% / 0.38);
-  --settings-secondary-bg-hover: hsl(190 100% 50% / 0.12);
-  --settings-glow-hover: hsl(190 100% 50% / 0.38);
+  --settings-secondary-border-hover: hsl(var(--primary) / 0.38);
+  --settings-secondary-bg-hover: hsl(var(--primary) / 0.12);
+  --settings-glow-hover: hsl(var(--primary) / 0.38);
   --settings-skeleton-strong: hsl(218 20% 84% / 0.92);
   --settings-skeleton-soft: hsl(218 22% 92% / 0.96);
   --input-surface-bg: var(--bg-card);
@@ -320,11 +326,18 @@
   --destructive-foreground: 210 33% 98%;
   --border: 226 19% 20%;
   --input: 226 19% 20%;
-  --ring: 190 100% 50%;
+  --ring: var(--primary);
   --elevated: 230 22% 12%;
   --hover: 231 20% 16%;
   --secondary-text: 228 16% 72%;
   --muted-text: 228 10% 48%;
+  /* === Multi-theme semantic tokens (classic dark) === */
+  --accent-brand: 247 84% 72%;
+  --accent-brand-2: var(--primary);
+  --gain: 0 88% 64%;
+  --loss: 149 100% 44%;
+  --font-sans: "Inter", "SF Pro Display", "Segoe UI", system-ui, -apple-system, sans-serif;
+  --font-display: var(--font-sans);
 
   --color-cyan: hsl(var(--primary));
   --color-cyan-dim: hsl(var(--primary) / 0.8);
@@ -476,18 +489,17 @@
   --settings-border-soft: hsl(0 0% 100% / 0.08);
   --settings-border-strong: hsl(0 0% 100% / 0.2);
   --settings-border-overlay: hsl(0 0% 100% / 0.45);
-  --settings-accent-shadow: hsl(190 100% 50% / 0.1);
-  --settings-primary-border: hsl(190 100% 50% / 0.26);
-  --settings-primary-gradient:
-    linear-gradient(135deg, hsl(190 100% 50% / 0.96), hsl(191 100% 40% / 0.96));
-  --settings-primary-text: hsl(205 71% 6%);
-  --settings-primary-shadow: hsl(190 100% 50% / 0.2);
-  --settings-primary-shadow-hover: hsl(190 100% 50% / 0.22);
+  --settings-accent-shadow: hsl(var(--primary) / 0.1);
+  --settings-primary-border: hsl(var(--primary) / 0.26);
+  --settings-primary-gradient: hsl(var(--primary));
+  --settings-primary-text: hsl(var(--primary-foreground));
+  --settings-primary-shadow: hsl(var(--primary) / 0.2);
+  --settings-primary-shadow-hover: hsl(var(--primary) / 0.22);
   --settings-secondary-border: hsl(0 0% 100% / 0.08);
   --settings-secondary-bg: hsl(0 0% 100% / 0.03);
-  --settings-secondary-border-hover: hsl(190 100% 50% / 0.3);
-  --settings-secondary-bg-hover: hsl(190 100% 50% / 0.06);
-  --settings-glow-hover: hsl(190 100% 50% / 0.38);
+  --settings-secondary-border-hover: hsl(var(--primary) / 0.3);
+  --settings-secondary-bg-hover: hsl(var(--primary) / 0.06);
+  --settings-glow-hover: hsl(var(--primary) / 0.38);
   --settings-skeleton-strong: hsl(0 0% 100% / 0.1);
   --settings-skeleton-soft: hsl(0 0% 100% / 0.06);
   --input-surface-bg: var(--bg-card);
@@ -497,7 +509,7 @@
   --input-surface-focus-ring: 0 0 0 4px hsl(var(--primary) / 0.18);
   --settings-input-rest-border: hsl(var(--border) / 0.58);
   --gradient-primary:
-    linear-gradient(135deg, rgba(0, 212, 255, 0.96), rgba(0, 168, 204, 0.96));
+    linear-gradient(135deg, hsl(var(--primary)), hsl(var(--primary) / 0.74));
 
   /* Chat UI Tokens (Dark) */
   --chat-avatar-user-bg: hsl(var(--primary) / 0.8);
@@ -565,6 +577,242 @@
 }
 
 /* =========================================
+   THEME FAMILIES (data-theme)
+   每块覆盖核心语义 token；派生 token 引用核心自动跟随。
+   ========================================= */
+
+/* ---------- PREMIUM（高级/中性，默认家族） ---------- */
+[data-theme="premium"] {
+  --background: 220 16% 96%;
+  --card: 0 0% 100%;
+  --card-foreground: 220 26% 16%;
+  --popover: 0 0% 100%;
+  --popover-foreground: 220 26% 16%;
+  --elevated: 0 0% 100%;
+  --hover: 216 17% 94%;
+  --foreground: 220 26% 16%;
+  --secondary: 216 17% 94%;
+  --secondary-foreground: 220 26% 16%;
+  --secondary-text: 220 17% 31%;
+  --muted: 216 17% 94%;
+  --muted-foreground: 220 10% 45%;
+  --muted-text: 220 10% 45%;
+  --accent: 216 17% 94%;
+  --accent-foreground: 220 26% 16%;
+  --border: 220 12% 90%;
+  --input: 220 12% 90%;
+  --ring: 36 50% 39%;
+  --primary: 36 50% 39%;
+  --primary-foreground: 0 0% 100%;
+  --accent-brand: 210 25% 48%;
+  --accent-brand-2: 36 50% 39%;
+  --gain: 6 63% 46%;
+  --loss: 154 46% 34%;
+  --success: 154 46% 34%;
+  --color-success: 154 46% 34%;
+  --warning: 38 70% 41%;
+  --color-warning: 38 70% 41%;
+  --danger: 5 61% 44%;
+  --color-danger: 5 61% 44%;
+  --destructive: 5 61% 44%;
+  --radius: 0.625rem;
+  --font-sans: "Inter", system-ui, sans-serif;
+  --font-display: "Fraunces", Georgia, "Times New Roman", serif;
+  --color-cyan-glow: hsl(var(--primary) / 0.12);
+}
+[data-theme="premium"].dark {
+  --background: 222 34% 11%;
+  --card: 221 30% 15%;
+  --card-foreground: 218 31% 95%;
+  --popover: 221 30% 15%;
+  --popover-foreground: 218 31% 95%;
+  --elevated: 221 28% 18%;
+  --hover: 220 26% 22%;
+  --foreground: 218 31% 95%;
+  --secondary: 220 26% 22%;
+  --secondary-foreground: 218 31% 95%;
+  --secondary-text: 218 16% 71%;
+  --muted: 220 26% 22%;
+  --muted-foreground: 220 12% 57%;
+  --muted-text: 220 12% 57%;
+  --accent: 220 26% 22%;
+  --accent-foreground: 218 31% 95%;
+  --border: 220 24% 24%;
+  --input: 220 24% 24%;
+  --ring: 42 52% 60%;
+  --primary: 42 55% 62%;
+  --primary-foreground: 222 35% 10%;
+  --accent-brand: 210 31% 61%;
+  --accent-brand-2: 42 55% 62%;
+  --gain: 4 83% 65%;
+  --loss: 151 50% 53%;
+  --success: 151 50% 53%;
+  --color-success: 151 50% 53%;
+  --warning: 38 61% 56%;
+  --color-warning: 38 61% 56%;
+  --danger: 4 83% 65%;
+  --color-danger: 4 83% 65%;
+  --destructive: 4 83% 65%;
+  --color-cyan-glow: hsl(var(--primary) / 0.18);
+}
+
+/* ---------- CUTE（可爱·草莓奶昔） ---------- */
+[data-theme="cute"] {
+  --background: 336 100% 97%;
+  --card: 0 0% 100%;
+  --card-foreground: 331 22% 29%;
+  --popover: 0 0% 100%;
+  --popover-foreground: 331 22% 29%;
+  --elevated: 0 0% 100%;
+  --hover: 334 100% 95%;
+  --foreground: 331 22% 29%;
+  --secondary: 334 100% 95%;
+  --secondary-foreground: 331 22% 29%;
+  --secondary-text: 333 17% 41%;
+  --muted: 334 100% 95%;
+  --muted-foreground: 334 16% 46%;
+  --muted-text: 334 16% 46%;
+  --accent: 334 100% 95%;
+  --accent-foreground: 331 22% 29%;
+  --border: 336 100% 93%;
+  --input: 336 100% 93%;
+  --ring: 334 100% 75%;
+  --primary: 334 100% 75%;
+  --primary-foreground: 0 0% 100%;
+  --accent-brand: 336 71% 62%;
+  --accent-brand-2: 336 71% 62%;
+  --gain: 344 100% 65%;
+  --loss: 147 43% 52%;
+  --success: 147 43% 52%;
+  --color-success: 147 43% 52%;
+  --warning: 26 89% 66%;
+  --color-warning: 26 89% 66%;
+  --danger: 344 100% 65%;
+  --color-danger: 344 100% 65%;
+  --destructive: 344 100% 65%;
+  --radius: 1.125rem;
+  --font-sans: "Quicksand", "Nunito", system-ui, sans-serif;
+  --font-display: "Quicksand", "Nunito", system-ui, sans-serif;
+  --color-cyan-glow: hsl(var(--primary) / 0.10);
+}
+[data-theme="cute"].dark {
+  --background: 225 16% 10%;
+  --card: 224 18% 16%;
+  --card-foreground: 216 42% 95%;
+  --popover: 224 18% 16%;
+  --popover-foreground: 216 42% 95%;
+  --elevated: 223 18% 20%;
+  --hover: 220 17% 24%;
+  --foreground: 216 42% 95%;
+  --secondary: 220 17% 24%;
+  --secondary-foreground: 216 42% 95%;
+  --secondary-text: 215 22% 81%;
+  --muted: 220 17% 24%;
+  --muted-foreground: 218 12% 60%;
+  --muted-text: 218 12% 60%;
+  --accent: 220 17% 24%;
+  --accent-foreground: 216 42% 95%;
+  --border: 220 17% 24%;
+  --input: 220 17% 24%;
+  --ring: 333 100% 78%;
+  --primary: 333 100% 78%;
+  --primary-foreground: 294 36% 11%;
+  --accent-brand: 331 100% 83%;
+  --accent-brand-2: 331 100% 83%;
+  --gain: 341 100% 72%;
+  --loss: 147 50% 58%;
+  --success: 147 50% 58%;
+  --color-success: 147 50% 58%;
+  --warning: 25 100% 74%;
+  --color-warning: 25 100% 74%;
+  --danger: 341 100% 72%;
+  --color-danger: 341 100% 72%;
+  --destructive: 341 100% 72%;
+  --color-cyan-glow: hsl(var(--primary) / 0.12);
+}
+
+/* ---------- MINIMAL（简约·纯黑白灰） ---------- */
+[data-theme="minimal"] {
+  --background: 0 0% 98%;
+  --card: 0 0% 100%;
+  --card-foreground: 0 0% 9%;
+  --popover: 0 0% 100%;
+  --popover-foreground: 0 0% 9%;
+  --elevated: 0 0% 100%;
+  --hover: 240 5% 96%;
+  --foreground: 0 0% 9%;
+  --secondary: 240 5% 96%;
+  --secondary-foreground: 0 0% 9%;
+  --secondary-text: 0 0% 25%;
+  --muted: 240 5% 96%;
+  --muted-foreground: 0 0% 45%;
+  --muted-text: 0 0% 45%;
+  --accent: 240 5% 96%;
+  --accent-foreground: 0 0% 9%;
+  --border: 0 0% 90%;
+  --input: 0 0% 90%;
+  --ring: 0 0% 9%;
+  --primary: 0 0% 9%;
+  --primary-foreground: 0 0% 100%;
+  --accent-brand: 0 0% 9%;
+  --accent-brand-2: 0 0% 9%;
+  --gain: 0 72% 51%;
+  --loss: 142 76% 36%;
+  --success: 142 76% 36%;
+  --color-success: 142 76% 36%;
+  --warning: 32 95% 44%;
+  --color-warning: 32 95% 44%;
+  --danger: 0 72% 51%;
+  --color-danger: 0 72% 51%;
+  --destructive: 0 72% 51%;
+  --radius: 0.375rem;
+  --font-sans: "Inter", "Geist", system-ui, sans-serif;
+  --font-display: var(--font-sans);
+  --color-cyan-glow: hsl(var(--primary) / 0);
+  /* 简约 = 纯平：弱化卡片阴影，靠 1px 细线分隔 */
+  --shadow-soft-card: 0 1px 2px hsl(0 0% 0% / 0.04);
+  --shadow-soft-card-strong: 0 1px 3px hsl(0 0% 0% / 0.06);
+}
+[data-theme="minimal"].dark {
+  --background: 0 0% 4%;
+  --card: 0 0% 9%;
+  --card-foreground: 0 0% 98%;
+  --popover: 0 0% 9%;
+  --popover-foreground: 0 0% 98%;
+  --elevated: 0 0% 11%;
+  --hover: 0 0% 15%;
+  --foreground: 0 0% 98%;
+  --secondary: 0 0% 15%;
+  --secondary-foreground: 0 0% 98%;
+  --secondary-text: 0 0% 83%;
+  --muted: 0 0% 15%;
+  --muted-foreground: 240 5% 65%;
+  --muted-text: 240 5% 65%;
+  --accent: 0 0% 15%;
+  --accent-foreground: 0 0% 98%;
+  --border: 0 0% 15%;
+  --input: 0 0% 15%;
+  --ring: 0 0% 98%;
+  --primary: 0 0% 98%;
+  --primary-foreground: 0 0% 4%;
+  --accent-brand: 0 0% 98%;
+  --accent-brand-2: 0 0% 98%;
+  --gain: 0 91% 71%;
+  --loss: 142 69% 58%;
+  --success: 142 69% 58%;
+  --color-success: 142 69% 58%;
+  --warning: 43 96% 56%;
+  --color-warning: 43 96% 56%;
+  --danger: 0 91% 71%;
+  --color-danger: 0 91% 71%;
+  --destructive: 0 91% 71%;
+  --color-cyan-glow: hsl(var(--primary) / 0);
+  /* 简约暗色 = 纯平：去阴影，全靠 1px 细线 */
+  --shadow-soft-card: 0 0 0 1px hsl(0 0% 100% / 0.03);
+  --shadow-soft-card-strong: 0 0 0 1px hsl(0 0% 100% / 0.05);
+}
+
+/* =========================================
    2. GLOBAL STYLES (from Classic)
    ========================================= */
 
@@ -578,6 +826,7 @@
     min-height: 100vh;
     background: hsl(var(--background));
     color: hsl(var(--foreground));
+    font-family: var(--font-sans);
   }
 }
 
@@ -787,9 +1036,9 @@
 }
 
 .badge-cyan {
-  background: rgba(0, 212, 255, 0.15);
+  background: hsl(var(--primary) / 0.15);
   color: var(--color-cyan);
-  border: 1px solid rgba(0, 212, 255, 0.3);
+  border: 1px solid hsl(var(--primary) / 0.3);
 }
 
 .badge-purple {
@@ -1964,20 +2213,16 @@ textarea {
 }
 
 .btn-primary {
-  border: 1px solid rgba(0, 212, 255, 0.26);
-  background: linear-gradient(
-    135deg,
-    rgba(0, 212, 255, 0.96),
-    rgba(0, 168, 204, 0.96)
-  );
-  color: #041118;
-  box-shadow: 0 12px 28px rgba(0, 212, 255, 0.2);
+  border: 1px solid hsl(var(--primary) / 0.26);
+  background: var(--gradient-primary);
+  color: hsl(var(--primary-foreground));
+  box-shadow: 0 12px 28px hsl(var(--primary) / 0.2);
 }
 
 .btn-primary:hover {
   transform: translateY(-1px);
   filter: brightness(1.04);
-  box-shadow: 0 18px 34px rgba(0, 212, 255, 0.22);
+  box-shadow: 0 18px 34px hsl(var(--primary) / 0.22);
 }
 
 .btn-secondary {
@@ -2023,7 +2268,7 @@ textarea {
 :root:not(.dark) .portfolio-page .btn-primary:hover:not(:disabled) {
   box-shadow:
     inset 0 1px 0 hsl(0 0% 100% / 0.18),
-    0 18px 34px rgba(0, 212, 255, 0.22);
+    0 18px 34px hsl(var(--primary) / 0.22);
 }
 
 .bg-hover {
@@ -2111,7 +2356,7 @@ textarea {
   background: hsl(var(--primary) / 0.12);
   box-shadow:
     2px 3px 0 hsl(var(--primary) / 0.06),
-    8px 12px 22px hsl(190 100% 50% / 0.07);
+    8px 12px 22px hsl(var(--primary) / 0.07);
 }
 
 .settings-button-primary {
@@ -2890,4 +3135,65 @@ textarea {
   .backtest-table-scroll-hint {
     text-align: left;
   }
+}
+
+/* ===== PREMIUM gold accents (only data-theme=premium) ===== */
+/* Gold top hairline on primary cards */
+[data-theme="premium"] .terminal-card,
+[data-theme="premium"] .dashboard-card,
+[data-theme="premium"] .glass-card,
+[data-theme="premium"] .home-panel-card {
+  box-shadow: var(--shadow-soft-card), inset 0 1.5px 0 hsl(var(--accent-brand-2) / 0.5);
+}
+/* Gold ring on the selected history item */
+[data-theme="premium"] .home-history-item-selected {
+  border-color: hsl(var(--accent-brand-2) / 0.55);
+  box-shadow: 0 0 0 1px hsl(var(--accent-brand-2) / 0.3), var(--home-panel-selected-shadow);
+}
+
+/* ===== CUTE personality (only data-theme=cute) ===== */
+/* Puffy "sticker" badges/chips */
+[data-theme="cute"] .home-accent-chip,
+[data-theme="cute"] .home-board-status-badge,
+[data-theme="cute"] .history-selection-badge {
+  box-shadow: 0 2px 0 hsl(var(--accent-brand) / 0.30), 0 4px 8px hsl(var(--primary) / 0.16);
+}
+/* Primary button gentle hover bounce */
+[data-theme="cute"] .btn-primary {
+  transition: transform 0.16s ease, box-shadow 0.16s ease, filter 0.16s ease;
+}
+[data-theme="cute"] .btn-primary:hover:not(:disabled) {
+  transform: scale(1.04) translateY(-2px);
+}
+
+/* ===== MINIMAL = 纯平：关掉玻璃拟态/渐变描边/模糊/高光，只留实底 + 1px 细线 ===== */
+[data-theme="minimal"] .terminal-card::before,
+[data-theme="minimal"] .glass-card::before,
+[data-theme="minimal"] .glass-card::after,
+[data-theme="minimal"] .dashboard-card::before,
+[data-theme="minimal"] .dashboard-card::after,
+[data-theme="minimal"] .home-history-item::before {
+  display: none !important;
+}
+[data-theme="minimal"] .terminal-card,
+[data-theme="minimal"] .glass-card,
+[data-theme="minimal"] .dashboard-card,
+[data-theme="minimal"] .home-panel-card,
+[data-theme="minimal"] .home-subpanel,
+[data-theme="minimal"] .home-history-item,
+[data-theme="minimal"] .home-surface-button {
+  background: hsl(var(--card));
+  border: 1px solid hsl(var(--border));
+  box-shadow: none;
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
+}
+[data-theme="minimal"] .home-subpanel,
+[data-theme="minimal"] .home-history-item,
+[data-theme="minimal"] .home-surface-button {
+  background: hsl(var(--background));
+}
+[data-theme="minimal"] .home-history-item-selected {
+  background: hsl(var(--hover));
+  border-color: hsl(var(--foreground) / 0.4);
 }
