@@ -10,6 +10,7 @@ import { ConfirmDialog } from '../components/common/ConfirmDialog';
 import { EmptyState } from '../components/common/EmptyState';
 import { AuthSettingsCard } from '../components/settings/AuthSettingsCard';
 import { ChangePasswordCard } from '../components/settings/ChangePasswordCard';
+import { ThemeFamilySelector } from '../components/settings/ThemeFamilySelector';
 import { IntelligentImport } from '../components/settings/IntelligentImport';
 import { LLMChannelEditor } from '../components/settings/LLMChannelEditor/LLMChannelEditor';
 import { NotificationTestPanel } from '../components/settings/NotificationTestPanel';
@@ -565,6 +566,14 @@ const SettingsPage: React.FC = () => {
 
           <section className="space-y-4">
             {activeCategory === 'system' ? <AuthSettingsCard /> : null}
+            {activeCategory === 'system' ? (
+              <SettingsSectionCard title="外观">
+                <div className="space-y-2">
+                  <h3 className="text-sm font-semibold text-foreground">主题风格</h3>
+                  <ThemeFamilySelector />
+                </div>
+              </SettingsSectionCard>
+            ) : null}
             {activeCategory === 'system' ? (
               <SettingsSectionCard
                 title="版本信息"
