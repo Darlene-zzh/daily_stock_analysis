@@ -3130,3 +3130,32 @@ textarea {
     text-align: left;
   }
 }
+
+/* ===== PREMIUM gold accents (only data-theme=premium) ===== */
+/* Gold top hairline on primary cards */
+[data-theme="premium"] .terminal-card,
+[data-theme="premium"] .dashboard-card,
+[data-theme="premium"] .glass-card,
+[data-theme="premium"] .home-panel-card {
+  box-shadow: var(--shadow-soft-card), inset 0 1.5px 0 hsl(var(--accent-brand-2) / 0.5);
+}
+/* Gold ring on the selected history item */
+[data-theme="premium"] .home-history-item-selected {
+  border-color: hsl(var(--accent-brand-2) / 0.55);
+  box-shadow: 0 0 0 1px hsl(var(--accent-brand-2) / 0.3), var(--home-panel-selected-shadow);
+}
+
+/* ===== CUTE personality (only data-theme=cute) ===== */
+/* Puffy "sticker" badges/chips */
+[data-theme="cute"] .home-accent-chip,
+[data-theme="cute"] .home-board-status-badge,
+[data-theme="cute"] .history-selection-badge {
+  box-shadow: 0 2px 0 hsl(var(--accent-brand) / 0.30), 0 4px 8px hsl(var(--primary) / 0.16);
+}
+/* Primary button gentle hover bounce */
+[data-theme="cute"] .btn-primary {
+  transition: transform 0.16s ease, box-shadow 0.16s ease, filter 0.16s ease;
+}
+[data-theme="cute"] .btn-primary:hover:not(:disabled) {
+  transform: scale(1.04) translateY(-2px);
+}
