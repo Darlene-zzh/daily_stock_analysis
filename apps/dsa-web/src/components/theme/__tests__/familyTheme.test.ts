@@ -9,7 +9,7 @@ import {
 
 describe('familyTheme', () => {
   it('exposes the four families and premium default', () => {
-    expect(THEME_FAMILIES).toEqual(['classic', 'cute', 'minimal', 'premium']);
+    expect(THEME_FAMILIES).toEqual(['premium', 'cute', 'minimal', 'classic']);
     expect(DEFAULT_FAMILY).toBe('premium');
   });
 

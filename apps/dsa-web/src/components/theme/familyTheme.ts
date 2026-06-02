@@ -1,6 +1,6 @@
 export type ThemeFamily = 'classic' | 'cute' | 'minimal' | 'premium';
 
-export const THEME_FAMILIES: ThemeFamily[] = ['classic', 'cute', 'minimal', 'premium'];
+export const THEME_FAMILIES: ThemeFamily[] = ['premium', 'cute', 'minimal', 'classic'];
 export const DEFAULT_FAMILY: ThemeFamily = 'premium';
 export const FAMILY_STORAGE_KEY = 'dsa-theme-family';
 

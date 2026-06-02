@@ -23,6 +23,7 @@ describe('FamilyToggle', () => {
       </FamilyThemeProvider>
     );
     fireEvent.click(screen.getByRole('button', { name: /主题风格/ }));
+    expect(screen.getAllByRole('menuitem')).toHaveLength(4);
     fireEvent.click(screen.getByRole('menuitem', { name: /可爱/ }));
     expect(screen.getByTestId('current')).toHaveTextContent('cute');
   });
