@@ -621,24 +621,24 @@
   --color-cyan-glow: hsl(var(--primary) / 0.12);
 }
 [data-theme="premium"].dark {
-  --background: 224 26% 12%;
-  --card: 222 23% 16%;
+  --background: 222 34% 11%;
+  --card: 221 30% 15%;
   --card-foreground: 218 31% 95%;
-  --popover: 222 23% 16%;
+  --popover: 221 30% 15%;
   --popover-foreground: 218 31% 95%;
-  --elevated: 223 23% 19%;
-  --hover: 220 20% 23%;
+  --elevated: 221 28% 18%;
+  --hover: 220 26% 22%;
   --foreground: 218 31% 95%;
-  --secondary: 220 20% 23%;
+  --secondary: 220 26% 22%;
   --secondary-foreground: 218 31% 95%;
   --secondary-text: 218 16% 71%;
-  --muted: 220 20% 23%;
+  --muted: 220 26% 22%;
   --muted-foreground: 220 12% 57%;
   --muted-text: 220 12% 57%;
-  --accent: 220 20% 23%;
+  --accent: 220 26% 22%;
   --accent-foreground: 218 31% 95%;
-  --border: 220 18% 25%;
-  --input: 220 18% 25%;
+  --border: 220 24% 24%;
+  --input: 220 24% 24%;
   --ring: 210 31% 61%;
   --primary: 218 31% 95%;
   --primary-foreground: 222 28% 9%;
@@ -765,10 +765,13 @@
   --danger: 0 72% 51%;
   --color-danger: 0 72% 51%;
   --destructive: 0 72% 51%;
-  --radius: 0.5rem;
+  --radius: 0.375rem;
   --font-sans: "Inter", "Geist", system-ui, sans-serif;
   --font-display: var(--font-sans);
   --color-cyan-glow: hsl(var(--primary) / 0);
+  /* 简约 = 纯平：弱化卡片阴影，靠 1px 细线分隔 */
+  --shadow-soft-card: 0 1px 2px hsl(0 0% 0% / 0.04);
+  --shadow-soft-card-strong: 0 1px 3px hsl(0 0% 0% / 0.06);
 }
 [data-theme="minimal"].dark {
   --background: 0 0% 4%;
@@ -804,6 +807,9 @@
   --color-danger: 0 91% 71%;
   --destructive: 0 91% 71%;
   --color-cyan-glow: hsl(var(--primary) / 0);
+  /* 简约暗色 = 纯平：去阴影，全靠 1px 细线 */
+  --shadow-soft-card: 0 0 0 1px hsl(0 0% 100% / 0.03);
+  --shadow-soft-card-strong: 0 0 0 1px hsl(0 0% 100% / 0.05);
 }
 
 /* =========================================
