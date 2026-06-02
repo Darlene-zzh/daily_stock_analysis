@@ -99,7 +99,7 @@ export const StrategyHeroCard: React.FC<StrategyHeroCardProps> = ({
               </p>
             )}
             {thesisProvenance === 'synthesized' && (
-              <span className="shrink-0 rounded bg-slate-500/15 px-1.5 py-0.5 text-[10px] font-medium text-slate-400">
+              <span className="shrink-0 rounded bg-foreground/10 px-1.5 py-0.5 text-[10px] font-medium text-muted-text">
                 🤖 代码兜底
               </span>
             )}

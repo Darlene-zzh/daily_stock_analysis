@@ -50,9 +50,9 @@ const text = (lang: ReportLanguage) => {
 };
 
 const SEVERITY_CLASS: Record<'none' | 'soft' | 'hard', string> = {
-  none: 'bg-emerald-500/10 text-emerald-700 border border-emerald-500/30',
-  soft: 'bg-amber-500/15 text-amber-800 border border-amber-500/30',
-  hard: 'bg-red-500/15 text-red-700 border border-red-500/30',
+  none: 'bg-success/10 text-success border border-success/30',
+  soft: 'bg-warning/15 text-warning border border-warning/30',
+  hard: 'bg-danger/15 text-danger border border-danger/30',
 };
 
 const formatPercent = (

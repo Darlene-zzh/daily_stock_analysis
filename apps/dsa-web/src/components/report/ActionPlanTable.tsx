@@ -12,9 +12,9 @@ const DIRECTION_CONFIG: Record<
   ActionPlanItem['direction'],
   { emoji: string; label: string; colorClass: string }
 > = {
-  buy: { emoji: '⬆️', label: '买入/加仓', colorClass: 'text-emerald-400' },
-  sell: { emoji: '⬇️', label: '减仓', colorClass: 'text-amber-400' },
-  stop_loss: { emoji: '🛑', label: '止损清仓', colorClass: 'text-red-400' },
+  buy: { emoji: '⬆️', label: '买入/加仓', colorClass: 'text-gain' },
+  sell: { emoji: '⬇️', label: '减仓', colorClass: 'text-warning' },
+  stop_loss: { emoji: '🛑', label: '止损清仓', colorClass: 'text-loss' },
   take_profit: { emoji: '🎯', label: '止盈', colorClass: 'text-blue-400' },
 };
 
@@ -61,12 +61,12 @@ function PlanItemRow({
           </span>
           <span className="text-xs text-muted-text">优先级 {item.priority}</span>
           {item.tier === 'discipline_anchor' && (
-            <span className="rounded bg-amber-500/15 px-1.5 py-0.5 text-[10px] font-medium text-amber-400">
+            <span className="rounded bg-warning/15 px-1.5 py-0.5 text-[10px] font-medium text-warning">
               📌 纪律锚
             </span>
           )}
           {item.provenance === 'synthesized' && (
-            <span className="rounded bg-slate-500/15 px-1.5 py-0.5 text-[10px] font-medium text-slate-400">
+            <span className="rounded bg-foreground/10 px-1.5 py-0.5 text-[10px] font-medium text-muted-text">
               🤖 代码兜底
             </span>
           )}
