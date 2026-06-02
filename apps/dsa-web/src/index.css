@@ -3165,3 +3165,35 @@ textarea {
 [data-theme="cute"] .btn-primary:hover:not(:disabled) {
   transform: scale(1.04) translateY(-2px);
 }
+
+/* ===== MINIMAL = 纯平：关掉玻璃拟态/渐变描边/模糊/高光，只留实底 + 1px 细线 ===== */
+[data-theme="minimal"] .terminal-card::before,
+[data-theme="minimal"] .glass-card::before,
+[data-theme="minimal"] .glass-card::after,
+[data-theme="minimal"] .dashboard-card::before,
+[data-theme="minimal"] .dashboard-card::after,
+[data-theme="minimal"] .home-history-item::before {
+  display: none !important;
+}
+[data-theme="minimal"] .terminal-card,
+[data-theme="minimal"] .glass-card,
+[data-theme="minimal"] .dashboard-card,
+[data-theme="minimal"] .home-panel-card,
+[data-theme="minimal"] .home-subpanel,
+[data-theme="minimal"] .home-history-item,
+[data-theme="minimal"] .home-surface-button {
+  background: hsl(var(--card));
+  border: 1px solid hsl(var(--border));
+  box-shadow: none;
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
+}
+[data-theme="minimal"] .home-subpanel,
+[data-theme="minimal"] .home-history-item,
+[data-theme="minimal"] .home-surface-button {
+  background: hsl(var(--background));
+}
+[data-theme="minimal"] .home-history-item-selected {
+  background: hsl(var(--hover));
+  border-color: hsl(var(--foreground) / 0.4);
+}
