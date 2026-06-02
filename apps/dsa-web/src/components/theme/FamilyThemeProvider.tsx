@@ -1,7 +1,5 @@
 import {
-  createContext,
   useCallback,
-  useContext,
   useEffect,
   useMemo,
   useState,
@@ -14,13 +12,7 @@ import {
   readStoredFamily,
   type ThemeFamily,
 } from './familyTheme';
-
-type FamilyThemeContextValue = {
-  family: ThemeFamily;
-  setFamily: (family: ThemeFamily) => void;
-};
-
-const FamilyThemeContext = createContext<FamilyThemeContextValue | null>(null);
+import { FamilyThemeContext } from './familyThemeContext';
 
 export const FamilyThemeProvider = ({ children }: { children: ReactNode }) => {
   const [family, setFamilyState] = useState<ThemeFamily>(() =>
@@ -45,11 +37,3 @@ export const FamilyThemeProvider = ({ children }: { children: ReactNode }) => {
 
   return <FamilyThemeContext.Provider value={value}>{children}</FamilyThemeContext.Provider>;
 };
-
-export function useThemeFamily(): FamilyThemeContextValue {
-  const ctx = useContext(FamilyThemeContext);
-  if (!ctx) {
-    throw new Error('useThemeFamily must be used within a FamilyThemeProvider');
-  }
-  return ctx;
-}

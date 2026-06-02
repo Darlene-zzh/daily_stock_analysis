@@ -1,7 +1,8 @@
 import { act, render, renderHook, screen } from '@testing-library/react';
 import { beforeEach, describe, expect, it } from 'vitest';
 import { FAMILY_STORAGE_KEY } from '../familyTheme';
-import { FamilyThemeProvider, useThemeFamily } from '../FamilyThemeProvider';
+import { FamilyThemeProvider } from '../FamilyThemeProvider';
+import { useThemeFamily } from '../useThemeFamily';
 
 const wrapper = ({ children }: { children: React.ReactNode }) => (
   <FamilyThemeProvider>{children}</FamilyThemeProvider>
