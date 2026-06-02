@@ -111,7 +111,7 @@ export default {
         'gradient-purple-cyan': 'linear-gradient(135deg, hsla(var(--accent), 0.2) 0%, hsla(var(--primary), 0.1) 100%)',
         'gradient-card-border': 'linear-gradient(180deg, hsla(var(--accent), 0.4) 0%, hsla(var(--accent), 0.1) 50%, hsla(var(--primary), 0.2) 100%)',
         'gradient-cyan': 'linear-gradient(135deg, hsl(var(--primary)) 0%, hsl(var(--primary) / 0.8) 100%)',
-        'primary-gradient': 'linear-gradient(135deg, #00d4ff 0%, #00a8cc 100%)',
+        'primary-gradient': 'linear-gradient(135deg, hsl(var(--primary)) 0%, hsl(var(--primary) / 0.78) 100%)',
       },
       boxShadow: {
         'soft-card': 'var(--shadow-soft-card)',
