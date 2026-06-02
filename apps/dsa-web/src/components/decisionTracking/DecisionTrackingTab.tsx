@@ -55,8 +55,8 @@ const formatPercent = (value: number | null | undefined): string => {
 
 const alphaToneClass = (alpha: number | null | undefined): string => {
   if (typeof alpha !== 'number') return 'text-muted-text';
-  if (alpha > 0.001) return 'text-gain font-medium';
-  if (alpha < -0.001) return 'text-loss font-medium';
+  if (alpha > 0.001) return 'text-success font-medium';
+  if (alpha < -0.001) return 'text-danger font-medium';
   return 'text-warning';
 };
 

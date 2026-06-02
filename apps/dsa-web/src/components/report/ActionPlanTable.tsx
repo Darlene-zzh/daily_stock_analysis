@@ -12,10 +12,10 @@ const DIRECTION_CONFIG: Record<
   ActionPlanItem['direction'],
   { emoji: string; label: string; colorClass: string }
 > = {
-  buy: { emoji: '⬆️', label: '买入/加仓', colorClass: 'text-gain' },
+  buy: { emoji: '⬆️', label: '买入/加仓', colorClass: 'text-success' },
   sell: { emoji: '⬇️', label: '减仓', colorClass: 'text-warning' },
-  stop_loss: { emoji: '🛑', label: '止损清仓', colorClass: 'text-loss' },
-  take_profit: { emoji: '🎯', label: '止盈', colorClass: 'text-blue-400' },
+  stop_loss: { emoji: '🛑', label: '止损清仓', colorClass: 'text-danger' },
+  take_profit: { emoji: '🎯', label: '止盈', colorClass: 'text-primary' },
 };
 
 const ORDINALS = ['①', '②', '③', '④'];

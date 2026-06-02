@@ -42,8 +42,8 @@ describe('PositionFlowTimeline', () => {
   it('shows a positive worst case as a green gain (profit-protecting stop)', () => {
     render(<PositionFlowTimeline summary={summary} triggers={[]} />);
     const worst = screen.getByText('+12.34 GBP');
-    expect(worst).toHaveClass('text-gain');
-    expect(worst).not.toHaveClass('text-loss');
+    expect(worst).toHaveClass('text-success');
+    expect(worst).not.toHaveClass('text-danger');
   });
 
   it('shows a negative worst case as a red loss with native minus sign', () => {
@@ -54,8 +54,8 @@ describe('PositionFlowTimeline', () => {
     };
     render(<PositionFlowTimeline summary={losing} triggers={[]} />);
     const worst = screen.getByText('-8.5 GBP');
-    expect(worst).toHaveClass('text-loss');
-    expect(worst).not.toHaveClass('text-gain');
+    expect(worst).toHaveClass('text-danger');
+    expect(worst).not.toHaveClass('text-success');
   });
 
   it('renders a row per trigger in priority order with direction emoji + price', () => {

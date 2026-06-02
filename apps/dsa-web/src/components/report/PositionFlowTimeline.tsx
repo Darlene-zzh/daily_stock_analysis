@@ -77,8 +77,8 @@ export const PositionFlowTimeline: React.FC<PositionFlowTimelineProps> = ({
             <p
               className={`font-mono ${
                 (summary.worstCaseLossAmount ?? 0) >= 0
-                  ? 'text-gain'
-                  : 'text-loss'
+                  ? 'text-success'
+                  : 'text-danger'
               }`}
             >
               {summary.worstCaseLossAmount != null
@@ -88,7 +88,7 @@ export const PositionFlowTimeline: React.FC<PositionFlowTimelineProps> = ({
           </div>
           <div>
             <p className="text-muted-text">最好止盈</p>
-            <p className="font-mono text-gain">
+            <p className="font-mono text-success">
               {summary.bestCaseGainAmount != null
                 ? `+${summary.bestCaseGainAmount} ${ccy}`.trim()
                 : '—'}
