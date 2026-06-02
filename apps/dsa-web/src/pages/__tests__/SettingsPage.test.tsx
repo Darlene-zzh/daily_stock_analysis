@@ -183,6 +183,9 @@ vi.mock('../../components/settings/SettingsSectionCard', () => ({
     </section>
   ),
 }));
+vi.mock('../../components/settings/ThemeFamilySelector', () => ({
+  ThemeFamilySelector: () => null,
+}));
 
 function createDesktopRuntime(overrides: Record<string, unknown> = {}) {
   return {
