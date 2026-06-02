@@ -48,7 +48,7 @@ export const SidebarNav: React.FC<SidebarNavProps> = ({ collapsed = false, onNav
         ) : null}
       </div>
 
-      <nav className="flex flex-1 flex-col gap-1.5" aria-label="主导航">
+      <nav className="flex flex-col gap-1.5" aria-label="主导航">
         {NAV_ITEMS.map(({ key, label, to, icon: Icon, exact, badge }) => (
           <NavLink
             key={key}
@@ -97,7 +97,12 @@ export const SidebarNav: React.FC<SidebarNavProps> = ({ collapsed = false, onNav
         ))}
       </nav>
 
-      <div className="mt-4 mb-2 flex flex-col gap-1.5">
+      <div
+        className={cn(
+          'mt-auto flex items-center border-t border-border/60',
+          collapsed ? 'flex-col gap-1 pt-2' : 'flex-row justify-center gap-2 pt-3'
+        )}
+      >
         <FamilyToggle variant="nav" collapsed={collapsed} />
         <ThemeToggle variant="nav" collapsed={collapsed} />
       </div>
@@ -107,7 +112,7 @@ export const SidebarNav: React.FC<SidebarNavProps> = ({ collapsed = false, onNav
           type="button"
           onClick={() => setShowLogoutConfirm(true)}
           className={cn(
-            'mt-5 flex h-11 w-full cursor-pointer select-none items-center gap-3 rounded-2xl border border-transparent px-3 text-sm text-secondary-text transition-all hover:border-border/70 hover:bg-hover hover:text-foreground',
+            'mt-1 flex h-11 w-full cursor-pointer select-none items-center gap-3 rounded-2xl border border-transparent px-3 text-sm text-secondary-text transition-all hover:border-border/70 hover:bg-hover hover:text-foreground',
             collapsed ? 'justify-center px-2' : ''
           )}
         >

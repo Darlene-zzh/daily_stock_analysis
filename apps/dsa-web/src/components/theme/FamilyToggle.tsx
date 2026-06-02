@@ -2,6 +2,7 @@ import type React from 'react';
 import { useEffect, useRef, useState } from 'react';
 import { Check, Palette } from 'lucide-react';
 import { cn } from '../../utils/cn';
+import { Tooltip } from '../common/Tooltip';
 import { THEME_FAMILIES, type ThemeFamily } from './familyTheme';
 import { useThemeFamily } from './useThemeFamily';
 
@@ -16,13 +17,11 @@ const FAMILY_LABELS: Record<ThemeFamily, string> = {
 
 interface FamilyToggleProps {
   variant?: FamilyToggleVariant;
+  /** Accepted for API symmetry with the sidebar; the nav variant is icon-only in both states. */
   collapsed?: boolean;
 }
 
-export const FamilyToggle: React.FC<FamilyToggleProps> = ({
-  variant = 'default',
-  collapsed = false,
-}) => {
+export const FamilyToggle: React.FC<FamilyToggleProps> = ({ variant = 'default' }) => {
   const { family, setFamily } = useThemeFamily();
   const [open, setOpen] = useState(false);
   const ref = useRef<HTMLDivElement | null>(null);
@@ -37,31 +36,34 @@ export const FamilyToggle: React.FC<FamilyToggleProps> = ({
     return () => document.removeEventListener('mousedown', onDown);
   }, [open]);
 
+  const trigger = (
+    <button
+      type="button"
+      onClick={() => setOpen((v) => !v)}
+      data-state={open ? 'open' : 'closed'}
+      aria-haspopup="menu"
+      aria-expanded={open}
+      aria-label="主题风格"
+      className={cn(
+        isNav
+          ? 'group relative flex size-9 select-none items-center justify-center rounded-xl text-muted-text transition-colors hover:bg-[var(--nav-hover-bg)] hover:text-foreground data-[state=open]:bg-[var(--nav-hover-bg)] data-[state=open]:text-foreground'
+          : 'inline-flex h-10 items-center gap-2 rounded-xl border border-border/70 bg-card/80 px-3 text-sm text-secondary-text shadow-soft-card transition-colors hover:bg-hover hover:text-foreground'
+      )}
+    >
+      <Palette className={cn('shrink-0', isNav ? 'size-[18px]' : 'size-4')} />
+      {isNav ? null : <span>{FAMILY_LABELS[family]}</span>}
+    </button>
+  );
+
   return (
     <div className="relative" ref={ref}>
-      <button
-        type="button"
-        onClick={() => setOpen((v) => !v)}
-        data-state={open ? 'open' : 'closed'}
-        aria-haspopup="menu"
-        aria-expanded={open}
-        aria-label="主题风格"
-        className={cn(
-          isNav
-            ? cn(
-                'group relative flex h-[var(--nav-item-height)] w-full select-none items-center gap-3 border-y border-x-0 border-transparent text-sm text-secondary-text transition-all hover:bg-[var(--nav-hover-bg)] hover:text-foreground data-[state=open]:bg-[var(--nav-hover-bg)] data-[state=open]:text-foreground',
-                collapsed ? 'justify-center px-0' : 'px-[var(--nav-item-padding-x)]'
-              )
-            : 'inline-flex h-10 items-center gap-2 rounded-xl border border-border/70 bg-card/80 px-3 text-sm text-secondary-text shadow-soft-card transition-colors hover:bg-hover hover:text-foreground'
-        )}
-      >
-        <Palette className={cn('shrink-0', isNav ? 'ml-1 size-5' : 'size-4')} />
-        {isNav ? (
-          collapsed ? null : <span className="truncate">风格</span>
-        ) : (
-          <span>{FAMILY_LABELS[family]}</span>
-        )}
-      </button>
+      {isNav ? (
+        <Tooltip content="主题风格" side="top" disabled={open}>
+          {trigger}
+        </Tooltip>
+      ) : (
+        trigger
+      )}
       {open && (
         <div
           role="menu"
