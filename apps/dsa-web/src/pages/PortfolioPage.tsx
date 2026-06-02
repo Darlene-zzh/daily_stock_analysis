@@ -30,7 +30,14 @@ import type {
   PortfolioTradeListItem,
 } from '../types/portfolio';
 
-const PIE_COLORS = ['#00d4ff', '#00ff88', '#ffaa00', '#ff7a45', '#7f8cff', '#ff4466'];
+const PIE_COLORS = [
+  'hsl(var(--primary))',
+  'hsl(var(--success))',
+  'hsl(var(--warning))',
+  'hsl(var(--warning) / 0.7)',
+  'hsl(var(--accent-brand))',
+  'hsl(var(--danger))',
+];
 const DEFAULT_PAGE_SIZE = 20;
 const FALLBACK_BROKERS: PortfolioImportBrokerItem[] = [
   { broker: 'huatai', aliases: [], displayName: '华泰' },

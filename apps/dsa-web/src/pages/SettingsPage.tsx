@@ -662,7 +662,7 @@ const SettingsPage: React.FC = () => {
                   </div>
                 ) : null}
                 {WEB_BUILD_INFO.isFallbackVersion ? (
-                  <p className="text-xs leading-6 text-amber-700 dark:text-amber-300">
+                  <p className="text-xs leading-6 text-warning">
                     当前 package.json 仍为占位版本 0.0.0，页面已自动回退展示构建标识，避免误判旧资源仍在生效。
                   </p>
                 ) : null}
@@ -675,7 +675,7 @@ const SettingsPage: React.FC = () => {
               >
                 <div className="space-y-4">
                   {!isEnvBackupAllowed ? (
-                    <p className="text-xs leading-6 text-amber-700 dark:text-amber-300">
+                    <p className="text-xs leading-6 text-warning">
                       当前 Web 端未开启管理员鉴权，导出/导入 `.env` 备份功能已停用；请先将
                       `ADMIN_AUTH_ENABLED` 设为 `true` 并完成管理员登录后再使用。
                     </p>

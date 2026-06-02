@@ -95,27 +95,12 @@ export const ScoreGauge: React.FC<ScoreGaugeProps> = ({
   const arcLength = circumference * 0.75;
   const progress = (animatedScore / 100) * arcLength;
 
-  // Sentiment colors - dynamically computed based on score thresholds.
-  // Light theme uses a restrained glow; dark theme keeps the stronger terminal-style glow.
-  const sentimentConfig = {
-    greed: {
-      color: '#00d4ff',       // Cyan
-      glowFilter: 'rgba(0, 212, 255, 0.66)',
-      lightColor: '#22d3ee',  // Lighter cyan
-      lightEndColor: '#0891b2', // Darker cyan
-    },
-    neutral: {
-      color: '#a855f7',       // Purple
-      glowFilter: 'rgba(168, 85, 247, 0.66)',
-      lightColor: '#c084fc',  // Lighter purple
-      lightEndColor: '#9333ea', // Darker purple
-    },
-    fear: {
-      color: '#ff4466',       // Red
-      glowFilter: 'rgba(255, 68, 102, 0.66)',
-      lightColor: '#fb7185',  // Lighter rose
-      lightEndColor: '#e11d48', // Darker rose
-    },
+  // Sentiment color CSS variable references — one per sentiment key.
+  // Opacity variants are built at usage time to avoid string manipulation.
+  const sentimentCssVar: Record<SentimentKey, string> = {
+    greed: '--primary',
+    neutral: '--accent-brand',
+    fear: '--danger',
   };
 
   // Map score to sentiment key
@@ -126,22 +111,33 @@ export const ScoreGauge: React.FC<ScoreGaugeProps> = ({
   };
 
   const sentimentKey = getSentimentKey(animatedScore);
-  const colors = sentimentConfig[sentimentKey];
+  const cssVar = sentimentCssVar[sentimentKey];
+
+  // Derived color values using CSS custom properties.
+  const colors = {
+    color: `hsl(var(${cssVar}))`,
+    lightColor: `hsl(var(${cssVar}) / 0.9)`,
+    lightEndColor: `hsl(var(${cssVar}) / 0.75)`,
+    glowStrong: `hsl(var(${cssVar}) / 0.66)`,
+    glowLight: `hsl(var(${cssVar}) / 0.28)`,
+    glowText: `hsl(var(${cssVar}) / 0.22)`,
+  };
+
   const uniqueId = `${sentimentKey}-${score}-${animatedScore.toFixed(0)}`;
   const gaugeTheme: GaugeVisualStyle = isDark
     ? {
-        svgFilter: `drop-shadow(0 0 12px ${colors.glowFilter})`,
+        svgFilter: `drop-shadow(0 0 12px ${colors.glowStrong})`,
         glowBlur: 4,
         glowOpacity: 0.3,
         glowStrokeExtra: gap,
-        valueTextShadow: `0 0 30px ${colors.glowFilter}`,
+        valueTextShadow: `0 0 30px ${colors.glowStrong}`,
       }
     : {
-        svgFilter: `drop-shadow(0 0 8px ${colors.glowFilter.replace('0.66', '0.28')})`,
+        svgFilter: `drop-shadow(0 0 8px ${colors.glowLight})`,
         glowBlur: 3.4,
         glowOpacity: 0.26,
         glowStrokeExtra: Math.max(3, gap * 0.55),
-        valueTextShadow: `0 0 16px ${colors.glowFilter.replace('0.66', '0.22')}`,
+        valueTextShadow: `0 0 16px ${colors.glowText}`,
       };
 
   return (
