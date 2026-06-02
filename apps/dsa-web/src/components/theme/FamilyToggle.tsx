@@ -57,7 +57,7 @@ export const FamilyToggle: React.FC<FamilyToggleProps> = ({
       >
         <Palette className={cn('shrink-0', isNav ? 'ml-1 size-5' : 'size-4')} />
         {isNav ? (
-          collapsed ? null : <span className="truncate">主题风格</span>
+          collapsed ? null : <span className="truncate">风格</span>
         ) : (
           <span>{FAMILY_LABELS[family]}</span>
         )}
