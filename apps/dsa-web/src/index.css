@@ -2160,20 +2160,16 @@ textarea {
 }
 
 .btn-primary {
-  border: 1px solid rgba(0, 212, 255, 0.26);
-  background: linear-gradient(
-    135deg,
-    rgba(0, 212, 255, 0.96),
-    rgba(0, 168, 204, 0.96)
-  );
-  color: #041118;
-  box-shadow: 0 12px 28px rgba(0, 212, 255, 0.2);
+  border: 1px solid hsl(var(--primary) / 0.26);
+  background: var(--gradient-primary);
+  color: hsl(var(--primary-foreground));
+  box-shadow: 0 12px 28px hsl(var(--primary) / 0.2);
 }
 
 .btn-primary:hover {
   transform: translateY(-1px);
   filter: brightness(1.04);
-  box-shadow: 0 18px 34px rgba(0, 212, 255, 0.22);
+  box-shadow: 0 18px 34px hsl(var(--primary) / 0.22);
 }
 
 .btn-secondary {
