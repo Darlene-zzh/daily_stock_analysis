@@ -7,6 +7,7 @@ import { useAgentChatStore } from '../../stores/agentChatStore';
 import { cn } from '../../utils/cn';
 import { ConfirmDialog } from '../common/ConfirmDialog';
 import { StatusDot } from '../common/StatusDot';
+import { FamilyToggle } from '../theme/FamilyToggle';
 import { ThemeToggle } from '../theme/ThemeToggle';
 
 type SidebarNavProps = {
@@ -96,8 +97,9 @@ export const SidebarNav: React.FC<SidebarNavProps> = ({ collapsed = false, onNav
         ))}
       </nav>
 
-      <div className="mt-4 mb-2">
+      <div className="mt-4 mb-2 flex flex-col gap-1.5">
         <ThemeToggle variant="nav" collapsed={collapsed} />
+        {!collapsed && <FamilyToggle />}
       </div>
 
       {authEnabled ? (
