@@ -42,6 +42,13 @@
   --border: 217 28% 84%;
   --input: 217 28% 84%;
   --ring: 193 100% 43%;
+  /* === Multi-theme semantic tokens (classic light defaults) === */
+  --accent-brand: 247 84% 66%;       /* classic 紫 */
+  --accent-brand-2: 193 100% 43%;    /* classic 青（= primary） */
+  --gain: 0 88% 62%;                 /* 涨·红（沿用 --home-price-up） */
+  --loss: 149 100% 42%;              /* 跌·绿（沿用 --home-price-down） */
+  --font-sans: "Inter", "SF Pro Display", "Segoe UI", system-ui, -apple-system, sans-serif;
+  --font-display: var(--font-sans);
   --radius: 1rem;
   --elevated: 0 0% 100%;
   --hover: 214 29% 90%;
@@ -325,6 +332,13 @@
   --hover: 231 20% 16%;
   --secondary-text: 228 16% 72%;
   --muted-text: 228 10% 48%;
+  /* === Multi-theme semantic tokens (classic dark) === */
+  --accent-brand: 247 84% 72%;
+  --accent-brand-2: 190 100% 50%;
+  --gain: 0 88% 64%;
+  --loss: 149 100% 44%;
+  --font-sans: "Inter", "SF Pro Display", "Segoe UI", system-ui, -apple-system, sans-serif;
+  --font-display: var(--font-sans);
 
   --color-cyan: hsl(var(--primary));
   --color-cyan-dim: hsl(var(--primary) / 0.8);
@@ -562,6 +576,188 @@
   --login-input-toggle-active-text: hsl(var(--primary) / 0.96);
   --login-grid-line: hsl(0 0% 50% / 0.04);
   --login-grid-mask: radial-gradient(ellipse 80% 50% at 50% 50%, #000 70%, transparent 100%);
+}
+
+/* =========================================
+   THEME FAMILIES (data-theme)
+   每块覆盖核心语义 token；派生 token 引用核心自动跟随。
+   ========================================= */
+
+/* ---------- PREMIUM（高级/中性，默认家族） ---------- */
+[data-theme="premium"] {
+  --background: 220 16% 96%;
+  --card: 0 0% 100%;
+  --card-foreground: 220 26% 16%;
+  --popover: 0 0% 100%;
+  --popover-foreground: 220 26% 16%;
+  --elevated: 0 0% 100%;
+  --hover: 216 17% 94%;
+  --foreground: 220 26% 16%;
+  --secondary: 216 17% 94%;
+  --secondary-foreground: 220 26% 16%;
+  --secondary-text: 220 17% 31%;
+  --muted: 216 17% 94%;
+  --muted-foreground: 220 8% 61%;
+  --muted-text: 220 8% 61%;
+  --accent: 216 17% 94%;
+  --accent-foreground: 220 26% 16%;
+  --border: 220 12% 90%;
+  --input: 220 12% 90%;
+  --ring: 210 25% 48%;
+  --primary: 220 26% 16%;
+  --primary-foreground: 42 31% 94%;
+  --accent-brand: 210 25% 48%;
+  --accent-brand-2: 36 36% 52%;
+  --gain: 6 63% 46%;
+  --loss: 154 46% 34%;
+  --radius: 0.625rem;
+  --font-sans: "Inter", system-ui, sans-serif;
+  --font-display: "Fraunces", Georgia, "Times New Roman", serif;
+}
+[data-theme="premium"].dark {
+  --background: 224 30% 7%;
+  --card: 221 27% 12%;
+  --card-foreground: 218 31% 95%;
+  --popover: 221 27% 12%;
+  --popover-foreground: 218 31% 95%;
+  --elevated: 224 30% 15%;
+  --hover: 220 23% 18%;
+  --foreground: 218 31% 95%;
+  --secondary: 220 23% 18%;
+  --secondary-foreground: 218 31% 95%;
+  --secondary-text: 218 16% 71%;
+  --muted: 220 23% 18%;
+  --muted-foreground: 220 9% 46%;
+  --muted-text: 220 9% 46%;
+  --accent: 220 23% 18%;
+  --accent-foreground: 218 31% 95%;
+  --border: 220 23% 18%;
+  --input: 220 23% 18%;
+  --ring: 210 31% 61%;
+  --primary: 218 31% 95%;
+  --primary-foreground: 222 28% 9%;
+  --accent-brand: 210 31% 61%;
+  --accent-brand-2: 40 55% 66%;
+  --gain: 4 83% 65%;
+  --loss: 151 50% 53%;
+}
+
+/* ---------- CUTE（可爱·草莓奶昔） ---------- */
+[data-theme="cute"] {
+  --background: 336 100% 97%;
+  --card: 0 0% 100%;
+  --card-foreground: 331 22% 29%;
+  --popover: 0 0% 100%;
+  --popover-foreground: 331 22% 29%;
+  --elevated: 0 0% 100%;
+  --hover: 334 100% 95%;
+  --foreground: 331 22% 29%;
+  --secondary: 334 100% 95%;
+  --secondary-foreground: 331 22% 29%;
+  --secondary-text: 333 17% 41%;
+  --muted: 334 100% 95%;
+  --muted-foreground: 334 13% 55%;
+  --muted-text: 334 13% 55%;
+  --accent: 334 100% 95%;
+  --accent-foreground: 331 22% 29%;
+  --border: 336 100% 93%;
+  --input: 336 100% 93%;
+  --ring: 334 100% 75%;
+  --primary: 334 100% 75%;
+  --primary-foreground: 0 0% 100%;
+  --accent-brand: 336 71% 62%;
+  --accent-brand-2: 336 71% 62%;
+  --gain: 344 100% 65%;
+  --loss: 147 43% 52%;
+  --radius: 1.125rem;
+  --font-sans: "Quicksand", "Nunito", system-ui, sans-serif;
+  --font-display: "Quicksand", "Nunito", system-ui, sans-serif;
+}
+[data-theme="cute"].dark {
+  --background: 225 16% 10%;
+  --card: 224 18% 16%;
+  --card-foreground: 216 42% 95%;
+  --popover: 224 18% 16%;
+  --popover-foreground: 216 42% 95%;
+  --elevated: 223 18% 20%;
+  --hover: 220 17% 24%;
+  --foreground: 216 42% 95%;
+  --secondary: 220 17% 24%;
+  --secondary-foreground: 216 42% 95%;
+  --secondary-text: 215 22% 81%;
+  --muted: 220 17% 24%;
+  --muted-foreground: 218 12% 60%;
+  --muted-text: 218 12% 60%;
+  --accent: 220 17% 24%;
+  --accent-foreground: 216 42% 95%;
+  --border: 220 17% 24%;
+  --input: 220 17% 24%;
+  --ring: 333 100% 78%;
+  --primary: 333 100% 78%;
+  --primary-foreground: 294 36% 11%;
+  --accent-brand: 331 100% 83%;
+  --accent-brand-2: 331 100% 83%;
+  --gain: 341 100% 72%;
+  --loss: 147 50% 58%;
+}
+
+/* ---------- MINIMAL（简约·纯黑白灰） ---------- */
+[data-theme="minimal"] {
+  --background: 0 0% 98%;
+  --card: 0 0% 100%;
+  --card-foreground: 0 0% 9%;
+  --popover: 0 0% 100%;
+  --popover-foreground: 0 0% 9%;
+  --elevated: 0 0% 100%;
+  --hover: 240 5% 96%;
+  --foreground: 0 0% 9%;
+  --secondary: 240 5% 96%;
+  --secondary-foreground: 0 0% 9%;
+  --secondary-text: 0 0% 25%;
+  --muted: 240 5% 96%;
+  --muted-foreground: 0 0% 45%;
+  --muted-text: 0 0% 45%;
+  --accent: 240 5% 96%;
+  --accent-foreground: 0 0% 9%;
+  --border: 0 0% 90%;
+  --input: 0 0% 90%;
+  --ring: 0 0% 9%;
+  --primary: 0 0% 9%;
+  --primary-foreground: 0 0% 100%;
+  --accent-brand: 0 0% 9%;
+  --accent-brand-2: 0 0% 9%;
+  --gain: 0 72% 51%;
+  --loss: 142 76% 36%;
+  --radius: 0.5rem;
+  --font-sans: "Inter", "Geist", system-ui, sans-serif;
+  --font-display: var(--font-sans);
+}
+[data-theme="minimal"].dark {
+  --background: 0 0% 4%;
+  --card: 0 0% 9%;
+  --card-foreground: 0 0% 98%;
+  --popover: 0 0% 9%;
+  --popover-foreground: 0 0% 98%;
+  --elevated: 0 0% 11%;
+  --hover: 0 0% 15%;
+  --foreground: 0 0% 98%;
+  --secondary: 0 0% 15%;
+  --secondary-foreground: 0 0% 98%;
+  --secondary-text: 0 0% 83%;
+  --muted: 0 0% 15%;
+  --muted-foreground: 240 5% 65%;
+  --muted-text: 240 5% 65%;
+  --accent: 0 0% 15%;
+  --accent-foreground: 0 0% 98%;
+  --border: 0 0% 15%;
+  --input: 0 0% 15%;
+  --ring: 0 0% 98%;
+  --primary: 0 0% 98%;
+  --primary-foreground: 0 0% 4%;
+  --accent-brand: 0 0% 98%;
+  --accent-brand-2: 0 0% 98%;
+  --gain: 0 91% 71%;
+  --loss: 142 69% 58%;
 }
 
 /* =========================================
