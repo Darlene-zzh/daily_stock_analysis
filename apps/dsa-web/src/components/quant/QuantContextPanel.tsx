@@ -220,7 +220,7 @@ export const QuantContextPanel: React.FC<QuantContextPanelProps> = ({
       ) : (
         factors && (
           <div
-            className="text-xs text-amber-700 dark:text-amber-300"
+            className="text-xs text-warning"
             data-testid="quant-context-uncertain"
           >
             ⚠️ {labels.uncertain}

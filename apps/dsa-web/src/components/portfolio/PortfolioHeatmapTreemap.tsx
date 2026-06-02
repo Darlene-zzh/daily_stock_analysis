@@ -201,7 +201,7 @@ function HeatmapTooltip({ active, payload }: CustomTooltipProps) {
       <div className="text-muted-text">
         现价 {data.lastPrice.toFixed(2)}
       </div>
-      <div className={`mt-1 font-medium ${(data.pnlPct ?? 0) >= 0 ? 'text-green-400' : 'text-red-400'}`}>
+      <div className={`mt-1 font-medium ${(data.pnlPct ?? 0) >= 0 ? 'text-success' : 'text-danger'}`}>
         {formatPct(data.pnlPct)} · {formatMoney(data.pnlBase, currency)}
       </div>
     </div>
@@ -282,7 +282,7 @@ export const PortfolioHeatmapTreemap: React.FC<PortfolioHeatmapTreemapProps> = (
   if (errorMsg) {
     return (
       <Card variant="bordered" padding="md" className="home-panel-card">
-        <div className="text-sm text-red-400">持仓数据加载失败：{errorMsg}</div>
+        <div className="text-sm text-danger">持仓数据加载失败：{errorMsg}</div>
       </Card>
     );
   }
