@@ -610,6 +610,13 @@
   --accent-brand-2: 36 36% 52%;
   --gain: 6 63% 46%;
   --loss: 154 46% 34%;
+  --success: 154 46% 34%;
+  --color-success: 154 46% 34%;
+  --warning: 38 70% 41%;
+  --color-warning: 38 70% 41%;
+  --danger: 5 61% 44%;
+  --color-danger: 5 61% 44%;
+  --destructive: 5 61% 44%;
   --radius: 0.625rem;
   --font-sans: "Inter", system-ui, sans-serif;
   --font-display: "Fraunces", Georgia, "Times New Roman", serif;
@@ -640,6 +647,13 @@
   --accent-brand-2: 40 55% 66%;
   --gain: 4 83% 65%;
   --loss: 151 50% 53%;
+  --success: 151 50% 53%;
+  --color-success: 151 50% 53%;
+  --warning: 38 61% 56%;
+  --color-warning: 38 61% 56%;
+  --danger: 4 83% 65%;
+  --color-danger: 4 83% 65%;
+  --destructive: 4 83% 65%;
 }
 
 /* ---------- CUTE（可爱·草莓奶昔） ---------- */
@@ -669,6 +683,13 @@
   --accent-brand-2: 336 71% 62%;
   --gain: 344 100% 65%;
   --loss: 147 43% 52%;
+  --success: 147 43% 52%;
+  --color-success: 147 43% 52%;
+  --warning: 26 89% 66%;
+  --color-warning: 26 89% 66%;
+  --danger: 344 100% 65%;
+  --color-danger: 344 100% 65%;
+  --destructive: 344 100% 65%;
   --radius: 1.125rem;
   --font-sans: "Quicksand", "Nunito", system-ui, sans-serif;
   --font-display: "Quicksand", "Nunito", system-ui, sans-serif;
@@ -699,6 +720,13 @@
   --accent-brand-2: 331 100% 83%;
   --gain: 341 100% 72%;
   --loss: 147 50% 58%;
+  --success: 147 50% 58%;
+  --color-success: 147 50% 58%;
+  --warning: 25 100% 74%;
+  --color-warning: 25 100% 74%;
+  --danger: 341 100% 72%;
+  --color-danger: 341 100% 72%;
+  --destructive: 341 100% 72%;
 }
 
 /* ---------- MINIMAL（简约·纯黑白灰） ---------- */
@@ -728,6 +756,13 @@
   --accent-brand-2: 0 0% 9%;
   --gain: 0 72% 51%;
   --loss: 142 76% 36%;
+  --success: 142 76% 36%;
+  --color-success: 142 76% 36%;
+  --warning: 32 95% 44%;
+  --color-warning: 32 95% 44%;
+  --danger: 0 72% 51%;
+  --color-danger: 0 72% 51%;
+  --destructive: 0 72% 51%;
   --radius: 0.5rem;
   --font-sans: "Inter", "Geist", system-ui, sans-serif;
   --font-display: var(--font-sans);
@@ -758,6 +793,13 @@
   --accent-brand-2: 0 0% 98%;
   --gain: 0 91% 71%;
   --loss: 142 69% 58%;
+  --success: 142 69% 58%;
+  --color-success: 142 69% 58%;
+  --warning: 43 96% 56%;
+  --color-warning: 43 96% 56%;
+  --danger: 0 91% 71%;
+  --color-danger: 0 91% 71%;
+  --destructive: 0 91% 71%;
 }
 
 /* =========================================
