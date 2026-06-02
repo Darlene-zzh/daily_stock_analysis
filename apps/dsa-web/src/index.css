@@ -220,18 +220,18 @@
   --settings-border-soft: hsl(218 22% 84% / 0.94);
   --settings-border-strong: hsl(218 18% 68% / 0.98);
   --settings-border-overlay: hsl(218 22% 72% / 0.92);
-  --settings-accent-shadow: hsl(190 100% 50% / 0.08);
-  --settings-primary-border: hsl(190 100% 50% / 0.26);
+  --settings-accent-shadow: hsl(var(--primary) / 0.08);
+  --settings-primary-border: hsl(var(--primary) / 0.26);
   --settings-primary-gradient:
-    linear-gradient(135deg, hsl(190 100% 50% / 0.96), hsl(191 100% 40% / 0.96));
+    linear-gradient(135deg, hsl(var(--primary) / 0.96), hsl(191 100% 40% / 0.96));
   --settings-primary-text: hsl(205 71% 6%);
-  --settings-primary-shadow: hsl(190 100% 50% / 0.2);
-  --settings-primary-shadow-hover: hsl(190 100% 50% / 0.22);
+  --settings-primary-shadow: hsl(var(--primary) / 0.2);
+  --settings-primary-shadow-hover: hsl(var(--primary) / 0.22);
   --settings-secondary-border: hsl(218 22% 74% / 0.96);
   --settings-secondary-bg: hsl(214 36% 95% / 0.98);
-  --settings-secondary-border-hover: hsl(190 100% 50% / 0.38);
-  --settings-secondary-bg-hover: hsl(190 100% 50% / 0.12);
-  --settings-glow-hover: hsl(190 100% 50% / 0.38);
+  --settings-secondary-border-hover: hsl(var(--primary) / 0.38);
+  --settings-secondary-bg-hover: hsl(var(--primary) / 0.12);
+  --settings-glow-hover: hsl(var(--primary) / 0.38);
   --settings-skeleton-strong: hsl(218 20% 84% / 0.92);
   --settings-skeleton-soft: hsl(218 22% 92% / 0.96);
   --input-surface-bg: var(--bg-card);
@@ -327,14 +327,14 @@
   --destructive-foreground: 210 33% 98%;
   --border: 226 19% 20%;
   --input: 226 19% 20%;
-  --ring: 190 100% 50%;
+  --ring: var(--primary);
   --elevated: 230 22% 12%;
   --hover: 231 20% 16%;
   --secondary-text: 228 16% 72%;
   --muted-text: 228 10% 48%;
   /* === Multi-theme semantic tokens (classic dark) === */
   --accent-brand: 247 84% 72%;
-  --accent-brand-2: 190 100% 50%;
+  --accent-brand-2: var(--primary);
   --gain: 0 88% 64%;
   --loss: 149 100% 44%;
   --font-sans: "Inter", "SF Pro Display", "Segoe UI", system-ui, -apple-system, sans-serif;
@@ -490,18 +490,18 @@
   --settings-border-soft: hsl(0 0% 100% / 0.08);
   --settings-border-strong: hsl(0 0% 100% / 0.2);
   --settings-border-overlay: hsl(0 0% 100% / 0.45);
-  --settings-accent-shadow: hsl(190 100% 50% / 0.1);
-  --settings-primary-border: hsl(190 100% 50% / 0.26);
+  --settings-accent-shadow: hsl(var(--primary) / 0.1);
+  --settings-primary-border: hsl(var(--primary) / 0.26);
   --settings-primary-gradient:
-    linear-gradient(135deg, hsl(190 100% 50% / 0.96), hsl(191 100% 40% / 0.96));
+    linear-gradient(135deg, hsl(var(--primary) / 0.96), hsl(191 100% 40% / 0.96));
   --settings-primary-text: hsl(205 71% 6%);
-  --settings-primary-shadow: hsl(190 100% 50% / 0.2);
-  --settings-primary-shadow-hover: hsl(190 100% 50% / 0.22);
+  --settings-primary-shadow: hsl(var(--primary) / 0.2);
+  --settings-primary-shadow-hover: hsl(var(--primary) / 0.22);
   --settings-secondary-border: hsl(0 0% 100% / 0.08);
   --settings-secondary-bg: hsl(0 0% 100% / 0.03);
-  --settings-secondary-border-hover: hsl(190 100% 50% / 0.3);
-  --settings-secondary-bg-hover: hsl(190 100% 50% / 0.06);
-  --settings-glow-hover: hsl(190 100% 50% / 0.38);
+  --settings-secondary-border-hover: hsl(var(--primary) / 0.3);
+  --settings-secondary-bg-hover: hsl(var(--primary) / 0.06);
+  --settings-glow-hover: hsl(var(--primary) / 0.38);
   --settings-skeleton-strong: hsl(0 0% 100% / 0.1);
   --settings-skeleton-soft: hsl(0 0% 100% / 0.06);
   --input-surface-bg: var(--bg-card);
@@ -620,26 +620,27 @@
   --radius: 0.625rem;
   --font-sans: "Inter", system-ui, sans-serif;
   --font-display: "Fraunces", Georgia, "Times New Roman", serif;
+  --color-cyan-glow: hsl(var(--primary) / 0.12);
 }
 [data-theme="premium"].dark {
-  --background: 224 30% 7%;
-  --card: 221 27% 12%;
+  --background: 224 26% 12%;
+  --card: 222 23% 16%;
   --card-foreground: 218 31% 95%;
-  --popover: 221 27% 12%;
+  --popover: 222 23% 16%;
   --popover-foreground: 218 31% 95%;
-  --elevated: 224 30% 15%;
-  --hover: 220 23% 18%;
+  --elevated: 223 23% 19%;
+  --hover: 220 20% 23%;
   --foreground: 218 31% 95%;
-  --secondary: 220 23% 18%;
+  --secondary: 220 20% 23%;
   --secondary-foreground: 218 31% 95%;
   --secondary-text: 218 16% 71%;
-  --muted: 220 23% 18%;
+  --muted: 220 20% 23%;
   --muted-foreground: 220 9% 46%;
   --muted-text: 220 9% 46%;
-  --accent: 220 23% 18%;
+  --accent: 220 20% 23%;
   --accent-foreground: 218 31% 95%;
-  --border: 220 23% 18%;
-  --input: 220 23% 18%;
+  --border: 220 18% 25%;
+  --input: 220 18% 25%;
   --ring: 210 31% 61%;
   --primary: 218 31% 95%;
   --primary-foreground: 222 28% 9%;
@@ -654,6 +655,7 @@
   --danger: 4 83% 65%;
   --color-danger: 4 83% 65%;
   --destructive: 4 83% 65%;
+  --color-cyan-glow: hsl(var(--primary) / 0.18);
 }
 
 /* ---------- CUTE（可爱·草莓奶昔） ---------- */
@@ -693,6 +695,7 @@
   --radius: 1.125rem;
   --font-sans: "Quicksand", "Nunito", system-ui, sans-serif;
   --font-display: "Quicksand", "Nunito", system-ui, sans-serif;
+  --color-cyan-glow: hsl(var(--primary) / 0.10);
 }
 [data-theme="cute"].dark {
   --background: 225 16% 10%;
@@ -727,6 +730,7 @@
   --danger: 341 100% 72%;
   --color-danger: 341 100% 72%;
   --destructive: 341 100% 72%;
+  --color-cyan-glow: hsl(var(--primary) / 0.12);
 }
 
 /* ---------- MINIMAL（简约·纯黑白灰） ---------- */
@@ -766,6 +770,7 @@
   --radius: 0.5rem;
   --font-sans: "Inter", "Geist", system-ui, sans-serif;
   --font-display: var(--font-sans);
+  --color-cyan-glow: hsl(var(--primary) / 0);
 }
 [data-theme="minimal"].dark {
   --background: 0 0% 4%;
@@ -800,6 +805,7 @@
   --danger: 0 91% 71%;
   --color-danger: 0 91% 71%;
   --destructive: 0 91% 71%;
+  --color-cyan-glow: hsl(var(--primary) / 0);
 }
 
 /* =========================================
@@ -1025,9 +1031,9 @@
 }
 
 .badge-cyan {
-  background: rgba(0, 212, 255, 0.15);
+  background: hsl(var(--primary) / 0.15);
   color: var(--color-cyan);
-  border: 1px solid rgba(0, 212, 255, 0.3);
+  border: 1px solid hsl(var(--primary) / 0.3);
 }
 
 .badge-purple {
@@ -2257,7 +2263,7 @@ textarea {
 :root:not(.dark) .portfolio-page .btn-primary:hover:not(:disabled) {
   box-shadow:
     inset 0 1px 0 hsl(0 0% 100% / 0.18),
-    0 18px 34px rgba(0, 212, 255, 0.22);
+    0 18px 34px hsl(var(--primary) / 0.22);
 }
 
 .bg-hover {
@@ -2345,7 +2351,7 @@ textarea {
   background: hsl(var(--primary) / 0.12);
   box-shadow:
     2px 3px 0 hsl(var(--primary) / 0.06),
-    8px 12px 22px hsl(190 100% 50% / 0.07);
+    8px 12px 22px hsl(var(--primary) / 0.07);
 }
 
 .settings-button-primary {
