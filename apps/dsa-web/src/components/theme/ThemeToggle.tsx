@@ -81,7 +81,7 @@ export const ThemeToggle: React.FC<ThemeToggleProps> = ({
       >
         <TriggerIcon className={cn('shrink-0', isNavVariant ? 'size-5' : 'size-4')} />
         {isNavVariant ? (
-          collapsed ? null : <span className="truncate text-[1.02rem] font-medium">主题</span>
+          collapsed ? null : <span className="truncate text-[1.02rem] font-medium">明暗</span>
         ) : (
           <span className="hidden sm:inline">{resolveThemeLabel(activeTheme)}</span>
         )}

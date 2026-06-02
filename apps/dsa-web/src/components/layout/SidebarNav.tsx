@@ -98,8 +98,8 @@ export const SidebarNav: React.FC<SidebarNavProps> = ({ collapsed = false, onNav
       </nav>
 
       <div className="mt-4 mb-2 flex flex-col gap-1.5">
+        <FamilyToggle variant="nav" collapsed={collapsed} />
         <ThemeToggle variant="nav" collapsed={collapsed} />
-        {!collapsed && <FamilyToggle />}
       </div>
 
       {authEnabled ? (
