@@ -91,6 +91,10 @@ export default {
         'surface-3': 'var(--surface-3)',
         'overlay-hover': 'var(--overlay-hover)',
         'overlay-selected': 'var(--overlay-selected)',
+        gain: 'hsl(var(--gain))',
+        loss: 'hsl(var(--loss))',
+        'accent-brand': 'hsl(var(--accent-brand))',
+        'accent-brand-2': 'hsl(var(--accent-brand-2))',
       },
       borderColor: {
         dim: 'hsl(var(--border-dim-raw) / 0.06)',
@@ -126,6 +130,10 @@ export default {
         xl: '12px',
         '2xl': '16px',
         '3xl': '20px',
+      },
+      fontFamily: {
+        sans: ['var(--font-sans)'],
+        display: ['var(--font-display)'],
       },
       fontSize: {
         xxs: '10px',
